@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.1.0] — 2026-10-07
+
 ### Added
 - A beta app ID under Repository > App, for a beta published as a separate
   app (`org.example.App.Beta`) that installs beside the stable one. Its builds
