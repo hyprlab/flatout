@@ -1020,10 +1020,17 @@
     F.setBusy(publishBtn, true);
     flush().then(function () {
       return call("POST", "/api/v1/site/publish", {});
-    }).then(function () {
+    }).then(function (data) {
       E.hasChanges = false;
       status("Published");
-      F.toast("Published. Visitors see the new version now.");
+      if (data.site_status === "published") {
+        F.toast("Published. Visitors see the new version now.");
+      } else {
+        // Publishing doesn't change who sees the site.
+        F.toast("Published. Visitors still see the " + (data.site_status === "maintenance" ? "maintenance" : "coming-soon") + " page.",
+                "Change", function () { F.openDialog("site-status-modal"); });
+      }
+      if (window.flatoutSetStatusChip) window.flatoutSetStatusChip(data.site_status);
     }).catch(function (err) {
       if (err.errors) showErrors(err.errors);
       F.toastError(err);

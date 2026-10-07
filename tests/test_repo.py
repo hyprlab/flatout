@@ -117,7 +117,9 @@ def test_the_whole_life_of_a_release(app, client, csrf, admin, run_jobs, tmp_pat
     assert "Version 1.2.3" in home and 'id="beta"' in home
     assert client.get(f"/download/{APP}-{beta['arch']}.flatpak").status_code == 200
 
-    # A real client adds the repository and installs from it.
+    # A real client adds the repository and installs from it, with the site
+    # in maintenance: what installs fetch isn't part of the website.
+    assert client.patch("/api/v1/site/status", json={"status": "maintenance"}, headers=h).status_code == 200
     from werkzeug.serving import make_server
     server = make_server("127.0.0.1", 0, app, threaded=True)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -137,6 +139,8 @@ def test_the_whole_life_of_a_release(app, client, csrf, admin, run_jobs, tmp_pat
         server.shutdown()
     # The client's update checks were counted.
     assert client.get("/api/v1/stats").get_json()["today"] >= 1
+
+    client.patch("/api/v1/site/status", json={"status": "published"}, headers=h)
 
     # Ending the beta tells installs so, and the beta section goes.
     assert client.post("/api/v1/channels/beta/end", json={"message": "Over."}, headers=h).status_code == 202

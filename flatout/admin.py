@@ -27,7 +27,7 @@ def _signed_in():
 
 @bp.context_processor
 def _admin_context():
-    ctx = {"site_has_changes": site.has_changes()}
+    ctx = {"site_has_changes": site.has_changes(), "site_status": site.status_json()}
     if current_user.is_authenticated and current_user.is_admin:
         from .main import _turnstile_status
         ctx["admin_users"] = User.query.order_by(User.created_at).all()
@@ -58,8 +58,8 @@ def _checklist(draft: dict, live: dict, published: bool) -> list[dict]:
          "hint": "A .flatpak bundle, made with flatpak build-bundle.",
          "done": Release.query.filter_by(status="live").first() is not None},
         {"title": "Publish the site", "url": url_for("admin.site"),
-         "hint": "Visitors see the placeholder site until then.",
-         "done": published},
+         "hint": "Until then visitors see a coming-soon page.",
+         "done": published and site.status() == "published"},
     ]
 
 
@@ -104,6 +104,17 @@ def media_library():
 def preview():
     """The draft homepage, for the editor's preview pane."""
     return public.render_home(site.get("draft"), preview=True)
+
+
+@bp.route("/preview/status/<state>")
+def preview_status(state):
+    """The maintenance or coming-soon page as visitors see it, with the text
+    saved now."""
+    if state not in ("maintenance", "unpublished"):
+        abort(404)
+    resp = public.render_status(state)
+    resp.status_code = 200
+    return resp
 
 
 @bp.route("/preview/<slug>")

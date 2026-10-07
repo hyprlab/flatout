@@ -146,6 +146,8 @@ def _site_response(name: str = "draft", doc: dict | None = None):
         document=doc if doc is not None else site.get(name),
         has_unpublished_changes=site.has_changes(),
         updated=site.meta(name),
+        # Who sees the site: publishing changes doesn't change it.
+        site_status=site.status(),
     )
 
 
@@ -202,6 +204,32 @@ def site_publish():
     note = str(body().get("note") or "")
     doc = site.publish(g.actor, note)
     return _site_response("live", doc)
+
+
+@bp.route("/site/status")
+@needs("read")
+def site_status_get():
+    """Who sees the site: published, maintenance (a "back soon" page,
+    answered 503) or unpublished (a "coming soon" page), and the text of
+    those two pages. The repository keeps serving whatever the status."""
+    return jsonify(site.status_json())
+
+
+@bp.route("/site/status", methods=["PATCH"])
+@needs("site")
+def site_status_set():
+    """{"status": "maintenance"} switches at once. "pages" changes the two
+    pages' text: {"maintenance": {"title", "message", "until" (ISO 8601 or
+    empty), "updates_note"}, "unpublished": {"title", "message",
+    "updates_note"}}. Text may use placeholders such as {app_name}."""
+    data = body()
+    unknown = set(data) - {"status", "pages"}
+    if unknown:
+        raise ApiError(400, f"Not a field here: {', '.join(sorted(unknown))}.")
+    pages = data.get("pages")
+    if pages is not None and not isinstance(pages, dict):
+        raise ApiError(400, "pages must be an object.")
+    return jsonify(site.set_status(data.get("status"), pages))
 
 
 @bp.route("/site/discard", methods=["POST"])

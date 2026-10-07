@@ -18,6 +18,10 @@ All notable changes to Flatout are documented here. The format follows
   uploaded fonts, the text size, heading weight, corner rounding and width
 - Extra pages at their own address, written in Markdown
 - A media library for images and fonts
+- A site status: live, maintenance (a "back soon" page, with an optional
+  time) or unpublished (a "coming soon" page). A new install is unpublished
+  until its first publish. Updates keep reaching installed copies whatever
+  the status
 - Changes save to a draft with a live preview at desktop, tablet and phone
   widths; publishing makes them live, and every published version can be
   restored

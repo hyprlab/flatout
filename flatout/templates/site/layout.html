@@ -5,23 +5,7 @@
 <!DOCTYPE html>
 <html lang="en"{% if doc.theme.mode != 'system' %} data-theme="{{ doc.theme.mode }}" data-theme-fixed{% endif %}>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  {%- if doc.theme.mode == 'system' %}
-  <script>
-    // Resolve the theme before first paint: the visitor's saved choice, else
-    // the system's, so data-theme always names the mode in use.
-    (function () {
-      try {
-        var t = localStorage.getItem('site-theme');
-        if (t !== 'dark' && t !== 'light') {
-          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        }
-        document.documentElement.setAttribute('data-theme', t);
-      } catch (e) {}
-    })();
-  </script>
-  {%- endif %}
+  {% include "site/head.html" %}
   <title>{% block title %}{{ s.fill(doc.seo.title) }}{% endblock %}</title>
   <meta name="description" content="{% block description %}{{ s.fill(doc.seo.description) }}{% endblock %}">
   <meta property="og:type" content="website">
@@ -34,19 +18,16 @@
   {%- else %}
   <meta name="twitter:card" content="summary">
   {%- endif %}
-  <meta name="theme-color" content="{{ doc.theme.light.hero }}" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="{{ doc.theme.dark.hero }}" media="(prefers-color-scheme: dark)">
-  <link rel="icon" href="{{ s.favicon_url }}">
-  {%- if 'cantarell' in (doc.theme.font_body, doc.theme.font_heading) %}
-  <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ static_url('site/fonts/cantarell-vf-latin.woff2') }}">
-  {%- endif %}
-  <link rel="stylesheet" href="{{ static_url('site/site.css') }}">
-  <style id="site-theme">{{ s.theme_css() }}</style>
-  {% if s.preview %}<meta name="robots" content="noindex">{% endif %}
 </head>
 <body{% if s.preview %} class="is-preview"{% endif %}>
   {%- if s.preview %}
   <div class="preview-flag" role="note">Preview of the unpublished draft</div>
+  {%- endif %}
+  {%- if s.visitor_status %}
+  <div class="preview-flag preview-flag--status" role="note">
+    Visitors see the {{ 'maintenance' if s.visitor_status == 'maintenance' else 'coming-soon' }} page; you see the site
+    because you're signed in. <a href="{{ url_for('admin.home') }}#site-status">Change</a>
+  </div>
   {%- endif %}
 
   {%- set hero_first = (s.sections()|first or {}).get('type') == 'hero' and hero_page|default(false) %}

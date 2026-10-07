@@ -29,17 +29,19 @@
 
   <div class="tiles">
     <section class="panel tile">
-      <p class="tile-label">Site</p>
+      {%- set st = site_status.status %}
+      <p class="tile-label">Site <span class="status-chip status-chip--{{ st }}">{{ {'published': 'Live', 'maintenance': 'Maintenance', 'unpublished': 'Unpublished'}[st] }}</span></p>
       {%- if site_has_changes %}
       <p class="tile-big">Unpublished changes</p>
       <p class="hint">Draft saved by {{ draft_meta.updated_by }}. Visitors see the last published version.</p>
       {%- else %}
       <p class="tile-big">Up to date</p>
-      <p class="hint">{% if revisions %}Published by {{ revisions[0].published_by }}.{% else %}Showing the placeholder site. Publish to make your changes visible.{% endif %}</p>
+      <p class="hint">{% if st == 'maintenance' %}Visitors see the maintenance page.{% elif st == 'unpublished' %}Visitors see a coming-soon page{% if not revisions %} until the first publish{% endif %}.{% else %}Published by {{ revisions[0].published_by if revisions else 'nobody yet' }}.{% endif %}</p>
       {%- endif %}
       <div class="tile-actions">
         <a class="btn btn--primary btn--xs" href="{{ url_for('admin.site') }}">Edit the site</a>
         <a class="btn btn--ghost btn--xs" href="{{ url_for('public.home') }}" target="_blank" rel="noopener">View it</a>
+        <button class="btn btn--ghost btn--xs" type="button" data-open="site-status-modal">Status</button>
       </div>
     </section>
     <section class="panel tile">

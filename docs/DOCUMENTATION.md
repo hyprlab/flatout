@@ -67,6 +67,26 @@ the install guide stay right after each release without being edited.
 Some sections follow the repository on their own: the beta section appears
 only while a beta release is live, and What's new once a release exists.
 
+### Who sees the site
+
+Publishing puts the draft's changes live; the site status, under Site status
+in the sidebar, decides whether visitors get the site at all:
+
+- **Live**: everyone sees the site.
+- **Maintenance**: visitors see a "back soon" page in the site's theme, with
+  an optional time it is expected back. It answers 503 with `Retry-After`, so
+  search engines keep the site's pages instead of indexing the notice.
+- **Unpublished**: visitors see a "coming soon" page, and search engines are
+  asked not to list the site.
+
+A new install is unpublished until its first publish, and then goes live on
+its own; once a status has been chosen, publishing doesn't change it. The text
+of both pages can be edited in the same dialog. Anyone signed in still sees the
+site, with a note on what visitors get. The repository, the install files and
+the downloads keep working whatever the status, so installed copies go on
+updating during maintenance. Scripts and agents switch it with
+`PATCH /api/v1/site/status` or the MCP tool `set_site_status`.
+
 ## Releases
 
 Flatout keeps a signed Flatpak repository at `/repo/` and the files that

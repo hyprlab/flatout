@@ -1539,3 +1539,135 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   font-weight: 700;
   pointer-events: none;
 }
+
+/* The signed-in notice on a site visitors can't see: it carries a link. */
+.preview-flag--status { pointer-events: auto; max-width: calc(100% - 28px); text-align: center; line-height: 1.45; }
+.preview-flag--status a { color: #fff; text-decoration: underline; margin-left: 4px; }
+
+/* ———————— Maintenance and coming soon (status.html) ———————— */
+.status-body { margin: 0; background: var(--hero-bg); }
+.status {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 56px 24px 88px;
+  text-align: center;
+  color: var(--hero-ink);
+  background:
+    radial-gradient(120% 70% at 50% -10%, color-mix(in srgb, var(--hero-ink) 12%, transparent), transparent 62%),
+    var(--hero-bg);
+}
+.status__glow {
+  position: absolute;
+  z-index: -1;
+  width: 62vmax; height: 62vmax;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: .5;
+  animation: status-drift 22s ease-in-out infinite alternate;
+}
+.status__glow--a { top: -24vmax; left: -18vmax; background: color-mix(in srgb, var(--hero-ink) 30%, transparent); }
+.status__glow--b {
+  bottom: -30vmax; right: -20vmax;
+  background: color-mix(in srgb, var(--accent) 55%, var(--hero-bg));
+  animation-delay: -11s;
+}
+@keyframes status-drift {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(7vmax, 5vmax) scale(1.18); }
+}
+.status__inner { max-width: 600px; }
+.status__art { position: relative; width: 144px; margin: 0 auto 30px; }
+.status__icon {
+  position: relative;
+  width: 144px; height: auto;
+  animation: floaty 6s ease-in-out infinite;
+  filter: drop-shadow(0 18px 30px color-mix(in srgb, #000 22%, transparent));
+}
+.status__ring {
+  position: absolute;
+  inset: -16px;
+  border-radius: 42px;
+  border: 2px solid color-mix(in srgb, var(--hero-ink) 38%, transparent);
+  animation: status-ring 3.2s ease-out infinite;
+}
+@keyframes status-ring {
+  from { transform: scale(.9); opacity: .7; }
+  to   { transform: scale(1.3); opacity: 0; }
+}
+.status__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 18px;
+  padding: 7px 15px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--hero-ink) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hero-ink) 22%, transparent);
+  font-size: .86rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.status__pulse {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--button);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--button) 70%, transparent);
+  animation: status-pulse 1.8s ease-out infinite;
+}
+.status--unpublished .status__pulse { background: var(--highlight); }
+@keyframes status-pulse {
+  to { box-shadow: 0 0 0 10px transparent; }
+}
+.status__title {
+  margin: 0 0 14px;
+  font-size: clamp(2.6rem, 8vw, 4.6rem);
+  font-weight: var(--heading-weight);
+  letter-spacing: -.03em;
+  line-height: 1.02;
+  color: var(--hero-ink);
+}
+.status__message {
+  margin: 0 auto;
+  max-width: 30em;
+  font-size: clamp(1.05rem, 2.4vw, 1.25rem);
+  color: color-mix(in srgb, var(--hero-ink) 88%, transparent);
+}
+.status__dots { display: flex; justify-content: center; gap: 8px; margin: 28px 0 0; }
+.status__dots span {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--hero-ink) 80%, transparent);
+  animation: status-dot 1.4s ease-in-out infinite;
+}
+.status__dots span:nth-child(2) { animation-delay: .16s; }
+.status__dots span:nth-child(3) { animation-delay: .32s; }
+@keyframes status-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: .45; }
+  30%           { transform: translateY(-9px); opacity: 1; }
+}
+.status__until { margin: 24px 0 0; font-weight: 600; }
+.status__until time { font-weight: 800; }
+.status__note {
+  display: inline-block;
+  margin: 18px 0 0;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: .92rem;
+  background: color-mix(in srgb, var(--hero-ink) 10%, transparent);
+  color: color-mix(in srgb, var(--hero-ink) 90%, transparent);
+}
+.status__foot {
+  position: absolute;
+  left: 0; right: 0; bottom: 22px;
+  margin: 0;
+  font-size: .82rem;
+  color: color-mix(in srgb, var(--hero-ink) 70%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .status__glow, .status__icon, .status__ring, .status__pulse, .status__dots span { animation: none; }
+  .status__ring { opacity: .35; }
+}

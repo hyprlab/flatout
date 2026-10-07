@@ -1,0 +1,29 @@
+{#- The theme, fonts and styles every public page and the status page share. The title
+    and the sharing tags are in each page, which may override them. -#}
+{%- set doc = s.doc -%}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {%- if doc.theme.mode == 'system' %}
+  <script>
+    // Resolve the theme before first paint: the visitor's saved choice, else
+    // the system's, so data-theme always names the mode in use.
+    (function () {
+      try {
+        var t = localStorage.getItem('site-theme');
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
+  {%- endif %}
+  <meta name="theme-color" content="{{ doc.theme.light.hero }}" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="{{ doc.theme.dark.hero }}" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="{{ s.favicon_url }}">
+  {%- if 'cantarell' in (doc.theme.font_body, doc.theme.font_heading) %}
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="{{ static_url('site/fonts/cantarell-vf-latin.woff2') }}">
+  {%- endif %}
+  <link rel="stylesheet" href="{{ static_url('site/site.css') }}">
+  <style id="site-theme">{{ s.theme_css() }}</style>
+  {% if s.preview %}<meta name="robots" content="noindex">{% endif %}

@@ -1,0 +1,57 @@
+{#- What visitors see while the site is under maintenance or not yet
+    published (site.status), in the site's own theme. The repository keeps
+    serving meanwhile, which `updates_note` can say. -#}
+{%- set doc = s.doc -%}
+{%- set app_name = s.fill(doc.app.name) -%}
+<!DOCTYPE html>
+<html lang="en"{% if doc.theme.mode != 'system' %} data-theme="{{ doc.theme.mode }}" data-theme-fixed{% endif %}>
+<head>
+  {% include "site/head.html" %}
+  <title>{{ s.fill(page.title) }} · {{ app_name }}</title>
+  <meta name="description" content="{{ s.fill(page.message) }}">
+  {%- if state == 'unpublished' %}<meta name="robots" content="noindex">{% endif %}
+</head>
+<body class="status-body">
+  <main class="status status--{{ state }}">
+    <div class="status__glow status__glow--a" aria-hidden="true"></div>
+    <div class="status__glow status__glow--b" aria-hidden="true"></div>
+    <div class="status__inner">
+      <div class="status__art">
+        <span class="status__ring" aria-hidden="true"></span>
+        <img class="status__icon" src="{{ s.icon_url }}" alt="{{ app_name }}" width="144" height="144">
+      </div>
+      <p class="status__badge"><span class="status__pulse" aria-hidden="true"></span>
+        {{ 'Maintenance in progress' if state == 'maintenance' else app_name }}</p>
+      <h1 class="status__title">{{ s.fill(page.title) }}</h1>
+      {%- if page.message %}<p class="status__message">{{ s.fill(page.message) }}</p>{% endif %}
+      {%- if state == 'maintenance' %}
+      <div class="status__dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      {%- endif %}
+      {%- if page.until %}
+      <p class="status__until">Expected back <time datetime="{{ page.until }}" data-local-time>{{ page.until|replace('T', ' ')|replace('Z', ' UTC') }}</time></p>
+      {%- endif %}
+      {%- if page.updates_note %}
+      <p class="status__note">Already installed? Updates keep arriving as usual.</p>
+      {%- endif %}
+    </div>
+    <p class="status__foot">{{ s.fill(doc.footer.legal) }}</p>
+  </main>
+  <script>
+    // The expected time in the visitor's own clock and words: "today at
+    // 2:00 PM", "tomorrow at 9:00 AM", or a date further out.
+    (function () {
+      var el = document.querySelector("[data-local-time]");
+      if (!el) return;
+      var when = new Date(el.getAttribute("datetime"));
+      if (isNaN(when)) return;
+      var now = new Date();
+      var time = when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      var days = Math.round((new Date(when.toDateString()) - new Date(now.toDateString())) / 86400000);
+      if (when < now) el.textContent = "any moment now";
+      else if (days === 0) el.textContent = "today at " + time;
+      else if (days === 1) el.textContent = "tomorrow at " + time;
+      else el.textContent = when.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) + " at " + time;
+    })();
+  </script>
+</body>
+</html>

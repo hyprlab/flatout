@@ -615,6 +615,91 @@
     }
   }
 
+  /* ————— Site status ————— */
+  // Live, maintenance or unpublished, and the text of the two pages visitors
+  // get meanwhile. The dialog is on every admin page.
+  var statusForm = document.getElementById("site-status-form");
+  var STATUS_LABELS = { published: "Live", maintenance: "Maintenance", unpublished: "Unpublished" };
+  var STATUS_TOASTS = {
+    published: "The site is live",
+    maintenance: "Maintenance is on: visitors see the back-soon page",
+    unpublished: "The site is unpublished: visitors see the coming-soon page"
+  };
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function chosenStatus() {
+    var r = document.querySelector('input[name="site-status"]:checked');
+    return r ? r.value : "published";
+  }
+  function showStatusFields() {
+    var chosen = chosenStatus();
+    document.querySelectorAll(".status-page-fields").forEach(function (f) {
+      f.hidden = f.getAttribute("data-for") !== chosen;
+    });
+  }
+  function setStatusChip(status) {
+    var chip = document.getElementById("site-status-chip");
+    if (!chip) return;
+    chip.textContent = STATUS_LABELS[status];
+    chip.className = "status-chip status-chip--" + status;
+    chip.parentNode.setAttribute("aria-label", "Site status: " + status);
+  }
+  window.flatoutSetStatusChip = setStatusChip;
+  if (statusForm) {
+    // The stored time is UTC; the field shows and takes local time.
+    var until = document.getElementById("mt-until");
+    var iso = until.getAttribute("data-iso");
+    if (iso) {
+      var d = new Date(iso);
+      if (!isNaN(d)) until.value = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+                                   "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+    }
+    document.querySelectorAll('input[name="site-status"]').forEach(function (r) {
+      r.addEventListener("change", showStatusFields);
+    });
+    showStatusFields();
+    statusForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var errEl = document.getElementById("site-status-error");
+      var btn = statusForm.querySelector('button[type="submit"]');
+      errEl.hidden = true;
+      setBusy(btn, true);
+      var status = chosenStatus();
+      request("/api/v1/site/status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "X-CSRF": CSRF, "Accept": "application/json" },
+        body: JSON.stringify({
+          status: status,
+          pages: {
+            maintenance: {
+              title: document.getElementById("mt-title").value,
+              message: document.getElementById("mt-message").value,
+              until: until.value ? new Date(until.value).toISOString().replace(/\.\d+Z$/, "Z") : "",
+              updates_note: document.getElementById("mt-note").checked
+            },
+            unpublished: {
+              title: document.getElementById("un-title").value,
+              message: document.getElementById("un-message").value,
+              updates_note: document.getElementById("un-note").checked
+            }
+          }
+        })
+      }).then(function (data) {
+        setStatusChip(data.status);
+        closeDialog(document.getElementById("site-status-modal"));
+        // The Overview says the status in its own words; show it fresh.
+        if (location.pathname === "/admin") reloadWith(STATUS_TOASTS[data.status]);
+        else toast(STATUS_TOASTS[data.status]);
+      }).catch(function (err) {
+        errEl.textContent = err.message;
+        errEl.hidden = false;
+      }).finally(function () { setBusy(btn, false); });
+    });
+    if (location.hash === "#site-status") {
+      history.replaceState(null, "", location.pathname + location.search);
+      openDialog("site-status-modal");
+    }
+  }
+
   window.Flatout = {
     api: api, get: get, request: request, setBusy: setBusy, toast: toast,
     toastError: toastError, reloadWith: reloadWith, openDialog: openDialog,

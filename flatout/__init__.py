@@ -11,7 +11,7 @@ import threading
 import time
 from datetime import datetime
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
 from flask_login import LoginManager, current_user
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -160,6 +160,8 @@ def create_app(config_class=Config) -> Flask:
             return jsonify(error=err.description or err.name), err.code
         if err.code == 404 and public.is_public_path() and not setup.needs_setup():
             page = public.not_found_page()
+            if isinstance(page, Response):
+                return page          # the status page, with its own code
             if page is not None:
                 return page, 404
         return render_template("error.html", code=err.code, title=err.name,

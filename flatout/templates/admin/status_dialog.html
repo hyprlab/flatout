@@ -1,0 +1,56 @@
+{#- Who sees the site: published, maintenance or unpublished, and the text of
+    the two pages visitors get meanwhile. Saved through /api/v1/site/status by
+    app.js. Opened from the sidebar, the Overview, and /admin#site-status. -#}
+{%- set pages = site_status.pages %}
+<dialog class="modal modal--wide" id="site-status-modal" data-restore="off" aria-labelledby="site-status-title">
+  <div class="modal-head">
+    <h3 id="site-status-title">Site status</h3>
+    <button class="iconbtn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <form class="modal-body" id="site-status-form" autocomplete="off">
+    <div class="status-options" role="radiogroup" aria-label="Who sees the site">
+      {%- for value, label, desc in [
+        ('published', 'Live', 'Everyone sees the site.'),
+        ('maintenance', 'Maintenance', 'Visitors see a "back soon" page. Search engines are told it is temporary.'),
+        ('unpublished', 'Unpublished', 'Visitors see a "coming soon" page, and search engines are asked not to list it.'),
+      ] %}
+      <label class="status-option">
+        <input type="radio" name="site-status" value="{{ value }}"{% if site_status.status == value %} checked{% endif %}>
+        <span class="status-option-face">
+          <span class="status-chip status-chip--{{ value }}">{{ label }}</span>
+          <span class="hint">{{ desc }}</span>
+        </span>
+      </label>
+      {%- endfor %}
+    </div>
+    <p class="hint">You and anyone signed in still see the site. The repository keeps serving, so installed copies go on updating whatever the status.</p>
+
+    <fieldset class="status-page-fields" data-for="maintenance">
+      <legend class="setting-label">The maintenance page</legend>
+      <label class="field"><span class="field-label">Title</span>
+        <input id="mt-title" maxlength="80" value="{{ pages.maintenance.title }}"></label>
+      <label class="field"><span class="field-label">Message</span>
+        <textarea id="mt-message" rows="3" maxlength="600">{{ pages.maintenance.message }}</textarea></label>
+      <label class="field field--narrow"><span class="field-label">Expected back (optional)</span>
+        <input id="mt-until" type="datetime-local" data-iso="{{ pages.maintenance.until }}"></label>
+      <label class="check"><input type="checkbox" id="mt-note"{% if pages.maintenance.updates_note %} checked{% endif %}>
+        <span>Tell visitors that installed copies keep updating</span></label>
+      <a class="link hint" href="{{ url_for('admin.preview_status', state='maintenance') }}" target="_blank" rel="noopener">See the saved page</a>
+    </fieldset>
+
+    <fieldset class="status-page-fields" data-for="unpublished">
+      <legend class="setting-label">The coming-soon page</legend>
+      <label class="field"><span class="field-label">Title</span>
+        <input id="un-title" maxlength="80" value="{{ pages.unpublished.title }}"></label>
+      <label class="field"><span class="field-label">Message</span>
+        <textarea id="un-message" rows="3" maxlength="600">{{ pages.unpublished.message }}</textarea></label>
+      <label class="check"><input type="checkbox" id="un-note"{% if pages.unpublished.updates_note %} checked{% endif %}>
+        <span>Tell visitors that installed copies keep updating</span></label>
+      <a class="link hint" href="{{ url_for('admin.preview_status', state='unpublished') }}" target="_blank" rel="noopener">See the saved page</a>
+    </fieldset>
+
+    <p class="hint">Text can use placeholders such as <code>{app_name}</code>.</p>
+    <p class="form-error" id="site-status-error" hidden></p>
+    <button class="btn btn--primary" type="submit"><span class="btn-label">Save</span><span class="btn-busy" hidden>Saving…</span></button>
+  </form>
+</dialog>

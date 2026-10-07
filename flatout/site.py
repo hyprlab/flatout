@@ -177,6 +177,7 @@ class Renderer:
 
         self.doc = doc
         self.preview = preview
+        self.visitor_status = None   # set by public._renderer for signed-in people
         self.base = base_url()
         self.repo = releases.public_info(doc, self.base)
         app = doc["app"]
@@ -333,3 +334,98 @@ def theme_css(theme: dict) -> str:
         f'@media (prefers-color-scheme: dark) {{ :root:not([data-theme]) {{ {dark} }} }}'
         if theme["mode"] == "system" else "",
     ])
+
+
+# ———————————————————————————— Who sees the site ————————————————————————————
+# Separate from publishing: Publish puts the draft's changes live; the status
+# says whether visitors get the site at all. It is a setting, so a change
+# applies at once, and the repository keeps serving whatever it is, so
+# installed copies go on updating during maintenance.
+
+STATUSES = ("published", "maintenance", "unpublished")
+
+STATUS_PAGE_DEFAULTS = {
+    "maintenance": {
+        "title": "Back soon",
+        "message": "{app_name} is getting some care and will be back shortly.",
+        "until": "",
+        "updates_note": True,
+    },
+    "unpublished": {
+        "title": "Coming soon",
+        "message": "{app_name} is getting ready. Check back soon.",
+        "updates_note": False,
+    },
+}
+STATUS_LIMITS = {"title": 80, "message": 600}
+
+
+def status() -> str:
+    """The site's status. An install that never set one is unpublished until
+    its first publish, published after it, so a new install doesn't show the
+    placeholder site to the world."""
+    stored = get_setting("site_status")
+    if stored in STATUSES:
+        return stored
+    return "published" if SiteRevision.query.first() else "unpublished"
+
+
+def status_pages() -> dict:
+    stored = get_setting("site_status_pages")
+    pages = copy.deepcopy(STATUS_PAGE_DEFAULTS)
+    if stored:
+        try:
+            for name, values in json.loads(stored).items():
+                if name in pages and isinstance(values, dict):
+                    pages[name].update({k: v for k, v in values.items() if k in pages[name]})
+        except ValueError:
+            pass
+    return pages
+
+
+def status_json() -> dict:
+    return {"status": status(), "pages": status_pages()}
+
+
+def set_status(new_status: str | None = None, pages: dict | None = None) -> dict:
+    """Change the status, the text of the two status pages, or both.
+    Raises site_schema.Invalid with every problem; nothing is saved then."""
+    from .models import set_setting
+    errors = []
+    if new_status is not None and new_status not in STATUSES:
+        errors.append({"path": "$.status", "message": "one of: " + ", ".join(STATUSES)})
+    current = status_pages()
+    for name, values in (pages or {}).items():
+        if name not in current or not isinstance(values, dict):
+            errors.append({"path": f"$.pages.{name}", "message": "maintenance or unpublished"})
+            continue
+        for key, value in values.items():
+            path = f"$.pages.{name}.{key}"
+            if key not in current[name]:
+                errors.append({"path": path, "message": "not a field here"})
+            elif key == "updates_note":
+                if not isinstance(value, bool):
+                    errors.append({"path": path, "message": "expected true or false"})
+                else:
+                    current[name][key] = value
+            elif key == "until":
+                value = str(value or "").strip()
+                if value and not re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$", value):
+                    errors.append({"path": path, "message": "a date and time like 2026-10-08T14:00Z, or empty"})
+                else:
+                    current[name][key] = value
+            else:
+                value = str(value or "").strip()
+                if not value and key == "title":
+                    errors.append({"path": path, "message": "a title is needed"})
+                elif len(value) > STATUS_LIMITS[key]:
+                    errors.append({"path": path, "message": f"at most {STATUS_LIMITS[key]} characters"})
+                else:
+                    current[name][key] = value
+    if errors:
+        raise site_schema.Invalid(errors)
+    if pages:
+        set_setting("site_status_pages", json.dumps(current))
+    if new_status is not None:
+        set_setting("site_status", new_status)
+    return status_json()

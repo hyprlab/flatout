@@ -28,7 +28,9 @@ PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 INSTRUCTIONS = """Flatout runs a Flatpak app's homepage and its Flatpak repository.
 
 The site is one JSON document with a draft and a live copy. Every change goes to
-the draft; nothing is public until publish_site. Before editing, call
+the draft; nothing is public until publish_site. Separately, set_site_status says
+who sees the site at all: published, maintenance, or unpublished (a new install
+starts unpublished). Before editing, call
 get_site_schema to learn the fields and section types, then get_site or
 list_sections. Prefer update_section and update_site (JSON merge patches) over
 replace_site. Text may use placeholders such as {app_name} and {version}.
@@ -85,6 +87,14 @@ TOOLS = {
                          _obj({"ids": {"type": "array", "items": S}}, ["ids"]), "POST", "/site/sections/order", "*", False, False),
     "preview_site": ("The draft homepage as visitors would read it, as plain text.",
                      _obj({}), "GET", "/site/preview", None, True, False),
+    "get_site_status": ("Who sees the site (published, maintenance or unpublished) and the text of the maintenance "
+                        "and coming-soon pages.", _obj({}), "GET", "/site/status", None, True, False),
+    "set_site_status": ("Put the site in maintenance, unpublish it, or publish it again, and change the text visitors "
+                        "see meanwhile. The repository keeps serving updates whatever the status.",
+                        _obj({"status": {"type": "string", "enum": ["published", "maintenance", "unpublished"]},
+                              "pages": {"type": "object", "description": "{\"maintenance\": {\"title\", \"message\", "
+                                        "\"until\" (ISO 8601), \"updates_note\"}, \"unpublished\": {\"title\", \"message\"}}"}}),
+                        "PATCH", "/site/status", "*", False, False),
     "publish_site": ("Make the draft live.", _obj({"note": {"type": "string", "description": "What changed, for the history"}}),
                      "POST", "/site/publish", "*", False, False),
     "discard_draft": ("Throw away the draft's changes and go back to the live version.", _obj({}),

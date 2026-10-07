@@ -211,6 +211,17 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .navitem .unpublished { margin-left: auto; display: grid; place-items: center; color: var(--muted); }
 .navitem .unpublished svg { width: 15px; height: 15px; }
 .navitem.is-active .unpublished { color: var(--ink); }
+/* Site status in the sidebar: a row that opens its dialog. */
+.navitem--button { width: 100%; text-align: left; }
+.status-chip {
+  margin-left: auto; padding: 1px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: .02em; white-space: nowrap;
+  background: var(--field); color: var(--muted); border: 1px solid var(--line);
+}
+.status-chip--published { background: rgb(46 194 126 / .14); color: #1a7f52; border-color: transparent; }
+.status-chip--maintenance { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+:root[data-theme="dark"] .status-chip--published { color: #7fe0b2; }
+.tile-label .status-chip { text-transform: none; letter-spacing: .02em; }
 
 .sidebar-label {
   display: flex; align-items: center; justify-content: space-between;
@@ -775,7 +786,7 @@ html[data-theme="dark"] .toast--error { background: #4E2320; color: #FFE1DD; box
 .panel > .hint { margin-bottom: 12px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .tile { display: flex; flex-direction: column; gap: 4px; }
-.tile-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
+.tile-label { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
 .tile-big { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; }
 .tile-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 10px; flex-wrap: wrap; }
 .banner { border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; }
@@ -1031,3 +1042,16 @@ input.switch:checked::after { transform: translateX(14px); }
 :root[data-theme="dark"] .method--get { color: #6aaef0; }
 :root[data-theme="dark"] .method--post { color: #7fe0b2; }
 :root[data-theme="dark"] .method--patch, :root[data-theme="dark"] .method--put { color: #ffd36b; }
+
+/* ——— The site status dialog ——— */
+.status-options { display: grid; gap: 8px; }
+.status-option { position: relative; cursor: pointer; }
+.status-option input { position: absolute; opacity: 0; pointer-events: none; }
+.status-option-face { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--field); }
+.status-option-face .status-chip { margin-left: 0; font-size: 12px; }
+.status-option:hover .status-option-face { border-color: var(--line-strong); }
+.status-option input:checked + .status-option-face { border-color: var(--accent); box-shadow: 0 0 0 3px var(--wash); background: var(--surface); }
+.status-option input:focus-visible + .status-option-face { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status-page-fields { border: 0; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.status-page-fields .field input, .status-page-fields .field textarea { width: 100%; }
