@@ -8,3 +8,6 @@ venv/
 # Runtime state: the SQLite database and the generated secret key.
 var/
 
+
+# Local notes for the coding assistant; never committed.
+CLAUDE.md
