@@ -1,0 +1,35 @@
+# The project name, fixed so the container and its volume keep their names
+# whatever the folder is called.
+name: flatout
+
+services:
+  flatout:
+    # IMAGE_TAG=beta follows the beta channel; a version (1.4.0) pins one.
+    image: hyprlab/flatout:${IMAGE_TAG:-latest}
+    container_name: flatout
+    ports:
+      # host:container. Change the left side if 8102 is taken on your host.
+      - "8102:8000"
+    environment:
+      # What the app calls itself.
+      - APP_NAME=${APP_NAME:-Flatout}
+      - APP_TAGLINE=${APP_TAGLINE:-A self-hosted Flatpak repository with a homepage for your app.}
+      # Session signing key. If unset, one is generated and kept in the volume.
+      - SECRET_KEY=${SECRET_KEY:-}
+      # Set to 1 when the app is served over HTTPS.
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-0}
+      # How many reverse proxies sit in front (Cloudflare Tunnel, Caddy...).
+      - TRUST_PROXY=${TRUST_PROXY:-0}
+      # Cloudflare Turnstile. Usually set up in Settings > Security instead.
+      - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY:-}
+      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-}
+      # Fresh-install defaults. After setup, Settings > Admin wins.
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-1}
+      - WORKER_MINUTES=${WORKER_MINUTES:-15}
+      - ITEMS_PER_PAGE=${ITEMS_PER_PAGE:-40}
+    volumes:
+      - flatout-data:/data
+    restart: unless-stopped
+
+volumes:
+  flatout-data:

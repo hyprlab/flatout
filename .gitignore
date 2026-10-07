@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.env
+
+# Runtime state: the SQLite database and the generated secret key.
+var/
+
