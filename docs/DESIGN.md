@@ -9,7 +9,7 @@ tokens the owner sets in Theme (see [The public site](#the-public-site)).
 
 ## Principles
 
-- **The accent is scarce.** It marks the brand, new items, and the active
+- **The accent is scarce.** It marks new items and the active
   state (the current nav row, chip, focused field). Used anywhere else it
   stops meaning anything.
 - **Surfaces carry the hierarchy**, not borders and shadows: `--bg` for the
@@ -44,7 +44,9 @@ Set on `:root` and per theme on `html[data-theme="light"|"dark"]`.
 | `--sidebar-w`, `--topbar-h` | Shell dimensions |
 
 To rebrand, change the three accent tokens in both themes (the dark theme uses
-a slightly different accent for contrast) and redraw the mark.
+a slightly different accent for contrast) and replace the icon: `static/img/icon.png`
+(256px), `apple-touch-icon.png` (180px) and `favicon.ico` (16, 32 and 48px), all
+cut from one square picture.
 
 ## Type
 

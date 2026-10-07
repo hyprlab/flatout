@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="flatout/static/img/logo.svg" width="72" alt="Flatout logo">
+  <img src="flatout/static/img/icon.png" width="96" alt="Flatout icon">
 </p>
 
 <h1 align="center">Flatout</h1>

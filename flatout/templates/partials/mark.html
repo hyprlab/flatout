@@ -1,3 +1,4 @@
-{# The brand mark, inline so it takes the accent color and costs no request.
-   Keep this path and static/img/logo.svg in step when rebranding. #}
-<svg class="mark {{ extra|default('') }}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6 19.6 6.9 12 11.2 4.4 6.9 12 2.6ZM3.6 8.3l7.5 4.3v8.7l-7.5-4.3V8.3ZM20.4 8.3v8.7l-7.5 4.3v-8.7l7.5-4.3Z"/></svg>
+{# The app icon, the brand mark everywhere: sidebar, sign-in, setup, errors,
+   About. The favicon and touch icon in base.html are cut from the same
+   picture (static/img/icon.png, favicon.ico, apple-touch-icon.png). #}
+<img class="mark {{ extra|default('') }}" src="{{ static_url('img/icon.png') }}" alt="" width="256" height="256">

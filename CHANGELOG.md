@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- Flatout has its own icon, in the admin, on the sign-in and setup pages, in
+  the browser tab and on home-screen shortcuts
+
 ## [0.1.0] — 2026-10-07
 
 ### Added
