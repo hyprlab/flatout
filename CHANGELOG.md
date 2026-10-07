@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.0.0] — 2026-10-07
+
 ### Added
 - A homepage for your app, edited in the admin: the app's name, links and
   images; a header and footer; a hero, feature cards, screenshots, a
@@ -51,3 +53,4 @@ All notable changes to Flatout are documented here. The format follows
 - Releases and the Overview warn when live releases are for another app ID
   than the site's, which the site and its install files leave out, and say
   how to fix it
+
