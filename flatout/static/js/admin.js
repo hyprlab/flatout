@@ -227,6 +227,28 @@
       }).catch(function (err) { body.innerHTML = ""; body.appendChild(el("p", { class: "form-error", text: err.message })); });
     };
 
+    // Live builds of another app than the site's: the site, its install files
+    // and the tiles above leave them out, so say so and say how to fix it.
+    var showMismatch = function (repoInfo) {
+      var box = document.getElementById("app-id-mismatch");
+      box.innerHTML = "";
+      var ids = repoInfo.unmatched_app_ids || [];
+      box.hidden = !ids.length;
+      if (!ids.length) return;
+      var their = ids.join(", ");
+      var fixed = ids.indexOf(repoInfo.draft_app_id) !== -1;
+      box.appendChild(el("p", {}, [
+        el("strong", { text: "The site doesn't show these releases. " }),
+        "They are for " + their + ", but the site's app ID is " + repoInfo.app_id + ". " +
+        "The homepage, the install files and the tiles below only show releases of the site's app."
+      ]));
+      box.appendChild(el("p", {}, fixed
+        ? ["The draft already uses " + repoInfo.draft_app_id + ". ",
+           el("a", { class: "link", href: "/admin/site", text: "Publish the site" }), " to apply it."]
+        : [el("a", { class: "link", href: "/admin/site#group/app", text: "Change the app ID under Content > App" }),
+           " to " + ids[0] + " and publish, or upload a bundle for " + repoInfo.app_id + "."]));
+    };
+
     var refresh = function () {
       clearTimeout(pollTimer);
       Promise.all([call("GET", "/api/v1/repo"), call("GET", "/api/v1/releases?limit=100")]).then(function (res) {
@@ -241,6 +263,7 @@
             el("a", { class: "link", href: "/admin/repository", text: "Create one under Signing and addresses." })]));
         }
         blocker.hidden = !blocker.childNodes.length;
+        showMismatch(repoInfo);
 
         tiles.innerHTML = "";
         var betaActions = [];

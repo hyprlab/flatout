@@ -687,6 +687,10 @@ def _repo_json() -> dict:
     info = releases.public_info(doc, site.base_url())
     return {
         "app_id": info["app_id"], "remote_name": info["remote_name"],
+        # Live releases of another app ID than the site's: neither the site
+        # nor its install files show them until the two agree.
+        "unmatched_app_ids": info["unmatched_app_ids"],
+        "draft_app_id": site.get("draft")["app"]["app_id"],
         "urls": {k: info[k] for k in ("repo_url", "flatpakref_url", "beta_flatpakref_url", "flatpakrepo_url")},
         "signing_key": repo.key_info(),
         "tools": repo.tools(),

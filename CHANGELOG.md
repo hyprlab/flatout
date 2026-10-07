@@ -31,3 +31,6 @@ All notable changes to Flatout are documented here. The format follows
 - An API under /api/v1 with scoped, revocable tokens, described in OpenAPI
 - An MCP server at /mcp, so AI agents can edit the site and publish releases
 - A setup wizard that names the app, and a getting-started list in the admin
+- Releases and the Overview warn when live releases are for another app ID
+  than the site's, which the site and its install files leave out, and say
+  how to fix it

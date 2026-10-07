@@ -71,6 +71,7 @@ def home():
                  draft_meta=site.meta("draft"), revisions=revisions,
                  checklist=_checklist(draft, live, bool(revisions)),
                  repo=releases_info.public_info(live, site.base_url()),
+                 draft_app_id=draft["app"]["app_id"],
                  installs_today=install_stats.installs_today())
 
 

@@ -772,6 +772,8 @@ html[data-theme="dark"] .toast--error { background: #4E2320; color: #FFE1DD; box
 .tile-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 10px; flex-wrap: wrap; }
 .banner { border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; }
 .banner--warn { background: rgb(220 150 0 / .12); border: 1px solid rgb(220 150 0 / .35); }
+.banner p { margin: 0; }
+.banner p + p { margin-top: 6px; }
 .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .stack { display: flex; flex-direction: column; gap: 12px; }
 .link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }

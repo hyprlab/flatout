@@ -23,7 +23,7 @@ from pathlib import Path
 from flask import Flask
 
 from . import repo
-from .models import Job, Release, db, get_setting, utcnow
+from .models import Job, Release, db, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -187,7 +187,8 @@ def handle_import(job: Job, payload: dict, lines: list) -> None:
     if not rel.bundle_file or not bundle.exists():
         raise repo.RepoError("The uploaded bundle is missing.")
     info = repo.import_bundle(bundle, rel.channel, lines)
-    expected = payload.get("app_id") or get_setting("expected_app_id")
+    from . import site
+    expected = site.get("live")["app"]["app_id"]
     rel.app_id, rel.arch = info["app_id"], info["arch"]
     rel.source_ref, rel.commit, rel.runtime = info["source_ref"], info["commit"], info["runtime"]
     if not rel.version:
@@ -199,7 +200,8 @@ def handle_import(job: Job, payload: dict, lines: list) -> None:
     lines.append(f"Imported {info['source_ref']} as app/{info['app_id']}/{info['arch']}/{rel.channel}, "
                  f"version {rel.version}, commit {info['commit'][:12]}.")
     if expected and expected != info["app_id"]:
-        lines.append(f"Note: the site's app ID is {expected}; this bundle is {info['app_id']}.")
+        lines.append(f"Note: the site's app ID is {expected} but this bundle is {info['app_id']}, so the site "
+                     "and its install files won't show it until the two match (Content > App).")
     _go_live(rel)
     db.session.commit()
     _summary(lines)

@@ -280,6 +280,11 @@ reach its database. The image's `HEALTHCHECK` uses it.
 Signing and addresses, or pass the Host header through the proxy and set
 `TRUST_PROXY`. Then press **Re-sign the repository**.
 
+**The site says there is no release, but Releases lists one as live.** The
+release is for another app ID than the one set under Content > App. Releases
+and the Overview name both; set the app ID to the bundle's and publish, or
+upload a bundle for the site's app.
+
 **A release failed.** Its Details show the job's log; the last lines are
 `flatpak`'s own message. A file that isn't a bundle, an app ID that doesn't
 match, or a runtime bundle instead of an app are the usual causes.

@@ -74,9 +74,13 @@ def public_info(doc: dict, base: str) -> dict:
 
     app_id = app_id_for(doc)
     remote = remote_name(doc)
+    all_heads = heads("stable") + heads("beta")
     stable_rows = [r for r in heads("stable") if not app_id or r.app_id == app_id]
     beta_rows = [r for r in heads("beta") if not app_id or r.app_id == app_id]
     file_id = app_id or "app"
+    # Live builds of another app than the one the site names: the site and
+    # its install files leave them out, which the admin has to say out loud.
+    unmatched = sorted({r.app_id for r in all_heads if app_id and r.app_id != app_id})
     return {
         "app_id": app_id,
         "remote_name": remote,
@@ -91,4 +95,5 @@ def public_info(doc: dict, base: str) -> dict:
         "arch_names": ARCH_NAMES,
         "bundle_url": f"{base}/download/{file_id}-{{arch}}.flatpak",
         "beta_bundle_url": f"{base}/download/{file_id}-beta-{{arch}}.flatpak",
+        "unmatched_app_ids": unmatched,
     }
