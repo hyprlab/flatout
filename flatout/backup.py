@@ -17,7 +17,7 @@ change to the repository. The passphrase never touches the disk: it waits in
 memory for its job (jobs.enqueue's ``secret``).
 
 Restoring happens in the setup wizard of a fresh install. The file arrives in
-pieces of CHUNK_BYTES, small enough for a proxy such as Cloudflare's, which
+pieces (chunks.py), small enough for a proxy such as Cloudflare's, which
 refuses request bodies over 100 MB; each piece is retried on its own. Once the
 first piece is in, the passphrase and the manifest are checked against it, so
 a wrong passphrase shows before the rest uploads. The whole file is then
@@ -41,6 +41,7 @@ from pathlib import Path
 
 from flask import Flask, current_app
 
+from . import chunks
 from .models import db, end_worker_transaction, utcnow
 from .repo import RepoError
 
@@ -48,11 +49,10 @@ FORMAT = 1
 MANIFEST = "flatout-backup.json"
 DATABASE = "flatout.db"
 SUFFIX = ".tar.gpg"
-CHUNK_BYTES = 90 * 1024 * 1024
 MIN_PASSPHRASE = 12
 
 # Never in a backup, never replaced by a restore.
-SKIP = {"staging", "backups", "restore", DATABASE, f"{DATABASE}-wal", f"{DATABASE}-shm", f"{DATABASE}-journal"}
+SKIP = {"staging", "backups", "restore", "uploads", DATABASE, f"{DATABASE}-wal", f"{DATABASE}-shm", f"{DATABASE}-journal"}
 
 
 class BackupError(RepoError):
@@ -268,22 +268,16 @@ def delete() -> bool:
 
 
 # ———————————————————————————— Restoring ————————————————————————————
-# An upload in progress lives in restore/<id>/: backup.part as it arrives,
+# An upload in progress lives in restore/<id>/: part as it arrives,
 # then data/ as it unpacks. State that only matters while the process runs
 # (restoring, done, failed) is kept in memory.
 
 _state: dict[str, dict] = {}
 _state_lock = threading.Lock()
-ID_RE = re.compile(r"^[a-f0-9]{24}$")
 
 
 def _upload_dir(upload_id: str) -> Path:
-    if not ID_RE.match(upload_id or ""):
-        raise BackupError("No such restore. Start again.")
-    path = restore_dir() / upload_id
-    if not path.is_dir():
-        raise BackupError("No such restore. Start again.")
-    return path
+    return chunks.folder(restore_dir(), upload_id)
 
 
 def start_upload(size: int) -> dict:
@@ -301,50 +295,16 @@ def start_upload(size: int) -> dict:
             raise BackupError("A restore is already running.")
         shutil.rmtree(restore_dir(), ignore_errors=True)
         _state.clear()
-    upload_id = secrets.token_hex(12)
-    path = restore_dir() / upload_id
-    path.mkdir(parents=True)
-    (path / "backup.part").touch()
-    (path / "size").write_text(str(size))
-    return {"id": upload_id, "chunk_size": CHUNK_BYTES, "received": 0}
-
-
-def _expected(path: Path) -> int:
-    return int((path / "size").read_text())
+    upload_id = chunks.start(restore_dir(), size)
+    return {"id": upload_id, "chunk_size": chunks.CHUNK_BYTES, "received": 0}
 
 
 def received(upload_id: str) -> int:
-    return (_upload_dir(upload_id) / "backup.part").stat().st_size
+    return chunks.received(restore_dir(), upload_id)
 
 
 def add_chunk(upload_id: str, offset: int, stream, length: int | None) -> int:
-    """Append a piece at ``offset``. A piece sent again (its answer was lost)
-    is accepted without writing twice."""
-    path = _upload_dir(upload_id)
-    part = path / "backup.part"
-    have = part.stat().st_size
-    if length is None:
-        raise BackupError("Send each piece with its length.")
-    if length > CHUNK_BYTES:
-        raise BackupError(f"Pieces can be {CHUNK_BYTES // (1024 * 1024)} MB at most.")
-    if offset + length <= have:
-        return have   # already here
-    if offset != have:
-        raise BackupError(f"Expected the piece at byte {have}.")
-    if have + length > _expected(path):
-        raise BackupError("That is more than the backup's size.")
-    with open(part, "ab") as out:
-        left = length
-        while left:
-            chunk = stream.read(min(left, 1024 * 1024))
-            if not chunk:
-                break
-            out.write(chunk)
-            left -= len(chunk)
-        if left:
-            out.truncate(have)
-            raise BackupError("The piece was cut off. Send it again.")
-    return have + length
+    return chunks.add(restore_dir(), upload_id, offset, stream, length)
 
 
 def _read_manifest(tar: tarfile.TarFile) -> dict:
@@ -367,7 +327,7 @@ def _read_manifest(tar: tarfile.TarFile) -> dict:
 def check(upload_id: str, passphrase: str) -> dict:
     """Open what has arrived so far: right passphrase, a Flatout backup, not
     from a newer Flatout. Answers with the manifest."""
-    part = _upload_dir(upload_id) / "backup.part"
+    part = _upload_dir(upload_id) / "part"
     if not part.stat().st_size:
         raise BackupError("Nothing has arrived yet.")
     gpg = _Gpg(passphrase)
@@ -399,8 +359,7 @@ def status(upload_id: str) -> dict:
 def finish(app: Flask, upload_id: str, passphrase: str, inline: bool = False) -> None:
     """Restore a fully uploaded backup, in a thread of its own (it can take
     minutes, longer than a proxy waits for an answer)."""
-    path = _upload_dir(upload_id)
-    if received(upload_id) != _expected(path):
+    if received(upload_id) != chunks.expected(restore_dir(), upload_id):
         raise BackupError("The backup hasn't finished uploading.")
     with _state_lock:
         if any(s.get("state") == "restoring" for s in _state.values()):
@@ -417,7 +376,7 @@ def _restore_in_thread(app: Flask, upload_id: str, passphrase: str) -> None:
     with app.app_context():
         try:
             path = restore_dir() / upload_id
-            restore_file(app, path / "backup.part", passphrase, work=path)
+            restore_file(app, path / "part", passphrase, work=path)
             shutil.rmtree(path, ignore_errors=True)
             result = {"state": "done"}
         except BackupError as err:

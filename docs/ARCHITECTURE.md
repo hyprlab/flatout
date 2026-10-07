@@ -21,6 +21,7 @@ flatout/
   repo.py          the repository on disk and the flatpak/ostree/gpg commands
   jobs.py          the thread that runs repository work, one job at a time
   backup.py        encrypted backups of everything, and restoring one
+  chunks.py        large files sent in pieces, for proxies that cap bodies
   serve.py         what Flatpak clients fetch: /repo, install files, bundles
   stats.py         install numbers from repository traffic
   api.py           the JSON API under /api/v1, and its tokens
@@ -168,8 +169,10 @@ answer 503.
 | `DATA_DIR/bundles/` | Uploaded bundles, for the download button |
 | `DATA_DIR/.secret_key`, `.stats_salt` | Generated secrets |
 | `DATA_DIR/backups/` | The newest backup made in Settings, waiting to be downloaded |
+| `DATA_DIR/uploads/` | Bundles arriving in pieces, until their release is made |
 | `DATA_DIR/restore/` | A backup arriving in the setup wizard, and what it unpacks to |
 
 `DATA_DIR` is `/data` in Docker and `./var` locally. A backup (Settings >
-Backup) is that directory, less `staging/`, `backups/` and `restore/`, with a
-consistent copy of the database (see [DOCUMENTATION.md](DOCUMENTATION.md#backups)).
+Backup) is that directory, less `staging/`, `uploads/`, `backups/` and
+`restore/`, with a consistent copy of the database (see
+[DOCUMENTATION.md](DOCUMENTATION.md#backups)).

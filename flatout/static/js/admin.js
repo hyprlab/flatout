@@ -192,25 +192,48 @@
       if (e.dataTransfer.files.length) add(e.dataTransfer.files);
     });
 
-    // XMLHttpRequest, for the progress bar: bundles can be large.
-    var sendBundle = function (file, fields, progress) {
+    // Every bundle goes up in pieces of the size the server asks for (under
+    // 100 MB), so a proxy that caps request bodies, Cloudflare's among them,
+    // lets it through. Each piece is retried on its own; then the release is
+    // made from the finished upload. XMLHttpRequest, for the progress bar.
+    var sendPiece = function (up, file, offset, progress) {
       return new Promise(function (resolve, reject) {
-        var form = new FormData();
-        form.append("file", file);
-        Object.keys(fields).forEach(function (k) { form.append(k, fields[k]); });
         var xhr = new XMLHttpRequest();
-        xhr.upload.addEventListener("progress", function (ev) { if (ev.lengthComputable) progress(ev.loaded); });
+        xhr.upload.addEventListener("progress", function (ev) { if (ev.lengthComputable) progress(offset + ev.loaded); });
         xhr.addEventListener("load", function () {
           var data = {};
           try { data = JSON.parse(xhr.responseText); } catch (_) {}
-          if (xhr.status >= 200 && xhr.status < 300) resolve(data);
-          else reject(new Error(data.error || (xhr.status === 413 ? "The file is larger than this server accepts." : "The upload failed.")));
+          if (xhr.status === 200 || (xhr.status === 409 && typeof data.received === "number")) { resolve(data.received); return; }
+          var err = new Error(data.error || (xhr.status === 413 ? "The piece is larger than a proxy in front of the server accepts." : "The upload failed."));
+          err.retry = xhr.status >= 500;   // the server or a proxy faltered; a client error won't fix itself
+          reject(err);
         });
-        xhr.addEventListener("error", function () { reject(new Error("The upload was cut off.")); });
-        xhr.open("POST", "/api/v1/releases");
+        xhr.addEventListener("error", function () { var e = new Error("The upload was cut off."); e.retry = true; reject(e); });
+        xhr.open("PUT", "/api/v1/uploads/" + up.id + "?offset=" + offset);
         xhr.setRequestHeader("X-CSRF", F.csrf);
         xhr.setRequestHeader("Accept", "application/json");
-        xhr.send(form);
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+        xhr.send(file.slice(offset, Math.min(offset + up.chunk_size, file.size)));
+      });
+    };
+    var sendBundle = function (file, fields, progress) {
+      if (!file.size) return Promise.reject(new Error("The file is empty."));
+      return call("POST", "/api/v1/uploads", { size: file.size }).then(function (up) {
+        var from = function (offset) {
+          if (offset >= file.size) return Promise.resolve();
+          var tries = 0;
+          var attempt = function () {
+            return sendPiece(up, file, offset, progress).catch(function (err) {
+              tries += 1;
+              if (!err.retry || tries >= 5) throw err;
+              return new Promise(function (wait) { setTimeout(wait, 1000 * Math.pow(2, tries - 1)); }).then(attempt);
+            });
+          };
+          return attempt().then(from);
+        };
+        return from(0).then(function () {
+          return call("POST", "/api/v1/releases", { upload: up.id, channel: fields.channel, version: fields.version, notes: fields.notes });
+        });
       });
     };
 

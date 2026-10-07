@@ -35,14 +35,14 @@ TOKEN_PREFIX = "fo_"
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, message: str, errors: list | None = None):
+    def __init__(self, status: int, message: str, errors: list | None = None, **extra):
         super().__init__(message)
-        self.status, self.message, self.errors = status, message, errors
+        self.status, self.message, self.errors, self.extra = status, message, errors, extra
 
 
 @bp.errorhandler(ApiError)
 def _api_error(err: ApiError):
-    body = {"error": err.message}
+    body = {"error": err.message, **err.extra}
     if err.errors:
         body["errors"] = err.errors
     return jsonify(body), err.status
@@ -573,16 +573,118 @@ def releases_list():
     return jsonify(releases=[_release_json(r) for r in rows])
 
 
+# ———— Bundles in pieces ————
+# For a bundle larger than a proxy lets through in one request (Cloudflare
+# refuses bodies over 100 MB): start an upload, PUT the pieces, then create
+# the release with {"upload": id}. chunks.py says how pieces behave.
+
+def _uploads_dir():
+    from pathlib import Path
+    from flask import current_app
+    return Path(current_app.config["DATA_DIR"]) / "uploads"
+
+
+def _chunk_error(err):
+    raise ApiError(err.status, str(err), received=err.received) if err.received is not None \
+        else ApiError(err.status, str(err))
+
+
+@bp.route("/uploads", methods=["POST"])
+@needs("releases")
+def upload_start():
+    """Start sending a bundle in pieces: {"size": bytes} answers with the
+    upload's "id" and the "chunk_size" to send. PUT each piece to
+    /uploads/{id}?offset=N, then POST /releases with {"upload": id}."""
+    import shutil
+    from flask import current_app
+    from . import chunks
+    _ready_for_releases()
+    try:
+        size = int(body().get("size") or 0)
+    except (TypeError, ValueError):
+        size = 0
+    if size <= 0:
+        raise ApiError(400, "Send the bundle's size in bytes, more than zero.")
+    limit = current_app.config["MAX_UPLOAD_MB"] * 1024 * 1024
+    if size > limit:
+        raise ApiError(413, f"Bundles can be {current_app.config['MAX_UPLOAD_MB']} MB at most (MAX_UPLOAD_MB).")
+    _uploads_dir().mkdir(exist_ok=True)
+    free = shutil.disk_usage(_uploads_dir()).free
+    if free < size * 1.2 + 100 * 1024 * 1024:
+        raise ApiError(507, f"Not enough free disk space for a bundle of {size // (1024 * 1024)} MB.")
+    upload_id = chunks.start(_uploads_dir(), size)
+    return jsonify(id=upload_id, size=size, received=0,
+                   chunk_size=chunks.chunk_size(current_app.config.get("MAX_CONTENT_LENGTH"))), 201
+
+
+@bp.route("/uploads/<upload_id>", methods=["PUT"])
+@needs("releases")
+def upload_piece(upload_id):
+    """One piece, as the raw request body, at ?offset=N (bytes from the
+    start). A piece sent again is taken once; one out of place answers 409
+    with "received", where to carry on from."""
+    from . import chunks
+    try:
+        offset = int(request.args.get("offset", ""))
+    except ValueError:
+        raise ApiError(400, "Say where the piece goes with ?offset=.")
+    try:
+        chunks.add(_uploads_dir(), upload_id, offset, request.stream, request.content_length)
+        return jsonify(chunks.state(_uploads_dir(), upload_id))
+    except chunks.ChunkError as err:
+        _chunk_error(err)
+
+
+@bp.route("/uploads/<upload_id>")
+@needs("releases")
+def upload_get(upload_id):
+    """How much of an upload has arrived, to resume it."""
+    from . import chunks
+    try:
+        return jsonify(chunks.state(_uploads_dir(), upload_id))
+    except chunks.ChunkError as err:
+        _chunk_error(err)
+
+
+@bp.route("/uploads/<upload_id>", methods=["DELETE"])
+@needs("releases")
+def upload_cancel(upload_id):
+    from . import chunks
+    try:
+        chunks.discard(_uploads_dir(), chunks.folder(_uploads_dir(), upload_id).name)
+    except chunks.ChunkError as err:
+        _chunk_error(err)
+    return jsonify(ok=True)
+
+
+def _store_bundle(rel, save) -> None:
+    """Put the bundle in bundles/ under a temporary name (``save(dest)``),
+    and note its size and hash on the release."""
+    import hashlib
+    import uuid
+    from . import repo
+    name = f"incoming-{uuid.uuid4().hex}.flatpak"
+    dest = repo.bundles_dir() / name
+    save(dest)
+    digest = hashlib.sha256()
+    with open(dest, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    rel.bundle_file, rel.bundle_size, rel.bundle_sha256 = name, dest.stat().st_size, digest.hexdigest()
+    if not rel.bundle_size:
+        dest.unlink(missing_ok=True)
+        raise ApiError(400, "The uploaded file is empty.")
+
+
 @bp.route("/releases", methods=["POST"])
 @needs("releases")
 def releases_create():
     """Upload a bundle: multipart with "file" (a .flatpak made by
     `flatpak build-bundle`), "channel", and optional "version" and "notes".
-    Or JSON {"url": "https://…/app.flatpak", "channel": …} to have Flatout
-    download it. Answers 202 at once; the import runs as a job."""
-    import hashlib
-    import uuid
-    from . import jobs, repo
+    Or JSON with "upload" (an id from POST /uploads, for a bundle sent in
+    pieces) or "url" (to have Flatout download it), and the same fields.
+    Answers 202 at once; the import runs as a job."""
+    from . import chunks, jobs
     from .models import Release
     _ready_for_releases()
     # End the read the checks above began before taking in the bundle, which
@@ -594,29 +696,27 @@ def releases_create():
         fields = request.form
     else:
         fields = body()
-        if not fields.get("url"):
-            raise ApiError(400, 'Send the bundle as a multipart "file" field, or JSON with a "url" to fetch it from.')
-        if not str(fields["url"]).startswith(("https://", "http://")):
+        if not fields.get("url") and not fields.get("upload"):
+            raise ApiError(400, 'Send the bundle as a multipart "file" field, or JSON with "upload" '
+                                '(sent in pieces to /uploads) or a "url" to fetch it from.')
+        if fields.get("url") and not str(fields["url"]).startswith(("https://", "http://")):
             raise ApiError(400, "url must be an http(s) address.")
     channel = _channel(fields.get("channel"))
     rel = Release(app_id="", arch="", channel=channel, status="queued", created_by=g.actor,
                   version=str(fields.get("version") or "").strip()[:60],
                   notes=str(fields.get("notes") or "")[:20000])
     payload = {}
+    # Stored and hashed before the row is written, so no transaction is open
+    # while a large file is copied.
     if upload is not None:
-        # Stored and hashed before the row is written, so no transaction is
-        # open while a large file is copied.
-        name = f"incoming-{uuid.uuid4().hex}.flatpak"
-        dest = repo.bundles_dir() / name
-        upload.save(dest)
-        digest = hashlib.sha256()
-        with open(dest, "rb") as f:
-            for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                digest.update(chunk)
-        rel.bundle_file, rel.bundle_size, rel.bundle_sha256 = name, dest.stat().st_size, digest.hexdigest()
-        if not rel.bundle_size:
-            dest.unlink(missing_ok=True)
-            raise ApiError(400, "The uploaded file is empty.")
+        _store_bundle(rel, upload.save)
+    elif fields.get("upload"):
+        upload_id = str(fields["upload"])
+        try:
+            chunks.complete_file(_uploads_dir(), upload_id)
+        except chunks.ChunkError as err:
+            _chunk_error(err)
+        _store_bundle(rel, lambda dest: chunks.take(_uploads_dir(), upload_id, dest))
     else:
         payload["url"] = str(fields["url"])
     db.session.add(rel)

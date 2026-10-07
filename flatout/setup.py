@@ -18,7 +18,7 @@ from flask import Blueprint, current_app, jsonify, redirect, render_template, re
 from flask_login import login_user
 
 from .auth import EMAIL_RE, MIN_PASSWORD
-from . import backup, site_schema
+from . import backup, chunks, site_schema
 from .models import SiteDocument, User, db, set_setting
 
 bp = Blueprint("setup", __name__)
@@ -88,8 +88,13 @@ def _fresh_only():
     return None
 
 
-def _restore_error(err: backup.BackupError):
+def _restore_error(err: Exception):
+    if isinstance(err, chunks.ChunkError):
+        return jsonify(error=str(err), received=err.received), err.status
     return jsonify(error=str(err)), 400
+
+
+RESTORE_ERRORS = (backup.BackupError, chunks.ChunkError)
 
 
 @bp.route("/setup/restore", methods=["POST"])
@@ -103,11 +108,10 @@ def restore_start():
         started = backup.start_upload(int(data.get("size") or 0))
     except (TypeError, ValueError):
         return jsonify(error="Send the backup's size in bytes."), 400
-    except backup.BackupError as err:
+    except RESTORE_ERRORS as err:
         return _restore_error(err)
     # A piece has to fit under the server's own request limit as well.
-    limit = current_app.config.get("MAX_CONTENT_LENGTH") or backup.CHUNK_BYTES
-    started["chunk_size"] = min(backup.CHUNK_BYTES, limit - 1024 * 1024)
+    started["chunk_size"] = chunks.chunk_size(current_app.config.get("MAX_CONTENT_LENGTH"))
     return jsonify(started), 201
 
 
@@ -122,12 +126,8 @@ def restore_chunk(upload_id):
         have = backup.add_chunk(upload_id, offset, request.stream, request.content_length)
     except ValueError:
         return jsonify(error="Say where the piece goes with ?offset=."), 400
-    except backup.BackupError as err:
-        try:
-            have = backup.received(upload_id)
-        except backup.BackupError:
-            return jsonify(error=str(err)), 404
-        return jsonify(error=str(err), received=have), 409
+    except RESTORE_ERRORS as err:
+        return _restore_error(err)
     return jsonify(received=have)
 
 
@@ -141,7 +141,7 @@ def restore_check(upload_id):
     data = request.get_json(silent=True) or {}
     try:
         manifest = backup.check(upload_id, str(data.get("passphrase") or ""))
-    except backup.BackupError as err:
+    except RESTORE_ERRORS as err:
         return _restore_error(err)
     return jsonify(backup={k: manifest.get(k) for k in ("version", "created_at", "public_url")})
 
@@ -156,7 +156,7 @@ def restore_finish(upload_id):
     try:
         backup.finish(current_app._get_current_object(), upload_id, str(data.get("passphrase") or ""),
                       inline=current_app.testing)
-    except backup.BackupError as err:
+    except RESTORE_ERRORS as err:
         return _restore_error(err)
     return jsonify(backup.status(upload_id)), 202
 
@@ -166,8 +166,8 @@ def restore_status(upload_id):
     """receiving (with "received"), restoring, done or failed (with "error")."""
     try:
         return jsonify(backup.status(upload_id))
-    except backup.BackupError as err:
-        return jsonify(error=str(err)), 404
+    except RESTORE_ERRORS as err:
+        return _restore_error(err)
 
 
 def _seed_site(name: str, tagline: str, who: str) -> None:

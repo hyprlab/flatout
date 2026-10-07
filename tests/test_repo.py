@@ -160,3 +160,24 @@ def test_a_broken_bundle_fails_with_its_reason(app, client, csrf, admin, run_job
     rel = release(client, rid)
     assert rel["status"] == "failed" and "flatpak failed" in rel["error"]
     assert "FAILED" in rel["job"]["log"]
+
+
+def test_a_bundle_sent_in_pieces_is_published(app, client, csrf, admin, run_jobs, tmp_path, monkeypatch):
+    from flatout import chunks
+    h = {"X-CSRF": csrf}
+    client.post("/api/v1/repo/key", json={"action": "generate", "name": "Test"}, headers=h)
+    run_jobs()
+    monkeypatch.setattr(chunks, "CHUNK_BYTES", 1024)
+    data = build_bundle(tmp_path, "4.0").read_bytes()
+    up = client.post("/api/v1/uploads", json={"size": len(data)}, headers=h).get_json()
+    offset = 0
+    while offset < len(data):
+        resp = client.put(f"/api/v1/uploads/{up['id']}?offset={offset}", data=data[offset:offset + 1024],
+                          headers=h, content_type="application/octet-stream")
+        offset = resp.get_json()["received"]
+    made = client.post("/api/v1/releases", json={"upload": up["id"], "channel": "stable"}, headers=h)
+    assert made.status_code == 202
+    run_jobs()
+    rel = release(client, made.get_json()["release"]["id"])
+    assert rel["status"] == "live" and rel["version"] == "4.0", rel
+    assert client.get(f"/download/{APP}-{rel['arch']}.flatpak").data == data

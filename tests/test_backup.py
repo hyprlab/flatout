@@ -103,8 +103,8 @@ def test_a_fresh_install_restores_it_in_pieces(app, client, csrf, source, fresh,
         fingerprint = repo.generate_key("Test", "")
     data, _ = make_backup(app, client, csrf)
     new_app, new_client, new_csrf = fresh()
-    from flatout import backup
-    monkeypatch.setattr(backup, "CHUNK_BYTES", 4096)
+    from flatout import chunks
+    monkeypatch.setattr(chunks, "CHUNK_BYTES", 4096)
     upload_id = upload(new_client, new_csrf, data, chunk=4096)
 
     # A piece sent twice is taken once; one out of place is refused.

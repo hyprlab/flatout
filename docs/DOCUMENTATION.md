@@ -190,8 +190,30 @@ curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" -H "Content-Type: applicatio
   https://app.example.org/api/v1/releases
 ```
 
-Both answer at once with the release and its job; `GET /api/v1/releases/<id>`
-shows when it is live.
+Behind a proxy that caps request bodies, send a large bundle in pieces:
+`POST /api/v1/uploads` with its `size` answers with an `id` and the
+`chunk_size` to use; `PUT /api/v1/uploads/<id>?offset=N` takes each piece as
+the raw body (a piece sent twice is taken once; one out of place answers 409
+with `received`, where to carry on); then the release is made from it:
+
+```sh
+api=https://app.example.org/api/v1; auth="Authorization: Bearer $FLATOUT_TOKEN"
+file=org.example.App-x86_64.flatpak; size=$(stat -c %s "$file")
+up=$(curl -fsS -H "$auth" -H "Content-Type: application/json" -d "{\"size\": $size}" $api/uploads)
+id=$(echo "$up" | jq -r .id); chunk=$(echo "$up" | jq -r .chunk_size)
+for ((offset = 0; offset < size; offset += chunk)); do
+  tail -c +$((offset + 1)) "$file" | head -c $chunk |
+    curl -fsS --retry 5 -H "$auth" -H "Content-Type: application/octet-stream" \
+      -X PUT --data-binary @- "$api/uploads/$id?offset=$offset" >/dev/null
+done
+curl -fsS -H "$auth" -H "Content-Type: application/json" \
+  -d "{\"upload\": \"$id\", \"channel\": \"stable\"}" $api/releases
+```
+
+Unfinished uploads are removed after a day.
+
+Each way answers at once with the release and its job;
+`GET /api/v1/releases/<id>` shows when it is live.
 
 The whole API is described in OpenAPI at `/api/v1/openapi.json`, and listed
 in the admin under API and agents > Reference. Errors are
@@ -276,11 +298,13 @@ number of proxies in front, usually `1`. Flatout then takes the client's
 address, the scheme and the host from the `X-Forwarded-*` headers, which the
 install files, the sign-in throttle and the install numbers need. Setting it
 higher than the real number lets a client forge its address. With HTTPS at
-the proxy, also set `SESSION_COOKIE_SECURE=1`, and allow request bodies as
-large as `MAX_UPLOAD_MB` (nginx's `client_max_body_size`). Restoring a
-backup sends it in 90 MB pieces, so it works under Cloudflare's 100 MB limit;
-bundle uploads are single requests and need the limit raised or a smaller
-bundle.
+the proxy, also set `SESSION_COOKIE_SECURE=1`.
+
+Uploads from the admin, bundles and backups alike, go in pieces of 90 MB, so
+they get through proxies that cap request bodies, Cloudflare's 100 MB among
+them. Only a bundle sent in one request from a script (`-F file=@…`, below)
+needs the proxy to allow bodies as large as `MAX_UPLOAD_MB` (nginx's
+`client_max_body_size`).
 
 A CDN in front works: the repository's summary and signatures are sent with
 `Cache-Control: no-store`, and content objects, which never change, may be

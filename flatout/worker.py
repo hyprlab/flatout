@@ -34,6 +34,10 @@ def run_once(app: Flask) -> None:
 
 def _work() -> int:
     """Forget the daily visitor hashes once they are old enough not to
-    matter for any count. Returns the number of rows removed, for the log."""
-    from . import stats
-    return stats.prune()
+    matter for any count, and drop uploads sent in pieces that nobody
+    finished within a day. Returns how many things were removed, for the log."""
+    from pathlib import Path
+    from flask import current_app
+    from . import chunks, stats
+    data = Path(current_app.config["DATA_DIR"])
+    return stats.prune() + chunks.prune(data / "uploads") + chunks.prune(data / "restore")

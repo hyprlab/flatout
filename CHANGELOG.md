@@ -12,6 +12,8 @@ All notable changes to Flatout are documented here. The format follows
 - A fresh install's setup can restore a backup, uploaded in 90 MB pieces so
   it gets through Cloudflare and similar proxies, or with `flask
   restore-backup` on the server
+- Bundles upload in 90 MB pieces too, from the admin and through the API
+  (`/api/v1/uploads`), so large ones get through Cloudflare
 - Several bundles can be chosen or dropped at once under Releases, and upload
   one after another, each its own release
 
