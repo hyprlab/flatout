@@ -23,8 +23,9 @@
         <li>Name your app</li>
         <li>Then the admin walks you through the rest</li>
       </ul>
-      <div class="wiz-nav">
+      <div class="wiz-nav wiz-nav--stack">
         <button class="btn btn--primary btn--block" data-next>Get started</button>
+        <button class="btn btn--ghost btn--block" type="button" data-restore>Restore from a backup</button>
       </div>
     </section>
 
@@ -86,6 +87,36 @@
       </div>
     </section>
 
+    <!-- Restoring a backup instead -->
+    <section class="wiz-step" data-step="3">
+      <h2 class="wiz-title">Restore from a backup</h2>
+      <p class="wiz-text">A backup made under Settings &gt; Backup on another Flatout. Everything comes
+        back: the accounts, the site, the repository and its signing key. Sign in with an
+        account from the backup afterwards.</p>
+      <div class="auth-form">
+        <label class="field">
+          <span class="field-label">Backup file</span>
+          <input id="restore-file" type="file" accept=".gpg,.tar.gpg">
+        </label>
+        <label class="field">
+          <span class="field-label">Passphrase</span>
+          <input id="restore-pass" type="password" autocomplete="off">
+        </label>
+      </div>
+      <div class="restore-progress" id="restore-progress" hidden>
+        <progress id="restore-bar" max="100" value="0"></progress>
+        <p class="hint" id="restore-state" role="status" aria-live="polite"></p>
+      </div>
+      <p class="form-error" id="wiz-error-3" hidden></p>
+      <div class="wiz-nav">
+        <button class="btn btn--ghost" type="button" data-back-home>Back</button>
+        <button class="btn btn--primary" type="button" id="restore-go">
+          <span class="btn-label">Restore</span>
+          <span class="btn-busy" hidden>Restoring…</span>
+        </button>
+      </div>
+    </section>
+
   </div>
 </main>
 
@@ -101,6 +132,8 @@
     current = n;
     steps.forEach(function (s, i) { s.classList.toggle("is-active", i === n); });
     dots.forEach(function (d, i) { d.classList.toggle("is-active", i <= n); });
+    // Restoring isn't one of the three steps.
+    document.querySelector(".wiz-dots").style.visibility = n === 3 ? "hidden" : "";
     var focus = steps[n].querySelector("input");
     if (focus) focus.focus();
   }
@@ -165,6 +198,123 @@
           err(2, e.message);
         }).finally(function () { setBusy(btn, false); });
       }
+    });
+  });
+
+  /* ————— Restoring a backup ————— */
+  // The file goes up in pieces (chunk_size, under 100 MB, so a proxy such as
+  // Cloudflare's lets each through), every piece retried on its own. The
+  // passphrase is checked once the first piece is in, before the rest goes.
+  var restoring = null;   // {file, id, chunk} of the upload in progress, to resume it
+  document.querySelector("[data-restore]").addEventListener("click", function () { show(3); });
+  document.querySelector("[data-back-home]").addEventListener("click", function () { show(0); });
+
+  function restoreState(text, percent) {
+    document.getElementById("restore-progress").hidden = false;
+    document.getElementById("restore-state").textContent = text;
+    var bar = document.getElementById("restore-bar");
+    if (percent == null) bar.removeAttribute("value"); else bar.value = percent;
+  }
+  function call(method, url, body) {
+    return fetch(url, {
+      method: method,
+      headers: body === undefined ? { "X-CSRF": CSRF } : { "Content-Type": "application/json", "X-CSRF": CSRF },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    }).then(function (resp) {
+      return resp.json().catch(function () { return {}; }).then(function (data) {
+        if (!resp.ok) { var e = new Error(data.error || "Something went wrong."); e.data = data; e.status = resp.status; throw e; }
+        return data;
+      });
+    }, function () { throw new Error("Can't reach the server."); });
+  }
+  function sendPiece(job, offset, onProgress) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("PUT", "/setup/restore/" + job.id + "?offset=" + offset);
+      xhr.setRequestHeader("X-CSRF", CSRF);
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.upload.onprogress = function (ev) { if (ev.lengthComputable) onProgress(ev.loaded); };
+      xhr.onload = function () {
+        var data = {};
+        try { data = JSON.parse(xhr.responseText); } catch (_) {}
+        if (xhr.status === 200) resolve(data.received);
+        else if (xhr.status === 409 && typeof data.received === "number") resolve(data.received);
+        else { var e = new Error(data.error || "A piece of the upload failed."); e.fatal = xhr.status === 404; reject(e); }
+      };
+      xhr.onerror = function () { reject(new Error("The connection dropped.")); };
+      xhr.send(job.file.slice(offset, Math.min(offset + job.chunk, job.file.size)));
+    });
+  }
+  function upload(job, offset, until) {
+    // Pieces in turn from offset up to until; each tried up to five times.
+    if (offset >= until) return Promise.resolve(offset);
+    var tries = 0;
+    var attempt = function () {
+      return sendPiece(job, offset, function (loaded) {
+        var pct = Math.round((offset + loaded) / job.file.size * 100);
+        var made = job.made && job.made.created_at
+          ? " made " + new Date(job.made.created_at).toLocaleDateString(undefined, { dateStyle: "medium" }) : "";
+        restoreState("Uploading the backup" + made + ": " + pct + "%", pct);
+      }).catch(function (err) {
+        tries += 1;
+        if (err.fatal || tries >= 5) throw err;
+        restoreState("The connection dropped. Trying that piece again…", Math.round(offset / job.file.size * 100));
+        return new Promise(function (r) { setTimeout(r, 1000 * Math.pow(2, tries - 1)); }).then(attempt);
+      });
+    };
+    return attempt().then(function (received) { return upload(job, received, until); });
+  }
+  function waitForRestore(job) {
+    return call("GET", "/setup/restore/" + job.id).then(function (status) {
+      if (status.state === "done") return status;
+      if (status.state === "failed") throw new Error(status.error);
+      return new Promise(function (r) { setTimeout(r, 1500); }).then(function () { return waitForRestore(job); });
+    });
+  }
+
+  document.getElementById("restore-go").addEventListener("click", function () {
+    var btn = this;
+    var file = document.getElementById("restore-file").files[0];
+    var passphrase = document.getElementById("restore-pass").value;
+    err(3, null);
+    if (!file) { err(3, "Choose the backup file."); return; }
+    if (!passphrase) { err(3, "Enter the backup's passphrase."); return; }
+    setBusy(btn, true);
+    var job;
+    var begin = restoring && restoring.file === file
+      ? call("GET", "/setup/restore/" + restoring.id).then(function (s) { job = restoring; return s.received || 0; })
+          .catch(function () { restoring = null; return null; })
+      : Promise.resolve(null);
+    begin.then(function (resumeAt) {
+      if (resumeAt !== null) return resumeAt;
+      return call("POST", "/setup/restore", { size: file.size }).then(function (started) {
+        job = restoring = { file: file, id: started.id, chunk: started.chunk_size };
+        return 0;
+      });
+    }).then(function (offset) {
+      // The first piece, then the passphrase, before the rest.
+      return upload(job, offset, Math.min(job.chunk, file.size)).then(function (received) {
+        restoreState("Checking the passphrase…", null);
+        return call("POST", "/setup/restore/" + job.id + "/check", { passphrase: passphrase }).then(function (r) {
+          job.made = r.backup;
+          return received;
+        });
+      });
+    }).then(function (received) {
+      return upload(job, received, file.size);
+    }).then(function () {
+      restoreState("Decrypting and unpacking the backup. This can take a few minutes…", null);
+      return call("POST", "/setup/restore/" + job.id + "/finish", { passphrase: passphrase });
+    }).then(function () {
+      return waitForRestore(job);
+    }).then(function () {
+      restoring = null;
+      restoreState("Restored. Taking you to sign in…", 100);
+      setTimeout(function () { location.href = "/login"; }, 1200);
+    }).catch(function (e) {
+      document.getElementById("restore-progress").hidden = true;
+      err(3, e.message);
+      setBusy(btn, false);
     });
   });
 

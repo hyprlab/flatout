@@ -30,12 +30,19 @@ log = logging.getLogger(__name__)
 _wake = threading.Event()
 _started = False
 _lock = threading.Lock()
+_secrets: dict[int, str] = {}   # job id -> passphrase, see enqueue()
 BUNDLES_KEPT = 3     # per channel and architecture, for the download button
 
 
-def enqueue(kind: str, release_id: int | None = None, payload: dict | None = None, who: str = "") -> Job:
+def enqueue(kind: str, release_id: int | None = None, payload: dict | None = None, who: str = "",
+            secret: str | None = None) -> Job:
+    """Queue a job. ``secret`` (a backup's passphrase) is never stored: it
+    waits in memory for its job, and a restart loses it with the job."""
     job = Job(kind=kind, release_id=release_id, payload=json.dumps(payload or {}), created_by=who)
     db.session.add(job)
+    db.session.flush()
+    if secret is not None:
+        _secrets[job.id] = secret
     db.session.commit()
     _wake.set()
     return job
@@ -251,6 +258,14 @@ def handle_summary(job: Job, payload: dict, lines: list) -> None:
     _summary(lines)
 
 
+def handle_backup(job: Job, payload: dict, lines: list) -> None:
+    from . import backup
+    passphrase = _secrets.pop(job.id, None)
+    if passphrase is None:
+        raise repo.RepoError("The passphrase was lost when Flatout restarted. Start the backup again.")
+    backup.create(passphrase, lines, job_id=job.id)
+
+
 def handle_keygen(job: Job, payload: dict, lines: list) -> None:
     fpr = repo.generate_key(payload["name"], payload.get("email", ""), lines)
     lines.append(f"Created signing key {fpr}.")
@@ -266,4 +281,5 @@ HANDLERS = {
     "end": handle_end,
     "summary": handle_summary,
     "keygen": handle_keygen,
+    "backup": handle_backup,
 }

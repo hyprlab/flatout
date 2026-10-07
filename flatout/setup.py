@@ -4,15 +4,21 @@ Shown exactly once: while the instance has zero users, every request is steered
 to /setup. The wizard creates the admin account, names the app, and seeds the
 placeholder site in one POST, signs the admin in, and hands over to the app. There is
 no seeded account and no default password.
+
+Or the wizard restores a backup made on another Flatout (backup.py): the
+file arrives in pieces, small enough for a proxy that caps request bodies,
+and replaces the fresh install's data once it is all in and intact. Every
+step but the last status check needs the install to still be fresh.
 """
 import json
 import re
+import shutil
 
-from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
 from flask_login import login_user
 
 from .auth import EMAIL_RE, MIN_PASSWORD
-from . import site_schema
+from . import backup, site_schema
 from .models import SiteDocument, User, db, set_setting
 
 bp = Blueprint("setup", __name__)
@@ -69,8 +75,99 @@ def submit():
     _seed_site(app_name, tagline, admin.display_name)
 
     _completed["done"] = True
+    shutil.rmtree(backup.restore_dir(), ignore_errors=True)   # a restore begun, then abandoned
     login_user(admin, remember=True)
     return jsonify(ok=True)
+
+
+# ———————————————————————————— Restoring a backup ————————————————————————————
+
+def _fresh_only():
+    if not needs_setup():
+        return jsonify(error="This instance is already set up. Restore a backup on a fresh install."), 409
+    return None
+
+
+def _restore_error(err: backup.BackupError):
+    return jsonify(error=str(err)), 400
+
+
+@bp.route("/setup/restore", methods=["POST"])
+def restore_start():
+    """{"size": bytes} -> {"id", "chunk_size"}: where to send the pieces."""
+    refused = _fresh_only()
+    if refused:
+        return refused
+    data = request.get_json(silent=True) or {}
+    try:
+        started = backup.start_upload(int(data.get("size") or 0))
+    except (TypeError, ValueError):
+        return jsonify(error="Send the backup's size in bytes."), 400
+    except backup.BackupError as err:
+        return _restore_error(err)
+    # A piece has to fit under the server's own request limit as well.
+    limit = current_app.config.get("MAX_CONTENT_LENGTH") or backup.CHUNK_BYTES
+    started["chunk_size"] = min(backup.CHUNK_BYTES, limit - 1024 * 1024)
+    return jsonify(started), 201
+
+
+@bp.route("/setup/restore/<upload_id>", methods=["PUT"])
+def restore_chunk(upload_id):
+    """One piece of the file, as the raw request body, at ?offset=N."""
+    refused = _fresh_only()
+    if refused:
+        return refused
+    try:
+        offset = int(request.args.get("offset", ""))
+        have = backup.add_chunk(upload_id, offset, request.stream, request.content_length)
+    except ValueError:
+        return jsonify(error="Say where the piece goes with ?offset=."), 400
+    except backup.BackupError as err:
+        try:
+            have = backup.received(upload_id)
+        except backup.BackupError:
+            return jsonify(error=str(err)), 404
+        return jsonify(error=str(err), received=have), 409
+    return jsonify(received=have)
+
+
+@bp.route("/setup/restore/<upload_id>/check", methods=["POST"])
+def restore_check(upload_id):
+    """Open what has arrived with the passphrase: {"passphrase"} -> the
+    backup's manifest, or why it can't be restored."""
+    refused = _fresh_only()
+    if refused:
+        return refused
+    data = request.get_json(silent=True) or {}
+    try:
+        manifest = backup.check(upload_id, str(data.get("passphrase") or ""))
+    except backup.BackupError as err:
+        return _restore_error(err)
+    return jsonify(backup={k: manifest.get(k) for k in ("version", "created_at", "public_url")})
+
+
+@bp.route("/setup/restore/<upload_id>/finish", methods=["POST"])
+def restore_finish(upload_id):
+    """Restore it, in the background: poll GET /setup/restore/<id>."""
+    refused = _fresh_only()
+    if refused:
+        return refused
+    data = request.get_json(silent=True) or {}
+    try:
+        backup.finish(current_app._get_current_object(), upload_id, str(data.get("passphrase") or ""),
+                      inline=current_app.testing)
+    except backup.BackupError as err:
+        return _restore_error(err)
+    return jsonify(backup.status(upload_id)), 202
+
+
+@bp.route("/setup/restore/<upload_id>")
+def restore_status(upload_id):
+    """receiving (with "received"), restoring, done or failed (with "error")."""
+    try:
+        return jsonify(backup.status(upload_id))
+    except backup.BackupError as err:
+        return jsonify(error=str(err)), 404
 
 
 def _seed_site(name: str, tagline: str, who: str) -> None:

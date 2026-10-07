@@ -5,12 +5,15 @@ Inside the container:
     docker exec -it flatout flask create-user you@example.com --admin
     docker exec -it flatout flask reset-password you@example.com
     docker exec flatout flask backup /data/backup-$(date +%F).db
+    docker exec -it flatout flask restore-backup /data/flatout-backup-….tar.gpg
     docker exec flatout flask turnstile off
 
 (The image sets FLASK_APP, so no --app is needed inside the container.)
 
 ``reset-password`` is the way back in for an admin locked out of the only admin
 account; there is no email-based reset, because the app sends no email.
+``restore-backup`` restores a backup made under Settings > Backup onto a fresh
+install, for a file too large to upload comfortably through the setup wizard.
 ``turnstile off`` is the way back in when a Turnstile widget stops working
 (its hostname list changed, Cloudflare is unreachable) and nobody can sign in.
 """
@@ -30,6 +33,7 @@ def register(app: Flask) -> None:
     app.cli.add_command(create_user)
     app.cli.add_command(reset_password)
     app.cli.add_command(backup)
+    app.cli.add_command(restore_backup)
     app.cli.add_command(turnstile)
 
 
@@ -99,6 +103,33 @@ def backup(destination: Path):
         dst.close()
         src.close()
     click.echo(f"Backed up to {destination} ({destination.stat().st_size // 1024} KB).")
+
+
+@click.command("restore-backup")
+@with_appcontext
+@click.argument("source", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.password_option("--passphrase", prompt="Backup passphrase", confirmation_prompt=False,
+                       help="The passphrase the backup was made with (asked for if left out).")
+def restore_backup(source: Path, passphrase: str):
+    """Restore a backup (Settings > Backup) onto this fresh install.
+
+    Only before the first account exists. Restart the container afterwards:
+    the running server still has the old data open.
+    """
+    from . import backup as backups
+    from .setup import needs_setup
+    if not needs_setup():
+        raise click.ClickException("This instance is already set up. Restore onto a fresh install.")
+    try:
+        manifest = backups.restore_file(current_app._get_current_object(), source, passphrase)
+    except backups.BackupError as err:
+        raise click.ClickException(str(err))
+    finally:
+        import shutil
+        for leftover in backups.restore_dir().glob("cli-*"):
+            shutil.rmtree(leftover, ignore_errors=True)
+    click.echo(f"Restored the backup made {manifest.get('created_at', '')[:10]} by Flatout "
+               f"{manifest.get('version')}. Restart the container, then sign in with an account from it.")
 
 
 @click.group("turnstile")

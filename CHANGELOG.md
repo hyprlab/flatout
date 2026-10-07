@@ -7,6 +7,11 @@ All notable changes to Flatout are documented here. The format follows
 ## Unreleased
 
 ### Added
+- Backups under Settings > Backup: one file with everything, encrypted with
+  a passphrase, to download
+- A fresh install's setup can restore a backup, uploaded in 90 MB pieces so
+  it gets through Cloudflare and similar proxies, or with `flask
+  restore-backup` on the server
 - Several bundles can be chosen or dropped at once under Releases, and upload
   one after another, each its own release
 

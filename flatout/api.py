@@ -738,6 +738,70 @@ def job_get(job_id):
     return jsonify(job=_job_json(job))
 
 
+# ———————————————————————————— Backups ————————————————————————————
+# A backup holds every account's password hash and the signing key, so only
+# an admin, signed in, makes or takes one: never an API token.
+
+def _admin_session():
+    _session_only()
+    if not g.api_user.is_admin:
+        raise ApiError(403, "Only an admin can make or download backups.")
+
+
+def _backup_json() -> dict:
+    from . import backup
+    from .models import Job
+    job = Job.query.filter_by(kind="backup").order_by(Job.id.desc()).first()
+    return {"backup": backup.latest(), "job": _job_json(job) if job else None,
+            "available": backup.gpg_available(), "min_passphrase": backup.MIN_PASSPHRASE}
+
+
+@bp.route("/backup")
+def backup_get():
+    """The backup ready to download, if any, and the newest backup job."""
+    _admin_session()
+    return jsonify(_backup_json())
+
+
+@bp.route("/backup", methods=["POST"])
+def backup_create():
+    """Make a new backup of everything: {"passphrase": "..."}. Runs as a job;
+    the passphrase is never stored."""
+    from . import backup, jobs
+    from .models import Job
+    _admin_session()
+    passphrase = str(body().get("passphrase") or "")
+    if len(passphrase) < backup.MIN_PASSPHRASE:
+        raise ApiError(400, f"Use a passphrase of at least {backup.MIN_PASSPHRASE} characters.")
+    if not backup.gpg_available():
+        raise ApiError(503, "gpg isn't installed here. Run Flatout from its Docker image.")
+    if Job.query.filter(Job.kind == "backup", Job.status.in_(("queued", "running"))).first():
+        raise ApiError(409, "A backup is already being made.")
+    job = jobs.enqueue("backup", None, {}, g.actor, secret=passphrase)
+    return jsonify(job=_job_json(job), **{k: v for k, v in _backup_json().items() if k != "job"}), 202
+
+
+@bp.route("/backup/download")
+def backup_download():
+    from flask import send_file
+    from . import backup
+    _admin_session()
+    info = backup.latest()
+    if info is None:
+        raise ApiError(404, "There is no backup to download. Make one first.")
+    return send_file(backup.backups_dir() / info["name"], as_attachment=True, download_name=info["name"],
+                     mimetype="application/pgp-encrypted", conditional=True, max_age=0)
+
+
+@bp.route("/backup", methods=["DELETE"])
+def backup_delete():
+    from . import backup
+    _admin_session()
+    if not backup.delete():
+        raise ApiError(404, "There is no backup to delete.")
+    return jsonify(_backup_json())
+
+
 # ———————————————————————————— The repository ————————————————————————————
 
 REPO_SETTINGS = {

@@ -29,6 +29,7 @@ Only the latest stable release receives security fixes.
 | Open redirects | The post-sign-in `next` must be a same-site path |
 | Session theft | `HttpOnly` and `SameSite=Lax` cookies; `Secure` with `SESSION_COOKIE_SECURE=1`; sign-in ids carry a stamp of the password, so changing or resetting it ends every other session and remember-me cookie of the account |
 | A default password | There is none: the first account is created in the setup wizard |
+| A stolen backup | Encrypted with OpenPGP (AES-256) under a passphrase of at least 12 characters that the server never stores; only an admin, signed in, can make or download one, never an API token |
 | Stale pages | HTML is served `no-store` |
 | Running as root | The container runs as an unprivileged user |
 
@@ -45,5 +46,11 @@ Only the latest stable release receives security fixes.
 - The repository's signing key has no passphrase, because the server signs
   every update unattended. Whoever can read the volume can sign updates;
   protect the volume and keep the key's backup elsewhere.
+- Until the first account exists, whoever reaches a fresh install can set
+  it up or restore a backup onto it, as with any first-run wizard. Set it up
+  before exposing it.
+- A backup holds every account's password hash and the signing key, so its
+  passphrase is what protects them once the file leaves the server. Keep
+  the passphrase apart from the file.
 - Every account can change the site and publish releases. Accounts are for
   the people who run the site; sign-up is closed by default.

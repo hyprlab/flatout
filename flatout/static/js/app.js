@@ -169,6 +169,14 @@
       chosen.querySelector("span").textContent;
     settingsModal.classList.add("is-showing-pane");
     if (focusItem) chosen.focus();
+    announcePane();
+  }
+  // Panes that load what they show when they appear listen for this.
+  function announcePane() {
+    var active = settingsModal.querySelector(".settings-pane.is-active");
+    if (active && settingsModal.open) {
+      settingsModal.dispatchEvent(new CustomEvent("settings:pane", { detail: active.getAttribute("data-pane") }));
+    }
   }
   function showSettingsList() {
     if (!settingsModal) return;
@@ -188,6 +196,7 @@
     }
     setSidebar(false);
     dialog.showModal();
+    if (id === "settings-modal") announcePane();
   }
   // Delegated, so buttons that arrive later (an empty state re-rendered by
   // paging) open their dialog too.
@@ -698,6 +707,75 @@
       history.replaceState(null, "", location.pathname + location.search);
       openDialog("site-status-modal");
     }
+  }
+
+  /* ————— Backup ————— */
+  // Making a backup is a job: the pane shows it running and offers the file
+  // when it's done. Only the newest backup is kept on the server.
+  var backupForm = document.getElementById("backup-form");
+  if (backupForm) {
+    var backupTimer = null;
+    var backupLoaded = false;
+    var backupSize = function (n) {
+      var units = ["bytes", "KB", "MB", "GB", "TB"], i = 0;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return (i ? n.toFixed(1) : n) + " " + units[i];
+    };
+    var drawBackup = function (data) {
+      backupLoaded = true;
+      var file = data.backup, job = data.job;
+      var box = document.getElementById("backup-file");
+      box.hidden = !file;
+      if (file) {
+        document.getElementById("backup-file-name").textContent = file.name;
+        document.getElementById("backup-file-meta").textContent = backupSize(file.size) + " · made " +
+          new Date(file.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+      }
+      document.getElementById("backup-form-title").textContent = file ? "Make a new backup" : "Make a backup";
+      var busy = job && (job.status === "queued" || job.status === "running");
+      setBusy(document.getElementById("backup-make"), !!busy);
+      var state = document.getElementById("backup-state");
+      if (busy) state.textContent = "Backing up. This can take a while for a large repository; the window can be closed meanwhile.";
+      else if (job && job.status === "failed") state.textContent = "The last backup failed: " + ((job.log || "").split("FAILED: ")[1] || "").split("\n")[0];
+      else state.textContent = file ? "Making a new one replaces this one." : "";
+      clearTimeout(backupTimer);
+      if (busy) backupTimer = setTimeout(loadBackup, 2000);
+      if (!data.available) {
+        state.textContent = "gpg isn't installed here, so backups can't be made. Run Flatout from its Docker image.";
+        document.getElementById("backup-make").disabled = true;
+      }
+    };
+    var loadBackup = function () {
+      get("/api/v1/backup").then(drawBackup).catch(toastError);
+    };
+    settingsModal.addEventListener("settings:pane", function (e) {
+      if (e.detail === "backup") loadBackup();
+    });
+    settingsModal.addEventListener("close", function () { clearTimeout(backupTimer); });
+
+    backupForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var errEl = document.getElementById("backup-error");
+      var pass = document.getElementById("backup-pass"), again = document.getElementById("backup-pass2");
+      var fail = function (message) { errEl.textContent = message; errEl.hidden = !message; };
+      if (pass.value.length < 12) { fail("Use a passphrase of at least 12 characters."); return; }
+      if (pass.value !== again.value) { fail("The passphrases don't match."); return; }
+      fail("");
+      var btn = document.getElementById("backup-make");
+      setBusy(btn, true);
+      api("/api/v1/backup", { passphrase: pass.value }).then(function (data) {
+        pass.value = again.value = "";
+        drawBackup(data);
+      }).catch(function (err) {
+        setBusy(btn, false);
+        fail(err.message);
+      });
+    });
+
+    document.getElementById("backup-delete").addEventListener("click", function () {
+      request("/api/v1/backup", { method: "DELETE", headers: { "X-CSRF": CSRF, "Accept": "application/json" } })
+        .then(drawBackup).catch(toastError);
+    });
   }
 
   window.Flatout = {

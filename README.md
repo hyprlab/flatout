@@ -33,6 +33,7 @@ and an MCP server.
   follow the current release, key and address
 - **Install numbers without telemetry,** read from ordinary repository traffic
 - **An API and an MCP server,** with scoped tokens, for CI and AI agents
+- **Encrypted backups** of everything, restored by a fresh install's setup
 - Accounts with a first-run setup wizard, Cloudflare Turnstile for sign-in,
   light and dark themes
 

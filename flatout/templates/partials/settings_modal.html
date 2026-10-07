@@ -7,6 +7,7 @@
 ] + ([
   ('admin', 'Accounts', 'Instance', '<path d="M12 22s8-4 8-10V5.5L12 2.5 4 5.5V12c0 6 8 10 8 10Z"/><path d="m8.8 12 2.2 2.2 4.2-4.4"/>'),
   ('security', 'Security', 'Instance', '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3M12 14.5v2.5"/>'),
+  ('backup', 'Backup', 'Instance', '<rect x="3.5" y="4" width="17" height="5" rx="1.5"/><path d="M5 9v9.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"/>'),
 ] if current_user.is_admin else []) %}
 {% set about_icon = '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.1"/>' %}
 {% macro settings_navitem(id, label, icon, active=false) %}
@@ -179,6 +180,48 @@
 
       <p class="hint ts-recovery">Locked out of sign-in anyway? On the server,
         <code>docker exec {{ app_package }} flask turnstile off</code> turns it off.</p>
+    </section>
+
+    <section class="settings-pane" data-pane="backup" id="settings-backup" role="tabpanel" aria-labelledby="settings-tab-backup" tabindex="0">
+      <p class="setting-label">Back up everything</p>
+      <p class="hint">One file with the accounts, the site and its media, the repository with
+        every build, and the signing key, encrypted with a passphrase you choose. To move
+        to a new server, or recover, start a fresh install and choose
+        <strong>Restore from a backup</strong> in its setup.</p>
+
+      <div class="backup-file" id="backup-file" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 7v10l8 4 8-4V7l-8-4ZM4 7l8 4 8-4M12 11v10"/></svg>
+        <div class="backup-file-text">
+          <span class="backup-file-name" id="backup-file-name"></span>
+          <span class="hint" id="backup-file-meta"></span>
+        </div>
+        <a class="btn btn--primary btn--xs" id="backup-download" href="/api/v1/backup/download" download>Download</a>
+        <button class="iconbtn iconbtn--sm" type="button" id="backup-delete" aria-label="Delete this backup" title="Delete this backup">
+          <svg viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/></svg></button>
+      </div>
+
+      <form id="backup-form" class="stack" autocomplete="off">
+        <p class="setting-label setting-label--spaced setting-label--flush" id="backup-form-title">Make a backup</p>
+        <label class="field">
+          <span class="field-label">Passphrase</span>
+          <input id="backup-pass" type="password" autocomplete="new-password" minlength="12" required>
+        </label>
+        <label class="field">
+          <span class="field-label">Passphrase again</span>
+          <input id="backup-pass2" type="password" autocomplete="new-password" minlength="12" required>
+        </label>
+        <p class="hint">At least 12 characters. Keep it somewhere safe: without it nobody can
+          open the backup, you included. The server forgets it once the backup is made.</p>
+        <p class="form-error" id="backup-error" hidden></p>
+        <div class="ts-actions">
+          <button class="btn btn--primary" type="submit" id="backup-make">
+            <span class="btn-label">Make a backup</span><span class="btn-busy" hidden>Backing up…</span></button>
+        </div>
+        <p class="hint" id="backup-state" role="status" aria-live="polite"></p>
+      </form>
+      <p class="hint ts-recovery">A large backup restores more easily from the server:
+        copy it into the volume, then on the fresh install run
+        <code>docker exec -it {{ app_package }} flask restore-backup /data/&lt;file&gt;</code>.</p>
     </section>
     {% endif %}
 

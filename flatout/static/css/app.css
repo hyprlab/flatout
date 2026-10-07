@@ -517,6 +517,12 @@ dialog.is-restoring, dialog.is-restoring::backdrop { animation: none !important;
 #ts-widget { min-height: 65px; }
 .ts-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .ts-recovery { margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--line); }
+.backup-file { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px;
+  margin: 16px 0 6px; padding: 12px 12px 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--field); }
+.backup-file[hidden] { display: none; }
+.backup-file > svg { width: 26px; height: 26px; color: var(--muted); fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.backup-file-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.backup-file-name { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hint code { font-family: var(--mono); font-size: .92em; background: var(--field); padding: 1px 5px; border-radius: 5px; color: var(--ink); }
 .link { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 2px; }
 
@@ -721,6 +727,10 @@ html[data-theme="dark"] .toast--error { background: #4E2320; color: #FFE1DD; box
 .wiz-nav { display: flex; gap: 10px; justify-content: space-between; margin-top: 22px; }
 .wiz-nav .btn--primary:only-child { width: 100%; }
 .wiz-nav .btn--primary:not(:only-child) { flex: 1; }
+.wiz-nav--stack { flex-direction: column; }
+.restore-progress { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.restore-progress[hidden] { display: none; }
+.restore-progress progress { width: 100%; accent-color: var(--accent); }
 .wizard .auth-form { gap: 13px; }
 .wizard .form-error { margin-top: 12px; }
 .wiz-added { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

@@ -104,8 +104,8 @@ def create_app(config_class=Config) -> Flask:
     @app.before_request
     def steer_to_setup():
         """A fresh install (zero users) goes to the wizard, nowhere else."""
-        if request.endpoint in ("setup.wizard", "setup.submit", "static", "main.healthz") \
-                or (request.endpoint or "").startswith("serve."):
+        if request.endpoint in ("static", "main.healthz") \
+                or (request.endpoint or "").startswith(("serve.", "setup.")):
             return None
         if setup.needs_setup():
             if _is_machine_path():

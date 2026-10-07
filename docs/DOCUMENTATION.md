@@ -277,7 +277,10 @@ address, the scheme and the host from the `X-Forwarded-*` headers, which the
 install files, the sign-in throttle and the install numbers need. Setting it
 higher than the real number lets a client forge its address. With HTTPS at
 the proxy, also set `SESSION_COOKIE_SECURE=1`, and allow request bodies as
-large as `MAX_UPLOAD_MB` (nginx's `client_max_body_size`).
+large as `MAX_UPLOAD_MB` (nginx's `client_max_body_size`). Restoring a
+backup sends it in 90 MB pieces, so it works under Cloudflare's 100 MB limit;
+bundle uploads are single requests and need the limit raised or a smaller
+bundle.
 
 A CDN in front works: the repository's summary and signatures are sent with
 `Cache-Control: no-store`, and content objects, which never change, may be
@@ -294,8 +297,37 @@ existing install needs something done by hand; the changelog says what.
 
 ## Backups
 
-Back up the whole volume: it holds the database, the repository, the signing
-key, uploads and bundles. With the container stopped:
+Settings > Backup (admins only) makes one file with everything: the
+accounts, the site and its media, the repository with every build, the
+signing key and the settings. It is encrypted with a passphrase you choose,
+at least 12 characters, which the server forgets once the backup is made;
+without it nobody can open the file. Making one runs in the background and
+can take a while for a large repository; the newest backup stays on the
+server until you download it, delete it or make another, and needs about as
+much free disk space as the data itself.
+
+To restore, start a fresh install and choose **Restore from a backup** in its
+setup. The file uploads in pieces of 90 MB, each retried on its own, so
+proxies that cap request bodies (Cloudflare's limit is 100 MB) let it through.
+The passphrase is checked once the first piece is in. The fresh install's
+data is replaced only after the whole file has arrived and proved intact;
+then sign in with an account from the backup. The restoring install needs
+free space for about twice the backup.
+
+A large backup restores more easily from the server: copy it into the
+volume, then on the fresh install
+
+```sh
+docker exec -it flatout flask restore-backup /data/flatout-backup-….tar.gpg
+docker compose restart
+```
+
+A backup is a tar archive encrypted with standard OpenPGP, so it opens
+without Flatout as well: `gpg --decrypt flatout-backup-….tar.gpg | tar -x`.
+A backup made by a newer Flatout than the restoring one is refused; update
+first.
+
+Copying the volume by hand works too, with the container stopped:
 
 ```sh
 docker compose stop
@@ -303,10 +335,6 @@ docker run --rm -v flatout_flatout-data:/data -v "$PWD":/backup alpine \
   tar czf /backup/flatout-$(date +%F).tar.gz -C /data .
 docker compose start
 ```
-
-For the database alone while the site runs, `docker exec flatout flask backup
-/data/backup.db` writes a consistent copy. Keep a separate copy of the secret
-signing key (Signing and addresses > Download a backup).
 
 ## Commands
 
@@ -317,6 +345,7 @@ Run inside the container:
 | `flask create-user EMAIL [--admin] [--name NAME]` | Create an account; asks for the password |
 | `flask reset-password EMAIL` | Set a new password; the way back in for a locked-out admin |
 | `flask backup PATH` | Write a consistent copy of the database |
+| `flask restore-backup FILE` | Restore a backup from Settings > Backup onto a fresh install; restart afterwards |
 | `flask turnstile status`, `flask turnstile off` | Show whether Turnstile is on; turn it off when nobody can sign in |
 
 ## Health

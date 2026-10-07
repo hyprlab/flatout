@@ -20,6 +20,7 @@ flatout/
   releases.py      what the site reads about releases
   repo.py          the repository on disk and the flatpak/ostree/gpg commands
   jobs.py          the thread that runs repository work, one job at a time
+  backup.py        encrypted backups of everything, and restoring one
   serve.py         what Flatpak clients fetch: /repo, install files, bundles
   stats.py         install numbers from repository traffic
   api.py           the JSON API under /api/v1, and its tokens
@@ -29,7 +30,8 @@ flatout/
   auth.py          sign in, sign up, sign out, Turnstile, the sign-in throttle
   setup.py         the first-run wizard
   main.py          health, the account, and account administration
-  cli.py           flask commands: create-user, reset-password, backup
+  cli.py           flask commands: create-user, reset-password, backup,
+                   restore-backup
   worker.py        periodic housekeeping
   about_docs.py    parses CHANGELOG.md for the About section
   sanitize.py      allowlist HTML sanitizer, stdlib only
@@ -165,6 +167,9 @@ answer 503.
 | `DATA_DIR/gnupg/` | The signing key |
 | `DATA_DIR/bundles/` | Uploaded bundles, for the download button |
 | `DATA_DIR/.secret_key`, `.stats_salt` | Generated secrets |
+| `DATA_DIR/backups/` | The newest backup made in Settings, waiting to be downloaded |
+| `DATA_DIR/restore/` | A backup arriving in the setup wizard, and what it unpacks to |
 
-`DATA_DIR` is `/data` in Docker and `./var` locally. Backing up Flatout is
-backing up that directory (see [DOCUMENTATION.md](DOCUMENTATION.md#backups)).
+`DATA_DIR` is `/data` in Docker and `./var` locally. A backup (Settings >
+Backup) is that directory, less `staging/`, `backups/` and `restore/`, with a
+consistent copy of the database (see [DOCUMENTATION.md](DOCUMENTATION.md#backups)).
