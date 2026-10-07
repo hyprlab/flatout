@@ -260,6 +260,10 @@
       var cmd = document.getElementById("install-cmd-bundle");
       if (cmd && arch) cmd.textContent = cmd.getAttribute("data-template").split("{arch}").join(arch);
       modal.querySelectorAll(".dl-arch-name").forEach(function (el) { el.textContent = NAMES[arch] || arch; });
+      // Architectures can be on different versions; say the chosen one's.
+      var picked = modal.querySelector('input[name="install-arch"]:checked');
+      var sub = modal.querySelector("[data-install-version]");
+      if (picked && sub && picked.getAttribute("data-version")) sub.textContent = "Version " + picked.getAttribute("data-version");
     }
     archInputs.forEach(function (el) { el.addEventListener("change", render); });
     methodInputs.forEach(function (el) { el.addEventListener("change", render); });

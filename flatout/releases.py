@@ -16,22 +16,53 @@ CHANNELS = ("stable", "beta")
 ARCH_NAMES = {"x86_64": "Intel/AMD", "aarch64": "ARM"}
 
 
+def arch_order(arches) -> list[str]:
+    """x86_64 first: most machines are, and the install dialog picks the
+    first one unless it sees an ARM machine."""
+    return sorted(set(arches), key=lambda a: (a != "x86_64", a))
+
+
 def heads(channel: str) -> list[Release]:
     """The live build of each architecture on a channel."""
-    return (Release.query.filter_by(channel=channel, status="live")
-            .order_by(Release.arch).all())
+    rows = Release.query.filter_by(channel=channel, status="live").all()
+    return sorted(rows, key=lambda r: (r.arch != "x86_64", r.arch))
+
+
+def version_key(version: str) -> tuple:
+    """Orders versions the way people read them: 1.10 after 1.9. Numbers
+    compare as numbers, anything else as text after them."""
+    return tuple((0, int(part), "") if part.isdigit() else (1, 0, part.lower())
+                 for part in re.findall(r"\d+|[A-Za-z]+", version or ""))
+
+
+def _when(r: Release):
+    return r.published_at or r.created_at
 
 
 def _summary(rows: list[Release]) -> dict | None:
+    """A channel's live builds. Its version is the newest any architecture
+    has; architectures still on an older one are listed in ``behind``, so
+    the site never claims a version a machine can't get."""
     if not rows:
         return None
-    newest = max(rows, key=lambda r: r.published_at or r.created_at)
+    top = max(rows, key=lambda r: (version_key(r.version), _when(r)))
+    notes = top.notes
+    if not notes:
+        # Each architecture is its own upload; the notes may be on another.
+        other = (Release.query.filter(Release.app_id == top.app_id, Release.channel == top.channel,
+                                      Release.version == top.version, Release.notes != "",
+                                      Release.status.in_(("live", "superseded")))
+                 .order_by(Release.published_at.desc(), Release.id.desc()).first())
+        notes = other.notes if other else ""
     return {
-        "version": newest.version,
-        "published_at": (newest.published_at or newest.created_at).isoformat() + "Z",
-        "notes": newest.notes,
-        "arches": sorted({r.arch for r in rows}),
+        "version": top.version,
+        "published_at": _when(top).isoformat() + "Z",
+        "notes": notes,
+        "arches": arch_order(r.arch for r in rows),
         "bundles": {r.arch: bool(r.bundle_file) for r in rows},
+        "builds": {r.arch: {"version": r.version, "published_at": _when(r).isoformat() + "Z",
+                            "bundle": bool(r.bundle_file)} for r in rows},
+        "behind": arch_order(r.arch for r in rows if r.version != top.version),
     }
 
 
@@ -105,7 +136,7 @@ def public_info(doc: dict, base: str) -> dict:
         "stable": _summary(stable_rows),
         "beta": _summary(beta_rows),
         "history": history("stable", 20) + ([] if stable_rows else history("beta", 5)),
-        "arches": sorted({r.arch for r in stable_rows} | {r.arch for r in beta_rows}),
+        "arches": arch_order([r.arch for r in stable_rows + beta_rows]),
         "arch_names": ARCH_NAMES,
         "bundle_url": f"{base}/download/{file_id}-{{arch}}.flatpak",
         "beta_bundle_url": f"{base}/download/{file_id}-beta-{{arch}}.flatpak",

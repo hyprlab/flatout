@@ -7,8 +7,15 @@ All notable changes to Flatout are documented here. The format follows
 ## Unreleased
 
 ### Changed
+- An app built for several architectures shows the right version for each:
+  when one is behind, the admin says so, the site shows its version next to
+  the others, and the release notes come from whichever upload has them
 - Flatout has its own icon, in the admin, on the sign-in and setup pages, in
   the browser tab and on home-screen shortcuts
+
+### Fixed
+- The install dialog offers Intel/AMD first, and its download, unless the
+  visitor's machine is ARM; it used to start on ARM
 
 ## [0.1.0] — 2026-10-07
 

@@ -9,6 +9,9 @@
         <div class="release__head">
           <h3 class="release__version">{{ r.version or 'Untitled build' }}</h3>
           {%- if r.channel == 'beta' %}<span class="release__chip">beta</span>{% endif %}
+          {%- if s.repo.arches|length > 1 and r.arches|length < s.repo.arches|length %}
+          <span class="release__chip">{% for a in r.arches %}{{ s.repo.arch_names.get(a, a) }}{% if not loop.last %}, {% endif %}{% endfor %} only</span>
+          {%- endif %}
           <time class="release__date" datetime="{{ r.published_at }}">{{ r.published_at[:10] }}</time>
         </div>
         {%- if r.notes %}<div class="prose release__notes">{{ s.md(r.notes) }}</div>{% endif %}

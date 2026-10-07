@@ -125,6 +125,15 @@ release's Details.
 - **End the beta** tells installed betas, with your message, that no more
   updates are coming.
 
+An app built for more than one architecture, say x86_64 and aarch64, is one
+upload per architecture. Each is its own branch in the repository, and each
+user's Flatpak picks the one for their machine; a new upload replaces only
+its own architecture. The channel's version is the newest any architecture
+has. Until every architecture has it, the Overview and Releases say which
+one is behind, the site shows its version next to the others ("1.1 (ARM:
+1.0)"), and the release history marks a version built for some machines
+only. Release notes need to be on only one of the uploads.
+
 Past builds kept for rollback default to ten per channel (Repository >
 App); the newest three bundles of each channel and architecture stay
 available to download.

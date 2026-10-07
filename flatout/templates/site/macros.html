@@ -51,3 +51,9 @@
 <img class="{{ cls }}" src="{{ light }}" alt="{{ alt }}" loading="lazy" {{ attrs|safe }}>
 {%- endif %}
 {%- endmacro %}
+
+{# A channel's version, naming any architecture still on an older one:
+   "1.1 (ARM: 1.0)". `info` is releases._summary(). #}
+{% macro versions(repo, info) -%}
+{{ info.version }}{% for a in info.behind %}{% if loop.first %} ({% else %}, {% endif %}{{ repo.arch_names.get(a, a) }}: {{ info.builds[a].version }}{% if loop.last %}){% endif %}{% endfor %}
+{%- endmacro %}

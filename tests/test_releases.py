@@ -6,6 +6,7 @@ release rows in place directly and check what the site and the admin make of
 them.
 """
 import json
+import re
 
 import pytest
 
@@ -107,3 +108,43 @@ def test_an_old_revision_restores_without_its_app_id(app, client, csrf, admin):
         rev_id = rev.id
     resp = client.post(f"/api/v1/site/revisions/{rev_id}/restore", headers=h(csrf))
     assert resp.status_code == 200 and "app_id" not in resp.get_json()["document"]["app"]
+
+
+def add_build(app, arch, version, notes="", minutes=0, channel="stable"):
+    from datetime import timedelta
+    with app.app_context():
+        db.session.add(Release(app_id="org.example.Hello", arch=arch, channel=channel, version=version,
+                               notes=notes, status="live", commit="a" * 64,
+                               bundle_file=f"{arch}-{version}.flatpak",
+                               published_at=utcnow() + timedelta(minutes=minutes)))
+        db.session.commit()
+
+
+def test_versions_order_the_way_people_read_them():
+    from flatout.releases import version_key
+    assert version_key("1.10") > version_key("1.9") > version_key("1.2.3")
+    assert version_key("2026.10.07") > version_key("2026.9.30")
+
+
+def test_an_architecture_left_behind_is_named(app, client, csrf, admin):
+    add_build(app, "x86_64", "1.10")
+    add_build(app, "aarch64", "1.9", minutes=5)    # uploaded later, still older
+    stable = client.get("/api/v1/repo").get_json()["stable"]
+    assert stable["version"] == "1.10" and stable["behind"] == ["aarch64"]
+    assert stable["builds"]["aarch64"]["version"] == "1.9"
+    assert stable["arches"] == ["x86_64", "aarch64"]   # the dialog picks the first
+
+    client.post("/api/v1/site/publish", json={}, headers=h(csrf))
+    home = client.get("/").data.decode()
+    assert "Version 1.10 (ARM: 1.9)" in home
+    assert 'value="aarch64" data-version="1.9"' in home
+    # Intel/AMD is offered first, its download too, unless the page sees ARM.
+    assert re.search(r'data-bundle-link [^>]*href="[^"]*org\.example\.Hello-x86_64\.flatpak"', home)
+    assert "aarch64 is still on 1.9" in client.get("/admin").data.decode()
+
+
+def test_notes_come_from_whichever_build_has_them(app, client, csrf, admin):
+    add_build(app, "x86_64", "2.0", notes="Faster startup.")
+    add_build(app, "aarch64", "2.0", minutes=5)
+    stable = client.get("/api/v1/repo").get_json()["stable"]
+    assert stable["notes"] == "Faster startup." and stable["behind"] == []

@@ -788,6 +788,7 @@ html[data-theme="dark"] .toast--error { background: #4E2320; color: #FFE1DD; box
 .tile { display: flex; flex-direction: column; gap: 4px; }
 .tile-label { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); }
 .tile-big { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; }
+.tile-warn { color: var(--ink); font-weight: 600; }
 .tile-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 10px; flex-wrap: wrap; }
 .banner { border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; }
 .banner--warn { background: rgb(220 150 0 / .12); border: 1px solid rgb(220 150 0 / .35); }

@@ -1,11 +1,11 @@
-{% from "site/macros.html" import command %}
+{% from "site/macros.html" import command, versions %}
 {%- set beta = s.repo.beta %}
 <section id="{{ sec.id }}" class="section section--tint" data-section="{{ sec.id }}">
   <div class="container narrow">
     <div class="section__head">
       {%- if sec.title %}<h2 class="section__title">{{ s.fill(sec.title) }}</h2>{% endif %}
       {%- if sec.lead %}<p class="section__lead">{{ s.fill(sec.lead) }}</p>{% endif %}
-      {%- if beta %}<p class="section__meta">Beta {{ beta.version }}</p>{% endif %}
+      {%- if beta %}<p class="section__meta">Beta {{ versions(s.repo, beta) }}</p>{% endif %}
     </div>
     {%- if sec.warning %}<div class="notice notice--warn reveal-me">{{ s.md(sec.warning) }}</div>{% endif %}
     {%- if sec.button_label %}

@@ -62,12 +62,18 @@
       <p class="tile-label">Stable</p>
       <p class="tile-big">{{ repo.stable.version if repo.stable else 'No release yet' }}</p>
       <p class="hint">{% if repo.stable %}{{ repo.stable.arches|join(', ') }}{% else %}Upload a .flatpak bundle to publish the first version.{% endif %}</p>
+      {%- if repo.stable and repo.stable.behind %}
+      <p class="hint tile-warn">{% for a in repo.stable.behind %}{{ a }} is still on {{ repo.stable.builds[a].version }}{% if not loop.last %}; {% endif %}{% endfor %}</p>
+      {%- endif %}
       <div class="tile-actions"><a class="btn btn--ghost btn--xs" href="{{ url_for('admin.releases') }}">Releases</a></div>
     </section>
     <section class="panel tile">
       <p class="tile-label">Beta</p>
       <p class="tile-big">{{ repo.beta.version if repo.beta else 'None' }}</p>
       <p class="hint">{% if repo.beta %}{{ repo.beta.arches|join(', ') }}{% else %}The beta section of the site appears once a beta exists.{% endif %}</p>
+      {%- if repo.beta and repo.beta.behind %}
+      <p class="hint tile-warn">{% for a in repo.beta.behind %}{{ a }} is still on {{ repo.beta.builds[a].version }}{% if not loop.last %}; {% endif %}{% endfor %}</p>
+      {%- endif %}
     </section>
     <section class="panel tile">
       <p class="tile-label">Update checks today</p>

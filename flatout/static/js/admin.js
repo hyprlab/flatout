@@ -219,10 +219,12 @@
     });
 
     var tile = function (label, info, actions) {
+      var behind = info && info.behind && info.behind.length ? info.behind : [];
       return el("section", { class: "panel tile" }, [
         el("p", { class: "tile-label", text: label }),
         el("p", { class: "tile-big", text: info ? info.version : "None" }),
         el("p", { class: "hint", text: info ? info.arches.join(", ") + " · " + when(info.published_at) : (label === "Beta" ? "Upload to the beta channel to start one." : "Upload a bundle to publish the first version.") }),
+        behind.length ? el("p", { class: "hint tile-warn", text: behind.map(function (a) { return a + " is still on " + info.builds[a].version; }).join("; ") + ". Upload its " + info.version + " build to match." }) : null,
         actions && actions.length ? el("div", { class: "tile-actions" }, actions) : null
       ]);
     };

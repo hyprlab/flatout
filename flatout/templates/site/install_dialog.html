@@ -1,6 +1,7 @@
 {#- The install dialog: pick the machine (only when ARM builds exist), pick
     a method, see only that method. Every address comes from the repository
     (releases.public_info), so it follows the uploads. -#}
+{% from "site/macros.html" import versions %}
 {%- set repo = s.repo %}
 {%- set conf = doc.install %}
 {%- set copy_icon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3a2 2 0 0 0-2 2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2a2 2 0 0 0-2-2H9Zm0 2h5v2H9V5ZM5 7h1v10a2 2 0 0 0 2 2h6H5V7Zm4 2h9v8H9V9Z"/></svg>'|safe %}
@@ -22,7 +23,7 @@
     <div class="modal__head">
       <img class="modal__icon" src="{{ s.icon_url }}" alt="" width="64" height="64">
       <h2 class="modal__title" id="install-title">{{ s.fill(conf.title) }}</h2>
-      {%- if repo.stable %}<p class="modal__sub">Version {{ repo.stable.version }}</p>{% endif %}
+      {%- if repo.stable %}<p class="modal__sub" data-install-version>Version {{ versions(repo, repo.stable) }}</p>{% endif %}
     </div>
 
     {%- if not repo.stable %}
@@ -35,10 +36,11 @@
       <div class="seg" role="radiogroup" aria-label="Processor type">
         {%- for a in arches %}
         <label class="seg__opt">
-          <input type="radio" name="install-arch" value="{{ a }}"{% if loop.first %} checked{% endif %}>
+          <input type="radio" name="install-arch" value="{{ a }}" data-version="{{ repo.stable.builds[a].version }}"{% if loop.first %} checked{% endif %}>
           <span class="seg__face">
             <span class="seg__title">{{ repo.arch_names.get(a, a) }}</span>
             <span class="seg__hint">{{ {'x86_64': 'most laptops and desktops', 'aarch64': 'Raspberry Pi, Snapdragon, Apple silicon'}.get(a, a) }}</span>
+            {%- if repo.stable.behind %}<span class="seg__hint">Version {{ repo.stable.builds[a].version }}</span>{% endif %}
           </span>
         </label>
         {%- endfor %}
