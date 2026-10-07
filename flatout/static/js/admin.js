@@ -89,6 +89,50 @@
          ", or upload a bundle for " + repoInfo.app_id + "."]));
   }
 
+  /* ————— Getting started (the Overview) ————— */
+  var checklistEl = document.getElementById("checklist");
+  if (checklistEl) {
+    var showLink = document.getElementById("checklist-show");
+    var paint = function (data) {
+      data.steps.forEach(function (step) {
+        var li = checklistEl.querySelector('[data-step="' + step.id + '"]');
+        if (!li) return;
+        li.classList.toggle("is-done", step.done);
+        li.querySelector("input").checked = step.done;
+        var rule = step.detects.charAt(0).toLowerCase() + step.detects.slice(1);
+        li.querySelector(".step-how").textContent = step.override === null ? "Ticks itself when " + rule : "Marked by hand.";
+      });
+      checklistEl.querySelector(".checklist-done").hidden = !data.all_done;
+      checklistEl.hidden = data.hidden;
+      showLink.hidden = !data.hidden;
+    };
+    var save = function (body) {
+      return call("PATCH", "/api/v1/setup-checklist", body).then(function (data) {
+        paint(data);
+        return data;
+      });
+    };
+    checklistEl.querySelectorAll("[data-step] input").forEach(function (box) {
+      box.addEventListener("change", function () {
+        var id = box.closest("[data-step]").getAttribute("data-step");
+        var steps = {};
+        steps[id] = box.checked;
+        save({ steps: steps }).catch(function (err) {
+          box.checked = !box.checked;   // as it was: the server refused
+          F.toastError(err);
+        });
+      });
+    });
+    checklistEl.querySelector("[data-checklist-hide]").addEventListener("click", function () {
+      save({ hidden: true }).then(function () {
+        F.toast("Getting started is hidden", "Undo", function () { save({ hidden: false }).catch(F.toastError); });
+      }).catch(F.toastError);
+    });
+    showLink.querySelector("[data-checklist-show]").addEventListener("click", function () {
+      save({ hidden: false }).catch(F.toastError);
+    });
+  }
+
   /* ————— Releases ————— */
   var releasesPage = document.getElementById("releases-page");
   if (releasesPage) {

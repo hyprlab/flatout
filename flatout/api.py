@@ -354,6 +354,41 @@ def sections_order():
     return jsonify(order=[s["id"] for s in doc["sections"]])
 
 
+# ———————————————————————————— Getting started ————————————————————————————
+
+@bp.route("/setup-checklist")
+@needs("read")
+def setup_checklist_get():
+    """The Overview's getting-started list: each step's detected state,
+    the choice made by hand if any, and whether the list is hidden."""
+    from . import checklist
+    return jsonify(checklist.state())
+
+
+@bp.route("/setup-checklist", methods=["PATCH"])
+@needs("site")
+def setup_checklist_set():
+    """{"steps": {"theme": true}} ticks a step by hand, false unticks it,
+    null hands it back to detection; {"hidden": true} hides the list."""
+    from . import checklist
+    data = body()
+    unknown = set(data) - {"hidden", "steps"}
+    if unknown:
+        raise ApiError(400, f"Not a field here: {', '.join(sorted(unknown))}.")
+    hidden = data.get("hidden")
+    if hidden is not None and not isinstance(hidden, bool):
+        raise ApiError(400, "hidden must be true or false.")
+    steps = data.get("steps") or {}
+    if not isinstance(steps, dict):
+        raise ApiError(400, "steps must be an object.")
+    for key, value in steps.items():
+        if key not in checklist.STEPS:
+            raise ApiError(400, f"{key} isn't a step; the steps are {', '.join(checklist.STEPS)}.")
+        if value is not None and not isinstance(value, bool):
+            raise ApiError(400, f"{key} must be true, false or null.")
+    return jsonify(checklist.update(hidden, steps))
+
+
 # ———————————————————————————— Media ————————————————————————————
 
 @bp.route("/media")

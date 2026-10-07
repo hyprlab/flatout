@@ -9,23 +9,37 @@
       or upload a bundle for {{ repo.app_id }}.</p>
   </div>
   {%- endif %}
-  {%- set steps = checklist %}
-  {%- if steps|selectattr('done', 'equalto', false)|list %}
-  <section class="panel">
-    <h3 class="panel-title">Getting started</h3>
+  {#- Each step is detected, and can be ticked or unticked by hand, which
+      wins; admin.js saves through /api/v1/setup-checklist. -#}
+  <section class="panel checklist" id="checklist"{% if checklist.hidden %} hidden{% endif %}>
+    <div class="panel-head">
+      <h3 class="panel-title">Getting started</h3>
+      <button class="btn btn--ghost btn--xs" type="button" data-checklist-hide>Hide this list</button>
+    </div>
+    <p class="hint checklist-done" {% if not checklist.all_done %}hidden{% endif %}>All done. Hide the list, or keep it as a reminder.</p>
     <ol class="checklist-steps">
-      {%- for step in steps %}
-      <li class="{{ 'is-done' if step.done }}">
-        <span class="step-mark" aria-hidden="true">{% if step.done %}<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>{% else %}{{ loop.index }}{% endif %}</span>
+      {%- for step in checklist.steps %}
+      <li class="{{ 'is-done' if step.done }}" data-step="{{ step.id }}" data-detects="{{ step.detects }}">
+        <label class="step-check" title="Tick or untick by hand">
+          <input type="checkbox"{% if step.done %} checked{% endif %} aria-label="Done: {{ step.title }}">
+          <span class="step-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg><span class="step-num">{{ loop.index }}</span>
+          </span>
+        </label>
         <div class="step-text">
           <a href="{{ step.url }}"><strong>{{ step.title }}</strong></a>
           <span class="hint">{{ step.hint }}</span>
+          <span class="hint step-how">
+            {%- if step.override is not none %}Marked by hand.{% else %}Ticks itself when {{ step.detects[:1]|lower }}{{ step.detects[1:] }}{% endif -%}
+          </span>
         </div>
       </li>
       {%- endfor %}
     </ol>
   </section>
-  {%- endif %}
+  <p class="checklist-show" id="checklist-show"{% if not checklist.hidden %} hidden{% endif %}>
+    <button class="link hint" type="button" data-checklist-show>Show the getting-started list</button>
+  </p>
 
   <div class="tiles">
     <section class="panel tile">
@@ -64,3 +78,4 @@
   </div>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{{ static_url('js/admin.js') }}" defer></script>{% endblock %}

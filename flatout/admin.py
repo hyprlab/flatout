@@ -10,10 +10,10 @@ import json
 from flask import Blueprint, abort, redirect, render_template, url_for
 from flask_login import current_user, login_required
 
-from . import public, repo, site, site_schema
+from . import checklist, public, site, site_schema
 from . import stats as install_stats
 from . import releases as releases_info
-from .models import Release, User
+from .models import User
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -39,37 +39,13 @@ def _page(template, section, title, **kw):
     return render_template(template, section=section, page_title=title, **kw)
 
 
-def _checklist(draft: dict, live: dict, published: bool) -> list[dict]:
-    defaults = site_schema.default_document()
-    return [
-        {"title": "Name the app and give it an icon", "url": url_for("admin.site") + "#group/app",
-         "hint": "Content > Name and links, and Images.",
-         "done": draft["app"]["name"] != defaults["app"]["name"] and bool(draft["images"]["icon"])},
-        {"title": "Choose the colors and fonts", "url": url_for("admin.theme"),
-         "hint": "Theme. Every color has a light and a dark version.",
-         "done": draft["theme"] != defaults["theme"]},
-        {"title": "Write the homepage", "url": url_for("admin.site"),
-         "hint": "Content. Turn sections on or off, reorder them, add new ones.",
-         "done": draft["sections"] != defaults["sections"]},
-        {"title": "Create the repository's signing key", "url": url_for("admin.repository"),
-         "hint": "Flatpak checks every update against it.",
-         "done": repo.key_fingerprint() is not None},
-        {"title": "Upload the first release", "url": url_for("admin.releases"),
-         "hint": "A .flatpak bundle, made with flatpak build-bundle.",
-         "done": Release.query.filter_by(status="live").first() is not None},
-        {"title": "Publish the site", "url": url_for("admin.site"),
-         "hint": "Until then visitors see a coming-soon page.",
-         "done": published and site.status() == "published"},
-    ]
-
-
 @bp.route("")
 def home():
-    draft, live = site.get("draft"), site.get("live")
+    live = site.get("live")
     revisions = site.revisions(5)
     return _page("admin/home.html", "home", "Overview",
                  draft_meta=site.meta("draft"), revisions=revisions,
-                 checklist=_checklist(draft, live, bool(revisions)),
+                 checklist=checklist.state(),
                  repo=releases_info.public_info(live, site.base_url()),
                  installs_today=install_stats.installs_today())
 

@@ -24,7 +24,10 @@ automatically.
 
 ## Getting started
 
-The admin's Overview lists the steps and ticks them off:
+The admin's Overview lists the steps. Each ticks itself when Flatout sees it
+done (the list says what it looks for), and any step can be ticked or unticked
+by hand, which wins. **Hide this list** puts it away for anyone who would
+rather set up their own way; a link under the tiles brings it back.
 
 1. **Name the app and give it an icon**, under Content > Name and links, and
    Images.
