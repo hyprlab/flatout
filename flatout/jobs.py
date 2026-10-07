@@ -23,7 +23,7 @@ from pathlib import Path
 from flask import Flask
 
 from . import repo
-from .models import Job, Release, db, get_setting, utcnow
+from .models import Job, Release, db, end_worker_transaction, get_setting, utcnow, worker
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +62,7 @@ def start(app: Flask) -> None:
 
 
 def _loop(app: Flask) -> None:
+    worker.active = True
     while True:
         _wake.wait(timeout=10)
         _wake.clear()
@@ -157,6 +158,7 @@ def _fetch(url: str, dest: Path, lines: list) -> tuple[int, str]:
     import urllib.request
     from flask import current_app
     limit = current_app.config["MAX_CONTENT_LENGTH"]
+    end_worker_transaction()
     lines.append(f"Downloading {url}")
     digest, size = hashlib.sha256(), 0
     req = urllib.request.Request(url, headers={"User-Agent": "Flatout"})

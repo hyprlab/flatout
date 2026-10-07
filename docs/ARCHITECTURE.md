@@ -94,6 +94,14 @@ process. Threads carry the concurrency.
 sqlite3 driver's own transaction handling is turned off on connect and
 SQLAlchemy emits `BEGIN` itself, so savepoints roll back as they should.
 
+One case `busy_timeout` doesn't cover: a transaction that has only read can't
+start writing once another connection has written since, and SQLite refuses
+at once. So the job thread begins its transactions with `BEGIN IMMEDIATE`
+(the write lock up front) and ends them before every long wait, in
+`repo.run()` and before a download (`models.end_worker_transaction`). A
+request that takes in a large file does the same by hand: the upload endpoint
+ends its read before receiving the bundle and writes its row after storing it.
+
 **No migration framework.** Schema changes are steps in `_migrate()`: an
 `ALTER TABLE` guarded by a column check, run at every boot, safe to run twice.
 New tables come from `create_all`.

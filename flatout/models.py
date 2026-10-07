@@ -5,6 +5,7 @@ guarded by a column check, no migration framework. SQLite in one volume is the
 whole storage story (see docs/ARCHITECTURE.md).
 """
 import hashlib
+import threading
 from datetime import datetime, timezone
 
 from flask_login import UserMixin
@@ -12,6 +13,21 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import check_password_hash, generate_password_hash
 
 db = SQLAlchemy()
+
+# Marks the job thread. In WAL mode a transaction that has only read can't
+# start writing once another connection has written since; SQLite refuses at
+# once ("database is locked") instead of waiting. So the job thread takes the
+# write lock as its transactions begin (BEGIN IMMEDIATE), and ends them before
+# every long command (repo.run, downloads), so it never holds the lock while
+# flatpak works and never writes from a snapshot that went stale meanwhile.
+worker = threading.local()
+
+
+def end_worker_transaction() -> None:
+    """In the job thread, commit what's pending and let the lock go before a
+    long wait. Anywhere else, nothing: a request ends its own transaction."""
+    if getattr(worker, "active", False):
+        db.session.commit()
 
 
 def utcnow() -> datetime:

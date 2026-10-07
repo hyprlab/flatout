@@ -35,7 +35,7 @@ from pathlib import Path
 
 from flask import current_app
 
-from .models import get_setting, set_setting
+from .models import end_worker_transaction, get_setting, set_setting
 
 ARCHES = ("x86_64", "aarch64", "i386", "arm")
 
@@ -78,6 +78,7 @@ def run(args: list[str], log: list[str] | None = None, timeout: int = 1800, stdi
     """Run a command; return its output. A failure raises RepoError with the
     tool's own last lines, which usually say what was wrong."""
     env = dict(os.environ, GNUPGHOME=str(gnupg_dir()), LC_ALL="C.UTF-8")
+    end_worker_transaction()   # flatpak can take minutes; don't hold the database meanwhile
     if log is not None:
         log.append("$ " + " ".join(args))
     try:

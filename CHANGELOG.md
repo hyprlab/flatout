@@ -14,6 +14,8 @@ All notable changes to Flatout are documented here. The format follows
   the browser tab and on home-screen shortcuts
 
 ### Fixed
+- A release import no longer fails with "database is locked" when something
+  else was saved while it ran, such as a second upload
 - The install dialog offers Intel/AMD first, and its download, unless the
   visitor's machine is ARM; it used to start on ARM
 

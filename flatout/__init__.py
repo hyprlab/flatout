@@ -54,7 +54,8 @@ def _sqlite_pragmas(dbapi_conn, _record):
 @event.listens_for(Engine, "begin")
 def _sqlite_begin(conn):
     if conn.dialect.name == "sqlite":
-        conn.exec_driver_sql("BEGIN")
+        from .models import worker
+        conn.exec_driver_sql("BEGIN IMMEDIATE" if getattr(worker, "active", False) else "BEGIN")
 
 
 def create_app(config_class=Config) -> Flask:

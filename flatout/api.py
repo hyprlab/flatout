@@ -585,6 +585,10 @@ def releases_create():
     from . import jobs, repo
     from .models import Release
     _ready_for_releases()
+    # End the read the checks above began before taking in the bundle, which
+    # can take minutes: SQLite won't let a transaction write if another
+    # wrote while it was open, and the job thread writes as it imports.
+    db.session.commit()
     upload = request.files.get("file")
     if upload is not None:
         fields = request.form
@@ -598,11 +602,11 @@ def releases_create():
     rel = Release(app_id="", arch="", channel=channel, status="queued", created_by=g.actor,
                   version=str(fields.get("version") or "").strip()[:60],
                   notes=str(fields.get("notes") or "")[:20000])
-    db.session.add(rel)
-    db.session.flush()
     payload = {}
     if upload is not None:
-        name = f"incoming-{rel.id}-{uuid.uuid4().hex[:8]}.flatpak"
+        # Stored and hashed before the row is written, so no transaction is
+        # open while a large file is copied.
+        name = f"incoming-{uuid.uuid4().hex}.flatpak"
         dest = repo.bundles_dir() / name
         upload.save(dest)
         digest = hashlib.sha256()
@@ -611,11 +615,11 @@ def releases_create():
                 digest.update(chunk)
         rel.bundle_file, rel.bundle_size, rel.bundle_sha256 = name, dest.stat().st_size, digest.hexdigest()
         if not rel.bundle_size:
-            db.session.rollback()
             dest.unlink(missing_ok=True)
             raise ApiError(400, "The uploaded file is empty.")
     else:
         payload["url"] = str(fields["url"])
+    db.session.add(rel)
     db.session.commit()
     job = jobs.enqueue("import", rel.id, payload, g.actor)
     return jsonify(release=_release_json(rel), job=_job_json(job)), 202
