@@ -416,7 +416,7 @@ FONT_CHOICES = [
     ("serif", "A serif system font"), ("mono", "A monospace system font"),
 ]
 
-THEME = group("Theme", {
+THEME = group("Design", {
     "mode": select("Color mode", [("system", "Follow the visitor's system"), ("light", "Always light"), ("dark", "Always dark")], "system"),
     "show_toggle": boolean("Show the light/dark switch in the header", True),
     "light": mode_colors(LIGHT),

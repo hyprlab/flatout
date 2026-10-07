@@ -5,7 +5,7 @@ this page: Hyprfeed's "electric editorial", Inter everywhere, true neutral
 greys,
 and one accent color spent sparingly, in `static/css/app.css`. The **public
 site** belongs to whoever runs it: `static/site/site.css` draws it from
-tokens the owner sets in Theme (see [The public site](#the-public-site)).
+tokens the owner sets in Design (see [The public site](#the-public-site)).
 
 ## Principles
 
@@ -128,7 +128,7 @@ holds every value.
 `site.css` uses only these tokens, which the page head sets from the theme,
 once for light and once for dark:
 
-| Token | Theme field |
+| Token | Design field |
 | --- | --- |
 | `--accent`, `--accent-ink` | Links, focus, highlights, and the text on them |
 | `--button`, `--button-ink` | The download button |

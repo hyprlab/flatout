@@ -31,7 +31,7 @@ rather set up their own way; a link under the tiles brings it back.
 
 1. **Name the app and give it an icon**, under Content > Name and links, and
    Images.
-2. **Choose the colors and fonts**, under Theme.
+2. **Choose the colors and fonts**, under Design.
 3. **Write the homepage**, under Content: every section's text, which
    sections show, and their order.
 4. **Create the repository's signing key**, under Signing and addresses.
@@ -48,7 +48,7 @@ Everything on the homepage is set in the admin; there is no template to edit.
   deleted, and new ones added: hero, feature cards, screenshots, highlight
   band, text, install guide, beta channel, what's new, questions, people, and
   a closing call to action.
-- **Theme** sets every color, for light and dark separately, the icon
+- **Design** sets every color, for light and dark separately, the icon
   palette, the fonts (Cantarell, Inter, system fonts, or an uploaded font
   file), the base text size, the heading weight, the corner rounding and the
   content width. A site can follow the visitor's light or dark setting, or
@@ -76,7 +76,7 @@ Publishing puts the draft's changes live; the site status, under Site status
 in the sidebar, decides whether visitors get the site at all:
 
 - **Live**: everyone sees the site.
-- **Maintenance**: visitors see a "back soon" page in the site's theme, with
+- **Maintenance**: visitors see a "back soon" page in the site's design, with
   an optional time it is expected back. It answers 503 with `Retry-After`, so
   search engines keep the site's pages instead of indexing the notice.
 - **Unpublished**: visitors see a "coming soon" page, and search engines are

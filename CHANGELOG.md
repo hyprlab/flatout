@@ -18,6 +18,8 @@ All notable changes to Flatout are documented here. The format follows
   one after another, each its own release
 
 ### Changed
+- Site > Theme is now called Design, at /admin/design; the old address
+  leads there
 - An app built for several architectures shows the right version for each:
   when one is behind, the admin says so, the site shows its version next to
   the others, and the release notes come from whichever upload has them

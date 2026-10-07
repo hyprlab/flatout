@@ -52,9 +52,13 @@ def test_admin_pages_need_an_account(app, admin):
 
 
 def test_every_admin_page_renders(client, admin):
-    for path in ("/admin", "/admin/site", "/admin/theme", "/admin/pages", "/admin/media", "/admin/preview",
+    for path in ("/admin", "/admin/site", "/admin/design", "/admin/pages", "/admin/media", "/admin/preview",
                  "/admin/app", "/admin/releases", "/admin/repository", "/admin/stats", "/admin/api", "/admin/api/reference"):
         assert client.get(path).status_code == 200, path
+    # Design was called Theme; the old address still leads there.
+    moved = client.get("/admin/theme")
+    assert moved.status_code == 301 and moved.headers["Location"].endswith("/admin/design")
+    assert ">Design</span>" in client.get("/admin").data.decode()
 
 
 def test_admin_routes_refuse_a_plain_account(second_user):

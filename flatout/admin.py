@@ -61,9 +61,17 @@ def site_editor():
     return _editor("site", "site", "Content")
 
 
+@bp.route("/design")
+def design():
+    # Colors, fonts and sizes: the document's "theme" part, which keeps its
+    # name in the API. Called Design here, leaving "theme" free for
+    # whole ready-made looks later.
+    return _editor("theme", "design", "Design")
+
+
 @bp.route("/theme")
-def theme():
-    return _editor("theme", "theme", "Theme")
+def theme_redirect():
+    return redirect(url_for("admin.design"), 301)
 
 
 @bp.route("/pages")

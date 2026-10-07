@@ -30,7 +30,7 @@
       <div class="sidebar-label"><span>Site</span></div>
       <nav class="nav-primary" aria-label="Site">
         {% call navitem('admin.site', 'Content', '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 9v11"/>', 'site') %}<span class="unpublished" role="img" aria-label="Unpublished changes" title="Unpublished changes"{% if not site_has_changes %} hidden{% endif %}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19.5 8.5a2 2 0 0 0-3-3L5 17v3ZM13.5 6.5l3 3"/></svg></span>{% endcall %}
-        {{ navitem('admin.theme', 'Theme', '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.9 1.4-2-.5-1.3.4-2.5 1.8-2.5H17a3.5 3.5 0 0 0 3.5-3.5c0-5-3.8-9-8.5-9Z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/>', 'theme') }}
+        {{ navitem('admin.design', 'Design', '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.9 1.4-2-.5-1.3.4-2.5 1.8-2.5H17a3.5 3.5 0 0 0 3.5-3.5c0-5-3.8-9-8.5-9Z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/>', 'design') }}
         {{ navitem('admin.pages', 'Pages', '<path d="M7 3.5h7l4.5 4.5v12.5H7z"/><path d="M14 3.5V8h4.5M9.5 12.5h6M9.5 16h6"/>', 'pages') }}
         {{ navitem('admin.media', 'Media', '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m20.5 16-5-5-8.5 8.5"/>', 'media') }}
         {%- set st = site_status.status %}
