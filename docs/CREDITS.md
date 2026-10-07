@@ -14,5 +14,7 @@ No outside contributions yet.
 
 - [Inter](https://rsms.me/inter/) by Rasmus Andersson, under the SIL Open Font
   License 1.1, embedded in `static/fonts/`.
+- [Cantarell](https://cantarell.gnome.org/) by the Cantarell authors, under
+  the SIL Open Font License 1.1, embedded in `static/site/fonts/`.
 - The technology marks in the About section belong to their projects and are used
   to name them.

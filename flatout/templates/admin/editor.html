@@ -1,0 +1,59 @@
+{% extends "admin/shell.html" %}
+{#- The site editor, for three scopes: "site" (the sections and the shared
+    parts), "theme" and "pages". The form is built by static/js/editor.js
+    from the schema below; every change saves the draft, and the preview
+    shows the draft as visitors will see it once it is published. -#}
+{% block bodyextra %} admin--editor{% endblock %}
+{% block actions %}
+  <span class="save-state" id="save-state" role="status" aria-live="polite"></span>
+  <button class="btn btn--ghost btn--xs" type="button" data-open="history-modal" title="Published versions">History</button>
+  <button class="btn btn--ghost btn--xs" type="button" id="discard-btn" hidden>Discard changes</button>
+  <button class="btn btn--primary btn--xs" type="button" id="publish-btn" disabled>Publish</button>
+{% endblock %}
+{% block content %}
+<div class="editor" id="editor" data-scope="{{ scope }}">
+  <div class="editor-panel" id="editor-panel" aria-label="Editor">
+    <p class="hint editor-loading">Loading the draft…</p>
+  </div>
+  <div class="editor-preview">
+    <div class="preview-bar">
+      <div class="seg" role="radiogroup" aria-label="Preview width">
+        <label><input type="radio" name="preview-width" value="full" checked><span>Desktop</span></label>
+        <label><input type="radio" name="preview-width" value="820"><span>Tablet</span></label>
+        <label><input type="radio" name="preview-width" value="390"><span>Phone</span></label>
+      </div>
+      <div class="seg" role="radiogroup" aria-label="Preview color mode">
+        <label><input type="radio" name="preview-mode" value="auto" checked><span>Auto</span></label>
+        <label><input type="radio" name="preview-mode" value="light"><span>Light</span></label>
+        <label><input type="radio" name="preview-mode" value="dark"><span>Dark</span></label>
+      </div>
+      <a class="btn btn--ghost btn--xs preview-open" id="preview-open" href="{{ url_for('admin.preview') }}" target="_blank" rel="noopener">Open in a tab</a>
+    </div>
+    <div class="preview-stage" id="preview-stage">
+      <iframe class="preview-frame" id="preview" title="Preview of the draft" src="{{ url_for('admin.preview') }}"></iframe>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="site-schema">{{ schema_json|safe }}</script>
+{% endblock %}
+{% block dialogs %}
+{% include "admin/media_dialog.html" %}
+<dialog class="modal modal--wide" id="history-modal" data-restore="off" aria-labelledby="history-title">
+  <div class="modal-head">
+    <h3 id="history-title">Published versions</h3>
+    <button class="iconbtn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="modal-body">
+    <p class="hint">Restoring a version puts it in the draft, where you can check it before publishing it again.</p>
+    <ul class="manage-list" id="history-list"><li class="hint">Loading…</li></ul>
+  </div>
+</dialog>
+<dialog class="modal modal--wide" id="add-section-modal" data-restore="off" aria-labelledby="add-section-title">
+  <div class="modal-head">
+    <h3 id="add-section-title">Add a section</h3>
+    <button class="iconbtn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="modal-body"><div class="type-grid" id="type-grid"></div></div>
+</dialog>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('js/editor.js') }}" defer></script>{% endblock %}

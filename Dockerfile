@@ -5,6 +5,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DATA_DIR=/data \
     FLASK_APP=flatout
 
+# flatpak and ostree import, sign and serve the repository; gpg holds the
+# signing key. No recommended packages: the repository tools need none of the
+# desktop integration that would come with them.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends flatpak ostree gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY requirements.txt .
@@ -24,7 +31,8 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4).status == 200 else 1)"
 
-# One worker plus threads, on purpose: the background worker thread must start
-# once, and SQLite is happiest with a single writing process.
-CMD ["gunicorn", "--workers", "1", "--threads", "8", "--timeout", "90", \
+# One worker plus threads, on purpose: the job thread that writes the
+# repository must exist exactly once, and SQLite is happiest with a single
+# writing process. Uploads of large bundles need the long timeout.
+CMD ["gunicorn", "--workers", "1", "--threads", "8", "--timeout", "900", \
      "--access-logfile", "-", "--bind", "0.0.0.0:8000", "flatout:create_app()"]

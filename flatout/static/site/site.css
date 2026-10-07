@@ -1,0 +1,1541 @@
+/* =========================================================
+   The public site. Flatout fills in the tokens below from the
+   site's theme (site.py, theme_css) in a <style> in the page
+   head: colors for light and dark, the palette, fonts, sizes.
+   This file only derives what follows from them.
+   ========================================================= */
+
+/* Cantarell, GNOME's UI font (cantarell-fonts 0.311), subset to Latin as
+   one variable woff2. SIL Open Font License 1.1, fonts/OFL-Cantarell.txt.
+   No local(): on Linux, browsers resolve local() through fontconfig, which
+   reports a false match for an unknown family, so the embed never loads. */
+@font-face {
+  font-family: "Cantarell";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url("fonts/cantarell-vf-latin.woff2") format("woff2");
+}
+/* Inter Variable by Rasmus Andersson, SIL Open Font License 1.1. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/InterVariable.woff2") format("woff2");
+}
+
+:root {
+  --accent-strong: color-mix(in srgb, var(--accent) 82%, black);
+  --accent-gradient: linear-gradient(160deg, color-mix(in srgb, var(--accent) 70%, white), var(--accent));
+  --radius-lg: calc(var(--radius) * 1.45);
+  --backdrop: rgba(36, 26, 52, .55);
+  --ghost-bg: var(--surface);
+  --ghost-border: color-mix(in srgb, var(--ink) 16%, transparent);
+  --ghost-border-hover: color-mix(in srgb, var(--ink) 30%, transparent);
+  --status-ok-fg: #12704a;
+  --status-warn-fg: #855800;
+  --ink-inverse: var(--bg);
+  --shadow-sm: 0 1px 2px rgba(36,26,52,.06), 0 3px 10px rgba(36,26,52,.05);
+  --shadow-md: 0 10px 30px rgba(36,26,52,.10), 0 2px 8px rgba(36,26,52,.05);
+  --shadow-lg: 0 24px 60px rgba(36,26,52,.18);
+}
+:root[data-theme="dark"] {
+  --backdrop: rgba(4, 3, 14, .7);
+  --status-ok-fg: #7fe0b2;
+  --status-warn-fg: #ffd36b;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.35), 0 3px 10px rgba(0,0,0,.3);
+  --shadow-md: 0 10px 30px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
+  --shadow-lg: 0 24px 60px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+:root[data-theme="dark"] .theme-toggle .theme-toggle__sun { display: none; }
+:root[data-theme="dark"] .theme-toggle .theme-toggle__moon { display: block; }
+
+html { font-size: var(--font-size, 16px); }
+
+/* Icons from the editor's set: outlines or solid shapes, in currentColor. */
+.ico { display: block; width: 24px; height: 24px; }
+.ico--stroke { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ico--fill { fill: currentColor; }
+.ico--img { object-fit: contain; }
+.btn__icon.ico { width: 20px; height: 20px; }
+
+/* Header day/night toggle. */
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 40px; height: 40px;
+  margin-right: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.theme-toggle:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.theme-toggle svg { width: 20px; height: 20px; fill: currentColor; display: block; }
+.theme-toggle .theme-toggle__moon { display: none; }
+
+/* ----------------------------- base ----------------------------- */
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+img { max-width: 100%; display: block; }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+h1, h2, h3 { font-family: var(--font-heading); line-height: 1.15; letter-spacing: -.02em; margin: 0; }
+
+.container {
+  width: 100%;
+  max-width: var(--maxw);
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+.eyebrow {
+  display: inline-block;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 14px;
+}
+.eyebrow--light { color: color-mix(in srgb, var(--hero-ink) 90%, transparent); }
+
+/* ----------------------------- buttons -------------------------- */
+.btn {
+  --btn-bg: var(--accent);
+  --btn-fg: var(--accent-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 22px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--btn-fg);
+  background: var(--btn-bg);
+  border: 1.5px solid transparent;
+  box-shadow: var(--shadow-sm);
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.btn:hover { text-decoration: none; transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.btn:active { transform: translateY(0); }
+.btn--sm { padding: 10px 18px; font-size: .92rem; }
+
+.btn--primary {
+  --btn-bg: var(--button);
+  --btn-fg: var(--button-ink);
+  box-shadow: none;
+}
+.btn--primary:hover { --btn-bg: color-mix(in srgb, var(--button) 86%, white); box-shadow: none; }
+
+.btn--ghost {
+  --btn-bg: var(--surface);
+  --btn-fg: var(--ink);
+  border-color: var(--line);
+}
+.btn--ghost:hover { --btn-bg: var(--bg-tint); }
+
+.btn--dark {
+  --btn-bg: var(--ink);
+  --btn-fg: var(--ink-inverse);
+}
+
+/* Buy Me a Coffee brand yellow. */
+.btn--coffee {
+  --btn-bg: #ffdd00;
+  --btn-fg: #23211c;
+  border-color: rgba(0,0,0,.08);
+}
+.btn--coffee:hover { --btn-bg: #ffe74d; }
+
+/* Discord brand blurple. */
+.btn--discord {
+  --btn-bg: #5865f2;
+  --btn-fg: #fff;
+  border-color: rgba(0,0,0,.06);
+}
+.btn--discord:hover { --btn-bg: #6a75f3; }
+
+.btn__icon { width: 20px; height: 20px; fill: currentColor; }
+
+/* ------------------------------ nav ----------------------------- */
+.nav {
+  /* Not sticky on the desktop: the bar scrolls away with the hero. It still
+     sticks on narrow screens, where the links live behind the CTA. */
+  position: relative;
+  z-index: 50;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: saturate(160%) blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+.nav__inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 108px;
+}
+.brand { display: inline-flex; align-items: center; gap: 12px; color: var(--ink); }
+.brand:hover { text-decoration: none; }
+/* Transparent PNG — shown as-is, no shadow, background, or rounding. */
+.brand__icon { display: block; height: auto; }
+.brand__name { font-weight: 800; font-size: 1.25rem; letter-spacing: -0.02em; }
+/* The footer carries the app's About wordmark: "Flatout" in Cantarell with
+   the icon beside it, dark or white lettering by colour scheme. */
+.footer .brand__wordmark { width: 100px; height: auto; }
+.brand__wordmark { display: block; width: 48px; height: auto; }
+/* The header names the app in type; the footer keeps the wordmark art. */
+.nav__brand {
+  font-family: var(--font-heading);
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* On the home page the header is part of the hero: the same blue, no
+   border or blur, and its text set for the blue ground. It is fixed over
+   the hero's top (the hero pads itself by --nav-h) so it can trim from
+   108px to 64px as the page scrolls without moving anything under it;
+   --nav-p runs 0 to 1 over the first 140px of scroll, set by the script
+   in index.html. A shadow comes in with it to lift the bar off the page. */
+.nav.nav--hero {
+  --nav-p: 0;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: var(--hero-bg);
+  backdrop-filter: none;
+  border-bottom: 0;
+  box-shadow: 0 6px 24px rgba(0, 20, 80, calc(.22 * var(--nav-p)));
+}
+.nav--hero .nav__inner { height: calc(108px - 44px * var(--nav-p)); }
+.nav--hero .nav__brand {
+  transform: scale(calc(1 - .2 * var(--nav-p)));
+  transform-origin: left center;
+}
+/* Anchor jumps land below the trimmed bar, not under it. */
+html:has(.nav--hero) { scroll-padding-top: 72px; }
+.nav--hero .brand { color: var(--hero-ink); }
+.nav--hero .nav__links a { color: color-mix(in srgb, var(--hero-ink) 90%, transparent); }
+.nav--hero .nav__links a:hover { color: var(--hero-ink); }
+.nav--hero .theme-toggle {
+  background: color-mix(in srgb, var(--hero-ink) 12%, transparent);
+  border-color: color-mix(in srgb, var(--hero-ink) 42%, transparent);
+  color: var(--hero-ink);
+}
+.nav--hero .theme-toggle:hover { background: color-mix(in srgb, var(--hero-ink) 22%, transparent); border-color: color-mix(in srgb, var(--hero-ink) 70%, transparent); color: var(--hero-ink); }
+
+.nav__links {
+  display: flex;
+  gap: 26px;
+  margin-left: auto;
+}
+.nav__links a {
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-size: .96rem;
+}
+.nav__links a:hover { color: var(--accent); text-decoration: none; }
+/* Icon-only nav links (GitHub, Discord): the glyph is the label. */
+.nav__links .nav__icon { display: inline-flex; align-items: center; }
+.nav__links .nav__icon svg { width: 22px; height: 22px; fill: currentColor; display: block; }
+/* A flex row: without it the toggle and the button align on their text
+   baselines and sit a few px apart vertically. */
+.nav__cta { display: flex; align-items: center; margin-left: 8px; }
+
+@media (max-width: 760px) {
+  .nav { position: sticky; top: 0; }
+  .nav__links { display: none; }
+  .nav__cta { margin-left: auto; }
+}
+
+/* ------------------------------ hero ---------------------------- */
+.hero {
+  --nav-h: 108px;     /* .nav__inner height */
+  --hero-pad: 48px;
+  --peek: 0px;        /* no app window under the hero yet */
+  position: relative;
+  text-align: center;
+  /* The header is fixed over the top --nav-h of the hero. */
+  padding: calc(var(--nav-h) + var(--hero-pad)) 0 var(--hero-pad);
+  color: var(--hero-ink);
+  background: var(--hero-bg);
+}
+.hero__inner {
+  position: relative;
+  max-width: 820px;
+  margin-inline: auto;
+  /* Fill the first screen down to the top of the peeking window, and centre
+     the copy in that room. On short screens the copy simply takes its own
+     height and the window starts right beneath it. */
+  min-height: calc(100svh - var(--nav-h) - var(--hero-pad) - var(--peek));
+  padding-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+@media (max-width: 760px) {
+  /* The window is far shorter on a phone, so is its fade. */
+  .hero { --hero-pad: 40px; }
+  .hero__inner { padding-bottom: 32px; }
+}
+
+.hero__art { position: relative; display: block; width: fit-content; margin: 0 auto 26px; }
+.hero__icon {
+  position: relative;
+  /* The app icon on its 128px GNOME grid, padding included, so it is
+     drawn a little wider than the old crop was for the same visual size. */
+  width: 260px; height: auto;
+  animation: floaty 6s ease-in-out infinite;
+}
+/* Glow removed — the hero is a flat color. */
+.hero__glow { display: none; }
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero__icon { animation: none; }
+  html { scroll-behavior: auto; }
+}
+
+.hero__title {
+  font-size: clamp(2.2rem, 5.4vw, 3.6rem);
+  font-weight: var(--heading-weight);
+  margin-bottom: 18px;
+  color: var(--hero-ink);
+}
+.hero__sub {
+  font-size: clamp(1.05rem, 2.2vw, 1.24rem);
+  color: color-mix(in srgb, var(--hero-ink) 90%, transparent);
+  max-width: 620px;
+  margin: 0 auto 30px;
+}
+.hero__actions {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 34px;
+}
+/* Secondary buttons on the blue hero: a white outline over the ground. */
+.hero .btn--ghost {
+  --btn-bg: color-mix(in srgb, var(--hero-ink) 12%, transparent);
+  --btn-fg: var(--hero-ink);
+  border-color: color-mix(in srgb, var(--hero-ink) 42%, transparent);
+}
+.hero .btn--ghost:hover { --btn-bg: color-mix(in srgb, var(--hero-ink) 22%, transparent); border-color: color-mix(in srgb, var(--hero-ink) 70%, transparent); }
+/* The rename pill, on the blue ground: a lighter wash of it, white text. */
+.hero__rename { background: color-mix(in srgb, var(--hero-ink) 16%, transparent) !important; color: var(--hero-ink) !important; }
+.hero__rename a { color: var(--hero-ink) !important; }
+.hero__badges {
+  display: flex;
+  gap: 22px;
+  justify-content: center;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0; padding: 0;
+  color: color-mix(in srgb, var(--hero-ink) 92%, transparent);
+  font-weight: 600;
+  font-size: .92rem;
+}
+.hero__badges li { display: inline-flex; align-items: center; gap: 8px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 3px rgba(36,26,52,.08); }
+/* On the blue ground the ring is white, and the blue dot lightens so it
+   does not disappear into it. */
+.hero .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--hero-ink) 20%, transparent); }
+
+/* ---------------------------- sections -------------------------- */
+.section { padding: 84px 0; }
+#features { padding-top: 64px; }
+.section--tint { background: var(--tint-strong); }
+
+.section__head { text-align: center; max-width: 680px; margin: 0 auto 52px; }
+.section__title { font-size: clamp(1.7rem, 3.6vw, 2.4rem); font-weight: var(--heading-weight); }
+.section__lead {
+  color: var(--ink-soft);
+  font-size: 1.1rem;
+  margin: 14px 0 0;
+}
+
+/* ---------------------------- hero screenshot ------------------- */
+/* The app window at the foot of the hero. The image tilts by --shot-tilt,
+   set per frame by the script in index.html: leaning back 8° at the bottom
+   of the screen, upright once it has climbed three quarters of the way up,
+   then tipping on toward the reader, up to 6° as it leaves the top. It
+   keeps its size throughout. */
+/* The same box as .container, so the window lines up with the cards
+   below it. */
+.shot {
+  margin: 0 auto;
+  max-width: var(--maxw);
+  padding-inline: 24px;
+}
+/* The perspective sits on the <picture>, the image's own parent: it only
+   reaches direct children, and set on the stage it never reached the image,
+   so the lean drew as a flat squash with no far edge narrowing. */
+.shot__stage > picture {
+  display: block;
+  perspective: 1000px;
+  perspective-origin: 50% 0%;
+}
+.shot__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* It turns about the edge that swings away (the foot while it leans back,
+     the head while it tips forward), so the near edge never comes closer
+     than the flat window: a pure tilt, with nothing drawn larger. */
+  transform-origin: 50% var(--shot-pivot, 50%);
+  transform: rotateX(var(--shot-tilt, 0deg));
+  will-change: transform;
+  /* The glow is the same brand blue as the blur at the top of the hero
+     (rgba(0,78,255,...)); the tight second shadow keeps the window grounded. */
+  filter: drop-shadow(0 30px 50px color-mix(in srgb, var(--accent) 22%, transparent)) drop-shadow(0 4px 12px rgba(36,26,52,.10));
+}
+:root[data-theme="dark"] .shot__img { filter: drop-shadow(0 30px 50px rgba(0,0,0,.6)) drop-shadow(0 4px 12px rgba(0,0,0,.4)); }
+@media (prefers-reduced-motion: reduce) {
+  .shot__img { transform: none; will-change: auto; }
+}
+
+/* ---------------------------- scroll reveals -------------------- */
+/* Added by script only (so no JavaScript means nothing is ever hidden). A
+   block waits translucent and a little low, then rises into place when it
+   enters the screen; the script staggers neighbours left to right. On the
+   way back up a block keeps its place until it drops into the bottom tenth
+   of the screen, where it fades away evenly (no stagger) and is re-armed
+   for the next scroll down. Blocks leaving through the top stay as they
+   are. The offset uses the `translate` property rather than `transform`,
+   so it composes with the hover lift on .card instead of fighting it. */
+.reveal {
+  opacity: 0;
+  translate: 0 36px;
+}
+/* Two classes deep so these win over .card's own transition list (which
+   would otherwise make the fade-out snap). The .18s entries keep the card
+   hover lift smooth while the block is shown. */
+.reveal:not(.is-in) {
+  transition: opacity .45s ease, translate .45s ease;
+}
+.reveal.is-in {
+  opacity: 1;
+  translate: 0 0;
+  transition:
+    opacity .8s cubic-bezier(.22, .61, .36, 1) var(--reveal-delay, 0ms),
+    translate .8s cubic-bezier(.22, .61, .36, 1) var(--reveal-delay, 0ms),
+    transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+/* ---------------------------- feature grid ---------------------- */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+}
+@media (max-width: 960px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .grid { grid-template-columns: 1fr; } }
+
+/* Two framed screenshots under the feature grid (the first-run wizard and
+   Settings). The figures dissolve into the grid so the two frames share
+   row one (and so one height, whatever their captions run to) and the
+   captions row two. The columns are in the ratio of the images' aspects
+   (0.87 and 1.17), so the shots come out about the same size. */
+.duo {
+  display: grid;
+  grid-template-columns: 1fr 1.325fr;
+  gap: 14px 20px;
+  margin-top: 52px;
+}
+.duo__item { display: contents; }
+.duo__item:nth-child(1) .duo__frame { grid-area: 1 / 1; }
+.duo__item:nth-child(1) figcaption { grid-area: 2 / 1; }
+.duo__item:nth-child(2) .duo__frame { grid-area: 1 / 2; }
+.duo__item:nth-child(2) figcaption { grid-area: 2 / 2; }
+.duo__frame {
+  display: flex;
+  align-items: center;
+  background: var(--bg-tint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  /* Lifts under the pointer exactly like the .card grid above it. */
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.duo__frame:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+}
+.duo__frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.duo figcaption {
+  color: var(--ink-soft);
+  font-size: .98rem;
+  line-height: 1.5;
+  margin: 0 8px;
+}
+.duo figcaption strong { color: var(--ink); }
+@media (max-width: 760px) {
+  .duo { grid-template-columns: 1fr; gap: 12px; }
+  .duo__item:nth-child(1) .duo__frame { grid-area: 1 / 1; }
+  .duo__item:nth-child(1) figcaption { grid-area: 2 / 1; margin-bottom: 20px; }
+  .duo__item:nth-child(2) .duo__frame { grid-area: 3 / 1; }
+  .duo__item:nth-child(2) figcaption { grid-area: 4 / 1; }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 26px 22px;
+  box-shadow: var(--shadow-sm);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+}
+.card h3 { font-size: 1.12rem; font-weight: 700; margin: 0 0 8px; }
+.card p { margin: 0; color: var(--ink-soft); font-size: .97rem; }
+
+.card__icon {
+  width: 48px; height: 48px;
+  border-radius: 6px;
+  display: grid; place-items: center;
+  margin-bottom: 16px;
+}
+.card__icon {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 72%, white), var(--c));
+  color: var(--ci, #fff);
+}
+.card__icon .ico { width: 26px; height: 26px; }
+.card__icon .ico--img { object-fit: contain; }
+
+/* ------------------------------ band ---------------------------- */
+.band { padding: 84px 0; }
+.band {
+  background: var(--band-bg);
+  color: var(--band-ink);
+}
+.band--legacy {
+  color: var(--band-ink);
+  background: var(--band-bg);
+}
+.band__inner {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 48px;
+  align-items: center;
+}
+@media (max-width: 820px) { .band__inner { grid-template-columns: 1fr; } }
+
+.band__title { font-size: clamp(1.7rem, 3.6vw, 2.4rem); font-weight: var(--heading-weight); }
+.band__lead { color: color-mix(in srgb, var(--band-ink) 90%, transparent); font-size: 1.1rem; margin: 14px 0 24px; }
+
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+.checklist li { display: flex; gap: 14px; align-items: flex-start; }
+.checklist__mark {
+  flex: none;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--highlight);
+  color: var(--highlight-ink);
+  font-weight: 900;
+  display: grid; place-items: center;
+  margin-top: 2px;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--highlight) 40%, transparent);
+}
+.checklist strong { display: block; font-size: 1.05rem; }
+.checklist p { margin: 2px 0 0; color: color-mix(in srgb, var(--band-ink) 82%, transparent); font-size: .96rem; }
+
+.band__aside { display: grid; place-items: center; }
+.stat-card {
+  background: color-mix(in srgb, var(--band-ink) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--band-ink) 22%, transparent);
+  border-radius: var(--radius-lg);
+  padding: 40px 34px;
+  text-align: center;
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow-lg);
+}
+.stat-card__big {
+  display: block;
+  font-size: clamp(5rem, 16vw, 8rem);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--highlight);
+  text-shadow: 0 8px 24px rgba(0,0,0,.25);
+}
+.stat-card__label {
+  display: block;
+  margin-top: 10px;
+  color: color-mix(in srgb, var(--band-ink) 90%, transparent);
+  font-weight: 600;
+  max-width: 220px;
+}
+
+/* --------------------------- open source ------------------------ */
+.os { max-width: 720px; margin: 0 auto; text-align: center; }
+.os__badge {
+  width: 76px; height: 76px;
+  margin: 0 auto 22px;
+  border-radius: 6px;
+  background: var(--accent-gradient);
+  display: grid; place-items: center;
+  box-shadow: var(--shadow-md);
+}
+.os__badge svg { width: 44px; height: 44px; fill: #fff; }
+.os__lead { margin-bottom: 28px; }
+.os__actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+/* ------------------------------ cta ----------------------------- */
+.cta { max-width: 640px; margin: 0 auto; text-align: center; }
+.cta__icon { width: 84px; height: auto; margin: 0 auto 20px; }
+.cta__lead { margin-bottom: 28px; }
+.cta__actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.cta__note { color: var(--ink-soft); font-size: .98rem; max-width: 560px; margin: 40px auto 20px; }
+
+/* System requirements panel in the CTA section. */
+.reqs {
+  text-align: left;
+  max-width: 560px;
+  margin: 40px auto 0;
+  background: var(--bg-tint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px 26px;
+}
+.reqs__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0 0 16px;
+}
+.reqs__title svg { width: 20px; height: 20px; fill: var(--accent); }
+.reqs__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.reqs__list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: .95rem;
+  color: var(--ink-soft);
+}
+.reqs__list strong { color: var(--ink); font-weight: 700; }
+.reqs__mark {
+  flex: none;
+  width: 22px; height: 22px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  color: var(--accent-ink);
+  font-size: .72rem;
+  font-weight: 900;
+  display: grid; place-items: center;
+}
+.reqs__note {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: .88rem;
+  color: var(--ink-soft);
+}
+
+/* ----------------------------- footer --------------------------- */
+.footer {
+  background: var(--tint-strong);
+  border-top: 1px solid var(--line);
+  padding: 48px 0 28px;
+}
+.footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  align-items: center;
+  justify-content: space-between;
+}
+.footer__tag { margin: -2px 0 0; color: var(--ink-soft); font-size: .95rem; }
+.footer__links { display: flex; flex-wrap: wrap; gap: 12px 22px; }
+.footer__links a { color: var(--ink-soft); font-weight: 600; white-space: nowrap; }
+.footer__links a:hover { color: var(--accent); text-decoration: none; }
+
+/* Stack the footer on small screens so the link row can't overflow. */
+@media (max-width: 620px) {
+  .footer__inner { flex-direction: column; align-items: flex-start; gap: 22px; }
+  .footer__links { gap: 10px 18px; }
+}
+.footer__made {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-soft);
+  font-size: .92rem;
+  font-weight: 600;
+}
+/* Hyprlab wordmark shown exactly as supplied — never recolored/inverted. The
+   footer <picture> swaps in the white-text version Hyprlab provides for dark. */
+.footer__made img { opacity: .9; transition: opacity .15s ease; }
+.footer__made a:hover img { opacity: 1; }
+
+/* The maker line and the Discord + coffee buttons share a row under the
+   brand and links: "Made by" on the left, the buttons on the right. (They used to be
+   lifted out of flow into the corner, which only worked while the tagline
+   was two lines tall; a shorter tagline let them overlap the links.) */
+.footer__coffee {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+.footer__corner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+@media (max-width: 620px) {
+  .footer__coffee { justify-content: flex-start; margin-top: 20px; }
+}
+
+.footer__legal {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.footer__legal p { margin: 0; color: var(--ink-soft); font-size: .86rem; }
+
+/* --------------------------- legal pages ------------------------ */
+.legal-page { padding: 56px 0 84px; }
+.legal { max-width: 820px; }
+.legal__meta { color: var(--ink-soft); font-size: .92rem; margin-top: -6px; }
+
+/* ------------------------------ docs ---------------------------- */
+.docs-page { padding: 56px 0 84px; }
+.docs-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 48px;
+  align-items: start;
+}
+@media (max-width: 760px) { .docs-layout { grid-template-columns: 1fr; } }
+
+.docs-nav {
+  position: sticky;
+  top: 88px;
+}
+@media (max-width: 760px) { .docs-nav { position: static; } }
+.docs-nav__title {
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 12px;
+}
+.docs-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.docs-nav a {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 10px;
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-size: .95rem;
+}
+.docs-nav a:hover { background: var(--bg-tint); color: var(--accent); text-decoration: none; }
+.docs-nav a.is-active { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+
+/* Markdown prose */
+.prose { max-width: 760px; color: var(--ink); }
+.prose h1 { font-size: 2rem; font-weight: 800; margin: 0 0 18px; }
+.prose h2 { font-size: 1.4rem; font-weight: 700; margin: 36px 0 12px; }
+.prose h3 { font-size: 1.12rem; font-weight: 700; margin: 26px 0 8px; }
+.prose p, .prose li { color: var(--ink-soft); }
+.prose a { color: var(--accent); font-weight: 600; }
+.prose ul, .prose ol { padding-left: 1.3em; }
+.prose li { margin: 6px 0; }
+.prose code {
+  background: var(--bg-tint);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: .9em;
+}
+.prose pre {
+  background: var(--bg-tint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  overflow-x: auto;
+}
+.prose pre code { background: none; border: none; padding: 0; }
+.prose hr { border: none; border-top: 1px solid var(--line); margin: 32px 0; }
+.prose blockquote {
+  margin: 18px 0;
+  padding: 4px 18px;
+  border-left: 3px solid var(--accent);
+  color: var(--ink-soft);
+}
+
+/* --------------------------- install modal ---------------------- */
+.modal[hidden] { display: none; }
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--backdrop);
+  backdrop-filter: blur(3px);
+  animation: modal-fade .18s ease;
+}
+/* The frame: rounded, bordered, shadowed, and clipping. The scrolling
+   happens inside it, so the scrollbar is cut to the corners like the
+   content (Firefox squared them off when the frame scrolled itself). */
+.modal__dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 560px;
+  max-height: calc(100dvh - 40px);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  animation: modal-pop .2s ease;
+}
+.modal__scroll {
+  position: relative;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 34px 32px 32px;
+  /* Auto-hiding scrollbar: invisible until the dialog is hovered (Firefox). */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color .25s ease;
+}
+.modal__scroll:hover, .modal__scroll:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--ink) 28%, transparent) transparent;
+}
+/* Auto-hiding scrollbar for WebKit/Blink — thumb fades in on hover. */
+.modal__scroll::-webkit-scrollbar { width: 8px; }
+.modal__scroll::-webkit-scrollbar-track { background: transparent; }
+.modal__scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  transition: background .25s ease;
+}
+.modal__scroll:hover::-webkit-scrollbar-thumb,
+.modal__scroll:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink) 22%, transparent);
+}
+.modal__scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ink) 42%, transparent);
+}
+.modal__scroll:focus { outline: none; }
+@keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-pop {
+  from { opacity: 0; transform: translateY(10px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal__backdrop, .modal__dialog { animation: none; }
+}
+
+.modal__close {
+  position: absolute;
+  top: 16px; right: 16px;
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-tint);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.modal__close:hover { background: var(--line); color: var(--ink); }
+.modal__close svg { width: 18px; height: 18px; fill: currentColor; }
+
+.modal__head { text-align: center; margin-bottom: 24px; }
+.modal__icon { width: 64px; height: auto; margin: 0 auto 14px; }
+.modal__title { font-size: 1.6rem; font-weight: 800; }
+.modal__sub {
+  color: var(--ink-soft);
+  font-size: 1rem;
+  margin: 10px auto 0;
+  max-width: 440px;
+}
+
+/* The picker: two numbered choices, then only the chosen method. */
+.pick { margin: 0 0 18px; }
+.pick__label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-weight: 800;
+  font-size: .98rem;
+  color: var(--ink);
+}
+.pick__num {
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  color: var(--accent-ink);
+  font-size: .86rem;
+  font-weight: 800;
+}
+
+/* Segmented switch for the machine. */
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 16px;
+  background: var(--bg-tint);
+  border: 1px solid var(--line);
+}
+.seg__opt { position: relative; min-width: 0; cursor: pointer; display: flex; }
+.seg__opt input,
+.method input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: inherit;
+}
+.seg__face {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  text-align: center;
+  border: 1px solid transparent;
+  transition: background .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.seg__title { font-weight: 800; color: var(--ink); font-size: .95rem; }
+.seg__hint  { font-size: .78rem; color: var(--ink-soft); line-height: 1.3; }
+.seg__opt:hover .seg__face { background: color-mix(in srgb, var(--surface) 55%, transparent); }
+.seg__opt input:checked + .seg__face {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  box-shadow: var(--shadow-sm);
+}
+.seg__opt input:focus-visible + .seg__face { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Method cards. */
+.methods { display: grid; gap: 8px; }
+.method { position: relative; cursor: pointer; }
+.method__face {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.method:hover .method__face { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.method input:checked + .method__face {
+  border-color: var(--accent);
+  background: var(--bg-tint);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.method input:focus-visible + .method__face { outline: 2px solid var(--accent); outline-offset: 2px; }
+.method.is-off { cursor: default; }
+.method.is-off .method__face { opacity: .5; border-style: dashed; }
+.method.is-off:hover .method__face { border-color: var(--line); }
+.method__icon {
+  flex: none;
+  width: 42px; height: 42px;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  color: #fff;
+}
+.method__icon svg { width: 22px; height: 22px; fill: currentColor; }
+.method__icon--ref    { background: var(--accent-gradient); }
+.method__icon--bundle { background: linear-gradient(160deg, color-mix(in srgb, var(--highlight) 80%, white), var(--highlight)); color: var(--highlight-ink); }
+.method__icon--repo   { background: linear-gradient(160deg, color-mix(in srgb, var(--c-green) 72%, white), var(--c-green)); }
+.method__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.method__title {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-weight: 800; color: var(--ink); font-size: .98rem;
+}
+.method__desc { font-size: .86rem; color: var(--ink-soft); line-height: 1.35; }
+.method__flag {
+  font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--line); color: var(--ink-soft);
+}
+.install-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--highlight) 80%, white), var(--highlight));
+  color: var(--highlight-ink);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* The chosen method. */
+.how {
+  margin-top: 22px;
+  padding: 22px 22px 18px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  background: var(--bg-tint);
+  animation: modal-pop .2s ease;
+}
+.how[hidden] { display: none; }
+.how__after strong { color: var(--ink); }
+.how__after code, .term code:not(.code-copy code) {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: .92em;
+}
+.how__btn { width: 100%; justify-content: center; }
+.how__after { margin: 14px 0 0; font-size: .88rem; color: var(--ink-soft); }
+
+/* Folded terminal alternative. */
+.term { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
+.term summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  font-weight: 700; font-size: .9rem; color: var(--accent);
+  padding: 4px 0;
+}
+.term summary::-webkit-details-marker { display: none; }
+.term summary::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg) translateY(-1px);
+  transition: transform .15s ease;
+}
+.term[open] summary::before { transform: rotate(45deg) translateY(-2px); }
+.term p { margin: 10px 0 0; font-size: .88rem; color: var(--ink-soft); }
+.term .code-copy { margin-top: 8px; }
+.term .code-copy + p { margin-top: 10px; }
+
+.modal__foot { margin: 18px 0 0; text-align: center; font-size: .84rem; color: var(--ink-soft); }
+
+.install-note { font-size: .88rem; color: var(--ink-soft); margin: 14px 0 0; }
+.install-note code {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: .92em;
+}
+
+.install-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  display: grid;
+  /* minmax(0,1fr) lets the column shrink below its content's min-width, so the
+     long command scrolls inside its own box instead of blowing out the modal. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
+.install-steps li {
+  position: relative;
+  min-width: 0;
+  padding-left: 40px;
+  color: var(--ink-soft);
+  font-size: .97rem;
+}
+.install-steps li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  left: 0; top: -2px;
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  color: var(--accent-ink);
+  font-weight: 800;
+  font-size: .92rem;
+}
+.install-steps strong { color: var(--ink); }
+.install-steps code {
+  background: var(--bg-tint);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: .9em;
+}
+
+/* Copyable command block */
+.code-copy {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+  margin: 10px 0 0;
+}
+.code-copy code {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: .86rem;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.code-copy--multi code { white-space: pre; }
+.code-copy__btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: .88rem;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.code-copy__btn:hover { background: var(--bg-tint); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.code-copy__btn svg { width: 16px; height: 16px; fill: currentColor; }
+.code-copy__btn.is-copied { background: var(--c-green); border-color: var(--c-green); color: #fff; }
+
+@media (max-width: 520px) {
+  .modal__scroll { padding: 30px 20px 26px; }
+  .seg { grid-template-columns: 1fr; }
+  .how { padding: 18px 16px 14px; }
+  .code-copy { flex-direction: column; }
+  .code-copy__btn { padding: 10px; justify-content: center; }
+}
+
+/* ----------------------------- lightbox ------------------------- */
+/* Every screenshot marked [data-zoom] opens here at full size. A click on
+   the image (or the magnifier) switches between fit-to-screen and 1:1,
+   where the stage scrolls — drag with the mouse, or scroll/pinch on a
+   touchpad or phone — so the app's small print can actually be read. */
+[data-zoom] { cursor: zoom-in; }
+[data-zoom]:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+
+.lightbox[hidden] { display: none; }
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+}
+.lightbox__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--backdrop);
+  backdrop-filter: blur(6px);
+  animation: modal-fade .18s ease;
+}
+/* The scrolling room. Clicking its empty space closes, like a backdrop.
+   `safe center` keeps the image centred until it outgrows the stage, then
+   falls back to the top-left corner so no part of it becomes unreachable. */
+.lightbox__stage {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  display: flex;
+  align-items: safe center;
+  justify-content: safe center;
+  padding: clamp(14px, 3.5vw, 48px);
+  overscroll-behavior: contain;
+}
+/* Room for the caption pill, so a tall shot never sits under it. */
+.lightbox.has-caption .lightbox__stage { padding-bottom: 92px; }
+.lightbox__img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: 0 30px 80px rgba(0,0,0,.45);
+  animation: modal-pop .2s ease;
+}
+.lightbox.is-zoomable .lightbox__img { cursor: zoom-in; }
+.lightbox.is-zoomed .lightbox__img {
+  max-width: none;
+  max-height: none;
+  width: var(--lightbox-zoom-w, auto);
+  cursor: zoom-out;
+  animation: none;
+}
+.lightbox.is-panning .lightbox__img { cursor: grabbing; }
+
+.lightbox__tools {
+  position: absolute;
+  top: 16px; right: 16px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+}
+.lightbox__btn {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(20,16,32,.62);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.lightbox__btn:hover { background: rgba(20,16,32,.88); }
+.lightbox__btn svg { width: 20px; height: 20px; fill: currentColor; }
+/* The magnifier shows the move the next click makes: + to zoom in, - to go
+   back to fit. It is hidden outright when the shot is already life-size. */
+.lightbox__btn--zoom .lightbox__icon--out,
+.lightbox.is-zoomed .lightbox__btn--zoom .lightbox__icon--in { display: none; }
+.lightbox.is-zoomed .lightbox__btn--zoom .lightbox__icon--out { display: block; }
+.lightbox:not(.is-zoomable) .lightbox__btn--zoom { display: none; }
+
+/* Listed first: the display below would otherwise beat the UA [hidden] rule. */
+.lightbox__caption[hidden] { display: none; }
+.lightbox__caption {
+  position: absolute;
+  left: 50%; bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 2;
+  max-width: min(720px, calc(100% - 32px));
+  margin: 0;
+  padding: 9px 18px;
+  border-radius: 16px;
+  background: rgba(20,16,32,.62);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: .92rem;
+  line-height: 1.45;
+  text-align: center;
+  pointer-events: none;
+}
+/* Long captions are trimmed rather than allowed to eat the screen. The clamp
+   lives on the inner span: the pill is absolutely positioned, and that
+   blockifies its display, which would drop -webkit-box on the floor. */
+.lightbox__caption span {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 560px) {
+  .lightbox__caption { bottom: 12px; padding: 7px 14px; font-size: .84rem; }
+  .lightbox__caption span { -webkit-line-clamp: 2; }
+  .lightbox__btn { width: 36px; height: 36px; }
+}
+/* Once zoomed the caption would sit on top of what the visitor came to read. */
+.lightbox.is-zoomed .lightbox__caption { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .lightbox__backdrop, .lightbox__img { animation: none; }
+}
+
+/* ------------------- OS compatibility tabs ---------------------- */
+.oscompat {
+  text-align: left;
+  max-width: 560px;
+  margin: 22px auto 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px 26px;
+  box-shadow: var(--shadow-sm);
+}
+.oscompat__title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin: 0 0 16px;
+}
+.oscompat__title svg { width: 20px; height: 20px; fill: var(--accent); }
+
+.oscompat__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.ostab {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--bg-tint);
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: .9rem;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.ostab:hover { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); color: var(--ink); }
+.ostab.is-active {
+  background: var(--accent-gradient);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+
+.ospanel { display: none; }
+.ospanel.is-active { display: block; animation: osfade .18s ease; }
+@keyframes osfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.ospanel p { color: var(--ink-soft); font-size: .95rem; margin: 0 0 14px; }
+.ospanel strong { color: var(--ink); }
+.ospanel p code {
+  background: var(--bg-tint);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: .9em;
+}
+
+.os-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: .8rem;
+  font-weight: 800;
+  letter-spacing: .01em;
+  margin-bottom: 14px;
+}
+.os-status svg { width: 15px; height: 15px; flex: none; }
+.os-status--ready { background: color-mix(in srgb, var(--c-green) 15%, var(--surface)); color: var(--status-ok-fg); }
+.os-status--ready svg { fill: var(--c-green); }
+.os-status--setup { background: color-mix(in srgb, var(--highlight) 22%, var(--surface)); color: var(--status-warn-fg); }
+.os-status--setup svg { fill: color-mix(in srgb, var(--highlight) 78%, black); }
+
+.ospanel__steps-title {
+  font-weight: 800;
+  color: var(--ink) !important;
+  font-size: 1rem;
+  margin: 20px 0 10px !important;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.ospanel__sub {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  font-size: .95rem;
+  color: var(--ink-soft);
+}
+.ospanel__sub em { color: var(--ink); font-style: normal; font-weight: 700; }
+
+/* =========================== Flatout additions =========================== */
+
+.actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+.cta .actions:first-of-type, .hero__actions + .actions { margin-top: 0; }
+.narrow { max-width: 760px; }
+.section__head--left { text-align: left; margin-left: 0; }
+.section__meta { color: var(--ink-soft); font-weight: 700; margin: 10px 0 0; }
+.brand__name { font-weight: var(--heading-weight); font-size: 1.4rem; letter-spacing: -0.02em; }
+.brand__wordmark { width: auto; height: 40px; }
+.nav--hero .brand__wordmark { height: calc(48px - 10px * var(--nav-p)); }
+.brand__wordmark--footer { height: 34px; }
+
+/* The announcement pill on the hero. */
+.hero__pill {
+  display: block;
+  width: fit-content;
+  margin: 0 auto .9rem;
+  padding: .5rem 1.1rem;
+  border-radius: 999px;
+  font-size: .9rem;
+  text-align: center;
+  background: color-mix(in srgb, var(--hero-ink) 16%, transparent);
+  color: var(--hero-ink);
+}
+.hero__pill a { color: var(--hero-ink); font-weight: 700; text-decoration: underline; }
+.hero__badges .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--hero-ink) 20%, transparent); }
+.hero--shot { padding-bottom: 0; }
+.hero--shot .shot { padding-bottom: 56px; }
+
+/* Feature grid columns as chosen in the editor. */
+.grid--2 { grid-template-columns: repeat(2, 1fr); }
+.grid--3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 960px) { .grid--3, .grid--4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .grid--2, .grid--3, .grid--4 { grid-template-columns: 1fr; } }
+.card__body p { margin: 0; color: var(--ink-soft); font-size: .97rem; }
+.card__body p + p { margin-top: 8px; }
+
+/* Text and call-to-action blocks. */
+.text-block--center { text-align: center; }
+.text-block--left .section__lead, .text-block--left .prose { text-align: left; }
+.text-block .prose { margin: 22px auto 0; text-align: left; }
+.badge-icon {
+  width: 76px; height: 76px;
+  margin: 0 auto 22px;
+  border-radius: 6px;
+  background: var(--accent-gradient);
+  color: var(--accent-ink);
+  display: grid; place-items: center;
+  box-shadow: var(--shadow-md);
+}
+.text-block--left .badge-icon { margin-left: 0; }
+.badge-icon .ico { width: 40px; height: 40px; }
+.cta__note > :first-child { margin-top: 0; }
+.cta__note p { margin: 0 0 10px; }
+.band__inner--solo { grid-template-columns: 1fr; max-width: 760px; }
+
+/* Screenshots. */
+.gallery { display: grid; gap: 28px 22px; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); }
+.gallery--1 { --cols: 1; max-width: 900px; margin-inline: auto; }
+.gallery--2 { --cols: 2; }
+.gallery--3 { --cols: 3; }
+@media (max-width: 760px) { .gallery { --cols: 1; } }
+.gallery__item { margin: 0; }
+.gallery__frame {
+  background: var(--bg-tint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.gallery__frame:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: color-mix(in srgb, var(--accent) 22%, var(--line)); }
+.gallery__frame img { width: 100%; height: auto; border-radius: calc(var(--radius) * .4); }
+.gallery figcaption { color: var(--ink-soft); font-size: .98rem; line-height: 1.5; margin: 12px 6px 0; }
+.gallery figcaption strong { color: var(--ink); }
+
+/* What's new. */
+.releases { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+.release {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  box-shadow: var(--shadow-sm);
+}
+.release__head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.release__version { font-size: 1.25rem; font-weight: var(--heading-weight); }
+.release__chip {
+  font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  padding: 2px 8px; border-radius: 999px;
+  background: color-mix(in srgb, var(--highlight) 25%, var(--surface)); color: var(--status-warn-fg);
+}
+.release__date { margin-left: auto; color: var(--ink-soft); font-size: .9rem; }
+.release__notes { margin-top: 10px; }
+.release__notes > :first-child { margin-top: 0; }
+.release__notes > :last-child { margin-bottom: 0; }
+
+/* Questions. */
+.faq { display: grid; gap: 10px; }
+.faq__item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px 20px;
+}
+.faq__item summary { cursor: pointer; font-weight: 700; padding: 14px 0; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+.faq__item summary::-webkit-details-marker { display: none; }
+.faq__item summary::after { content: "+"; color: var(--accent); font-weight: 800; }
+.faq__item[open] summary::after { content: "–"; }
+.faq__item .prose { padding-bottom: 14px; }
+
+/* People. */
+.people { list-style: none; margin: 0 auto; padding: 0; display: grid; gap: 10px; max-width: 640px; }
+.people li { color: var(--ink-soft); }
+.people strong { color: var(--ink); }
+.people a strong { color: var(--accent); }
+.people__after { margin: 22px auto 0; max-width: 640px; }
+
+/* A warning box (the beta section). */
+.notice {
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin: 0 0 20px;
+  text-align: left;
+}
+.notice p { margin: 0; }
+.notice p + p { margin-top: 8px; }
+.notice--warn {
+  border: 1px solid color-mix(in srgb, var(--highlight) 55%, transparent);
+  background: color-mix(in srgb, var(--highlight) 10%, var(--bg));
+}
+
+/* Pages and the not-found page. */
+.page { padding: 56px 0 84px; }
+.page--center { padding: 96px 0; }
+.nav + .page { padding-top: 56px; }
+
+/* The install dialog's extra states. */
+.modal__empty { text-align: center; color: var(--ink-soft); margin: 0 0 8px; }
+.how__lead { margin: 0 0 4px; color: var(--ink-soft); font-size: .92rem; }
+.modal__foot p { margin: 0; }
+
+/* The admin's preview of the draft. */
+.preview-flag {
+  position: fixed;
+  left: 50%; bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 300;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(20,16,32,.82);
+  color: #fff;
+  font-size: .8rem;
+  font-weight: 700;
+  pointer-events: none;
+}

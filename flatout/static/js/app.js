@@ -1,16 +1,17 @@
-/* Flatout client. No dependencies, no build step.
+/* Flatout's admin client. No dependencies, no build step.
  *
  * Sections, in order: API, toasts, theme, mobile sidebar, dialogs, settings,
- * admin, menus, records, the record form, the detail sheet, keyboard, search
- * palette, paging, pull to refresh, the About hero. Each section guards on
- * the elements it needs, so deleting one leaves the rest working.
+ * admin, Turnstile, menus, dialogs that survive a reload, the About hero.
+ * Each section guards on the elements it needs. The site editor
+ * (editor.js) and the other admin pages reuse the helpers through
+ * window.Flatout.
  */
 (function () {
   "use strict";
 
   var CSRF = (document.querySelector('meta[name="csrf"]') || {}).content || "";
   var root = document.documentElement;
-  var sheet = document.getElementById("sheet");
+  var sheet = null;   // the template's detail sheet; Flatout has none
 
   /* ————— API ————— */
   // Every call goes through here, so the CSRF header and the {"error": "..."}
@@ -185,7 +186,6 @@
       if (section) showSettingsSection(section);
       else if (narrow.matches) dialog.classList.remove("is-showing-pane");
     }
-    if (id === "item-modal") resetItemForm();
     setSidebar(false);
     dialog.showModal();
   }
@@ -286,29 +286,6 @@
       }
     });
   }
-  document.querySelectorAll('input[name="view_mode"]').forEach(function (radio) {
-    radio.addEventListener("change", function () {
-      api("/settings", { view_mode: radio.value })
-        .then(function () { toast("Default view saved"); })
-        .catch(toastError);
-    });
-  });
-
-  var recordsRoot = document.getElementById("records-root");
-  var infinite = document.getElementById("infinite-scroll");
-  if (infinite) {
-    infinite.addEventListener("change", function () {
-      // Takes effect on the page behind the modal, no reload needed.
-      if (recordsRoot) recordsRoot.setAttribute("data-infinite", infinite.checked ? "1" : "0");
-      watchPager();
-      api("/settings", { infinite_scroll: infinite.checked })
-        .then(function () {
-          toast(infinite.checked ? "Records load as you scroll" : "Load more records by hand");
-        })
-        .catch(toastError);
-    });
-  }
-
   var acctName = document.getElementById("acct-name");
   if (acctName) {
     acctName.addEventListener("change", function () {
@@ -349,29 +326,18 @@
   var regOpen = document.getElementById("reg-open");
   if (regOpen) {
     regOpen.addEventListener("change", function () {
-      api("/admin/registration", { open: regOpen.checked }).then(function (data) {
+      api("/settings/registration", { open: regOpen.checked }).then(function (data) {
         toast(data.open ? "Registration is open" : "Registration is closed");
       }).catch(toastError);
     });
   }
-  [["inst-worker", "worker_minutes", "Background interval saved"],
-   ["inst-perpage", "items_per_page", "Page size saved"]].forEach(function (spec) {
-    var input = document.getElementById(spec[0]);
-    if (!input) return;
-    input.addEventListener("change", function () {
-      var body = {};
-      body[spec[1]] = parseInt(input.value, 10);
-      api("/admin/instance", body).then(function () { toast(spec[2]); }).catch(toastError);
-    });
-  });
-
   var adduserForm = document.getElementById("admin-adduser");
   if (adduserForm) {
     adduserForm.addEventListener("submit", function (e) {
       e.preventDefault();
       var errEl = document.getElementById("au-error");
       errEl.hidden = true;
-      api("/admin/users", {
+      api("/settings/users", {
         name: document.getElementById("au-name").value.trim(),
         username: document.getElementById("au-email").value.trim(),
         password: document.getElementById("au-password").value,
@@ -394,14 +360,14 @@
       pwBtn.addEventListener("click", function () {
         var pw = prompt('New password for "' + username + '" (at least 8 characters):');
         if (pw === null) return;
-        api("/admin/users/" + userId + "/password", { new: pw })
+        api("/settings/users/" + userId + "/password", { new: pw })
           .then(function () { toast("Password reset for " + username); })
           .catch(toastError);
       });
     }
     if (toggleBtn) {
       toggleBtn.addEventListener("click", function () {
-        api("/admin/users/" + userId + "/toggle-admin").then(function (data) {
+        api("/settings/users/" + userId + "/toggle-admin").then(function (data) {
           reloadWith(username + (data.is_admin ? " is now an admin" : " is no longer an admin"));
         }).catch(toastError);
       });
@@ -409,7 +375,7 @@
     if (deleteBtn) {
       deleteBtn.addEventListener("click", function () {
         if (!confirm('Delete "' + username + '" and everything they own? This cannot be undone.')) return;
-        api("/admin/users/" + userId + "/delete")
+        api("/settings/users/" + userId + "/delete")
           .then(function () { reloadWith("Deleted " + username); })
           .catch(toastError);
       });
@@ -503,7 +469,7 @@
           sitekey: siteKey,
           theme: root.getAttribute("data-theme") === "dark" ? "dark" : "light",
           callback: function (token) {
-            api("/admin/turnstile", { site_key: siteKey, secret_key: secretKey, token: token })
+            api("/settings/turnstile", { site_key: siteKey, secret_key: secretKey, token: token })
               .then(function (data) {
                 clearTurnstileWidget();
                 setTurnstileStatus(data.status);
@@ -539,7 +505,7 @@
     document.getElementById("ts-off").addEventListener("click", function () {
       showTsError("");
       clearTurnstileWidget();
-      api("/admin/turnstile/disable").then(function (data) {
+      api("/settings/turnstile/disable").then(function (data) {
         setTurnstileStatus(data.status);
         toast("Turnstile is off");
       }).catch(toastError);
@@ -567,455 +533,6 @@
       if (e.key === "Escape") set(false);
     });
   });
-
-  /* ————— Records ————— */
-  function cardFor(id) {
-    return recordsRoot && recordsRoot.querySelector('[data-item="' + id + '"]');
-  }
-  function itemIds() {
-    if (!recordsRoot) return [];
-    return Array.prototype.map.call(recordsRoot.querySelectorAll("[data-item]"), function (el) {
-      return parseInt(el.getAttribute("data-item"), 10);
-    });
-  }
-  function setCardDone(id, done) {
-    var el = cardFor(id);
-    if (!el) return;
-    el.classList.toggle("is-done", !!done);
-    var meta = el.querySelector(".card-meta");
-    if (meta) meta.textContent = done ? "Done" : "Open";
-  }
-  function setCardPinned(id, pinned) {
-    var el = cardFor(id);
-    var btn = el && el.querySelector(".pinbtn");
-    if (!btn) return;
-    btn.classList.toggle("is-pinned", !!pinned);
-    btn.setAttribute("title", pinned ? "Unpin" : "Pin");
-    btn.setAttribute("aria-label", pinned ? "Unpin" : "Pin");
-  }
-  function removeCard(id) {
-    var el = cardFor(id);
-    if (el) el.remove();
-  }
-
-  if (recordsRoot) {
-    // Delegated: records appended by paging need no binding of their own.
-    recordsRoot.addEventListener("click", function (e) {
-      var pin = e.target.closest("[data-pin]");
-      if (pin) {
-        e.stopPropagation();
-        var pid = parseInt(pin.getAttribute("data-pin"), 10);
-        var next = !pin.classList.contains("is-pinned");
-        setCardPinned(pid, next);             // optimistic: the UI answers at once
-        api("/items/" + pid, { pinned: next }).catch(function (err) {
-          setCardPinned(pid, !next);          // and rolls back if the server says no
-          toastError(err);
-        });
-        return;
-      }
-      var card = e.target.closest("[data-item]");
-      if (card) openItem(parseInt(card.getAttribute("data-item"), 10));
-    });
-    recordsRoot.addEventListener("keydown", function (e) {
-      var card = e.target.closest("[data-item]");
-      if (card && e.target === card && (e.key === "Enter" || e.key === " ")) {
-        e.preventDefault();
-        openItem(parseInt(card.getAttribute("data-item"), 10));
-      }
-    });
-  }
-
-  /* ————— The record form ————— */
-  var itemModal = document.getElementById("item-modal");
-  var itemForm = document.getElementById("item-form");
-
-  function resetItemForm(item) {
-    if (!itemForm) return;
-    document.getElementById("item-id").value = item ? item.id : "";
-    document.getElementById("item-title").value = item ? item.title : "";
-    document.getElementById("item-body").value = item ? item.body : "";
-    document.getElementById("item-modal-title").textContent = item ? "Edit record" : "New record";
-    document.getElementById("item-error").hidden = true;
-  }
-
-  if (itemForm) {
-    itemForm.addEventListener("submit", function (e) {
-      e.preventDefault();
-      var errEl = document.getElementById("item-error");
-      var btn = itemForm.querySelector("button[type=submit]");
-      var id = document.getElementById("item-id").value;
-      errEl.hidden = true;
-      setBusy(btn, true);
-      api(id ? "/items/" + id : "/items", {
-        title: document.getElementById("item-title").value.trim(),
-        body: document.getElementById("item-body").value
-      }).then(function () {
-        itemModal.close();   // saved: the reload shows the list, not the form again
-        reloadWith(id ? "Record updated" : "Record created");
-      }).catch(function (err) {
-        errEl.textContent = err.message;
-        errEl.hidden = false;
-        setBusy(btn, false);
-      });
-    });
-  }
-
-  /* ————— Detail sheet ————— */
-  var currentItem = null;
-
-  function renderSheet(item) {
-    currentItem = item;
-    document.getElementById("sheet-title").textContent = item.title;
-    document.getElementById("sheet-kicker").textContent = item.done ? "Done" : "Open";
-    document.getElementById("sheet-meta").textContent = "Created " +
-      new Date(item.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-    // textContent, never innerHTML: the body is whatever the user typed.
-    var body = document.getElementById("sheet-body");
-    body.textContent = "";
-    (item.body || "").split(/\n{2,}/).forEach(function (para) {
-      if (!para.trim()) return;
-      var p = document.createElement("p");
-      p.textContent = para;
-      body.appendChild(p);
-    });
-    var pin = document.getElementById("sheet-pin");
-    pin.classList.toggle("is-pinned", item.pinned);
-    pin.setAttribute("title", item.pinned ? "Unpin (p)" : "Pin (p)");
-    var done = document.getElementById("sheet-done");
-    done.classList.toggle("is-done", item.done);
-    done.setAttribute("title", item.done ? "Mark as open (d)" : "Mark as done (d)");
-  }
-
-  function setOpenParam(id) {
-    var params = new URLSearchParams(location.search);
-    if (id) params.set("open", id); else params.delete("open");
-    var qs = params.toString();
-    history.replaceState(null, "", location.pathname + (qs ? "?" + qs : ""));
-  }
-
-  function openItem(id, opts) {
-    if (!sheet) return;
-    opts = opts || {};
-    get("/items/" + id).then(function (data) {
-      renderSheet(data.item);
-      if (!sheet.open) {
-        if (opts.restoring) markRestoring(sheet);
-        sheet.showModal();
-      }
-      sheet.scrollTop = opts.scroll || 0;
-      setOpenParam(id);
-    }).catch(toastError);
-  }
-
-  function openSibling(step) {
-    if (!currentItem) return;
-    var ids = itemIds();
-    var next = ids[ids.indexOf(currentItem.id) + step];
-    if (next !== undefined && ids.indexOf(currentItem.id) !== -1) openItem(next);
-  }
-
-  function togglePin() {
-    if (!currentItem) return;
-    api("/items/" + currentItem.id, { pinned: !currentItem.pinned }).then(function (data) {
-      renderSheet(data.item);
-      setCardPinned(data.item.id, data.item.pinned);
-    }).catch(toastError);
-  }
-  function toggleDone() {
-    if (!currentItem) return;
-    api("/items/" + currentItem.id, { done: !currentItem.done }).then(function (data) {
-      renderSheet(data.item);
-      setCardDone(data.item.id, data.item.done);
-    }).catch(toastError);
-  }
-  function editCurrent() {
-    if (!currentItem) return;
-    var item = currentItem;
-    closeDialog(sheet, function () {
-      resetItemForm(item);
-      itemModal.showModal();
-    });
-  }
-
-  if (sheet) {
-    sheet.addEventListener("close", function () {
-      currentItem = null;
-      setOpenParam(null);
-    });
-    document.getElementById("sheet-prev").addEventListener("click", function () { openSibling(-1); });
-    document.getElementById("sheet-next").addEventListener("click", function () { openSibling(1); });
-    document.getElementById("sheet-pin").addEventListener("click", togglePin);
-    document.getElementById("sheet-done").addEventListener("click", toggleDone);
-    document.getElementById("sheet-edit").addEventListener("click", editCurrent);
-    document.getElementById("sheet-copy").addEventListener("click", function () {
-      if (!currentItem) return;
-      var btn = this;
-      copyText(location.origin + "/?open=" + currentItem.id).then(function () {
-        btn.classList.add("show-tip");
-        setTimeout(function () { btn.classList.remove("show-tip"); }, 1200);
-      });
-    });
-    document.getElementById("sheet-delete").addEventListener("click", function () {
-      if (!currentItem) return;
-      var id = currentItem.id;
-      api("/items/" + id + "/delete").then(function (data) {
-        closeDialog(sheet);
-        removeCard(id);
-        // Undo instead of a confirm dialog: the delete happens at once, and
-        // the snapshot the server returned is enough to put it back.
-        toast("Record deleted", "Undo", function () {
-          api("/items/restore", data.item)
-            .then(function () { reloadWith("Record restored"); })
-            .catch(toastError);
-        });
-      }).catch(toastError);
-    });
-  }
-
-  function copyText(text) {
-    if (navigator.clipboard && window.isSecureContext) {
-      return navigator.clipboard.writeText(text);
-    }
-    // Plain HTTP on a LAN has no clipboard API, so fall back to the old way.
-    return new Promise(function (resolve) {
-      var ta = document.createElement("textarea");
-      ta.value = text;
-      ta.setAttribute("readonly", "");
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      (document.querySelector("dialog[open]") || document.body).appendChild(ta);
-      ta.select();
-      try { document.execCommand("copy"); } catch (_) {}
-      ta.remove();
-      resolve();
-    });
-  }
-
-  // ?open=<id> deep-links straight into a record; see "Dialogs survive a
-  // reload" below, which opens it (and keeps its scroll across a refresh).
-
-  /* ————— Keyboard ————— */
-  document.addEventListener("keydown", function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      openPalette();
-      return;
-    }
-    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
-    if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (sheet && sheet.open) {
-      if (e.key === "j") { e.preventDefault(); openSibling(1); }
-      else if (e.key === "k") { e.preventDefault(); openSibling(-1); }
-      else if (e.key === "p") { e.preventDefault(); togglePin(); }
-      else if (e.key === "d") { e.preventDefault(); toggleDone(); }
-      else if (e.key === "e") { e.preventDefault(); editCurrent(); }
-      return;
-    }
-    if (document.querySelector("dialog[open]")) return;
-    if (e.key === "n" && itemModal) { e.preventDefault(); openDialog("item-modal"); }
-    else if (e.key === "/") { e.preventDefault(); openPalette(); }
-  });
-
-  /* ————— Search palette (Ctrl/Cmd+K) ————— */
-  var palette = document.getElementById("search-modal");
-  var searchInput = document.getElementById("search-input");
-  var searchResults = document.getElementById("search-results");
-  var searchTimer = null;
-  var searchSeq = 0;
-  var activeIndex = -1;
-
-  var kbd = document.getElementById("search-kbd");
-  if (kbd && /Mac|iPhone|iPad/.test(navigator.platform)) kbd.textContent = "⌘K";
-
-  function openPalette() {
-    if (!palette || palette.open) return;
-    searchInput.value = "";
-    searchResults.hidden = true;
-    searchResults.textContent = "";
-    activeIndex = -1;
-    palette.showModal();
-    searchInput.focus();
-  }
-  var searchBtn = document.getElementById("search-btn");
-  if (searchBtn) searchBtn.addEventListener("click", openPalette);
-
-  function highlight(text, query) {
-    var at = text.toLowerCase().indexOf(query.toLowerCase());
-    var frag = document.createDocumentFragment();
-    if (at === -1) { frag.appendChild(document.createTextNode(text)); return frag; }
-    frag.appendChild(document.createTextNode(text.slice(0, at)));
-    var mark = document.createElement("mark");
-    mark.textContent = text.slice(at, at + query.length);
-    frag.appendChild(mark);
-    frag.appendChild(document.createTextNode(text.slice(at + query.length)));
-    return frag;
-  }
-
-  function renderResults(results, query) {
-    searchResults.textContent = "";
-    activeIndex = results.length ? 0 : -1;
-    if (!results.length) {
-      var empty = document.createElement("p");
-      empty.className = "palette-empty";
-      empty.textContent = "Nothing matches “" + query + "”.";
-      searchResults.appendChild(empty);
-      searchResults.hidden = false;
-      return;
-    }
-    var label = document.createElement("p");
-    label.className = "palette-label";
-    label.textContent = "Records";
-    searchResults.appendChild(label);
-    results.forEach(function (r, i) {
-      var row = document.createElement("div");
-      row.className = "palette-item" + (r.done ? " is-done" : "") + (i === 0 ? " is-active" : "");
-      row.setAttribute("data-id", r.id);
-      var title = document.createElement("span");
-      title.className = "palette-item-title";
-      title.appendChild(highlight(r.title, query));
-      var meta = document.createElement("span");
-      meta.className = "palette-item-meta";
-      meta.textContent = r.when;
-      row.appendChild(title);
-      row.appendChild(meta);
-      row.addEventListener("click", function () { choose(i); });
-      row.addEventListener("mousemove", function () { setActive(i, true); });
-      searchResults.appendChild(row);
-    });
-    searchResults.hidden = false;
-  }
-
-  function rows() { return searchResults.querySelectorAll(".palette-item"); }
-  function setActive(i, noScroll) {
-    var all = rows();
-    if (!all.length) return;
-    activeIndex = Math.max(0, Math.min(all.length - 1, i));
-    all.forEach(function (el, n) { el.classList.toggle("is-active", n === activeIndex); });
-    if (!noScroll) all[activeIndex].scrollIntoView({ block: "nearest" });
-  }
-  function choose(i) {
-    var all = rows();
-    var pick = all[i === undefined ? activeIndex : i];
-    if (!pick) return;
-    palette.close();
-    openItem(parseInt(pick.getAttribute("data-id"), 10));
-  }
-
-  if (searchInput) {
-    searchInput.addEventListener("input", function () {
-      var query = searchInput.value.trim();
-      clearTimeout(searchTimer);
-      if (query.length < 2) { searchResults.hidden = true; return; }
-      // Debounced, and sequenced so a slow answer to an old query never
-      // replaces the answer to the current one.
-      searchTimer = setTimeout(function () {
-        var seq = ++searchSeq;
-        get("/search?q=" + encodeURIComponent(query)).then(function (data) {
-          if (seq === searchSeq) renderResults(data.results || [], query);
-        }).catch(function () {});
-      }, 150);
-    });
-    searchInput.addEventListener("keydown", function (e) {
-      if (e.key === "ArrowDown") { e.preventDefault(); setActive(activeIndex + 1); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); setActive(activeIndex - 1); }
-      else if (e.key === "Enter") { e.preventDefault(); choose(); }
-    });
-  }
-
-  /* ————— Paging: Load more, or infinite scroll ————— */
-  var loading = false;
-  var pagerObserver = null;
-
-  function infiniteOn() {
-    return recordsRoot && recordsRoot.getAttribute("data-infinite") === "1";
-  }
-
-  function loadMore(btn) {
-    if (loading || !btn || !recordsRoot) return;
-    loading = true;
-    var params = new URLSearchParams(location.search);
-    params.delete("open");
-    params.set("page", btn.getAttribute("data-page"));
-    params.set("partial", "1");
-    params.set("view", recordsRoot.getAttribute("data-view"));
-    setBusy(btn, true);
-    fetch(location.pathname + "?" + params.toString(), { headers: { "Accept": "text/html" } })
-      .then(function (resp) {
-        if (!resp.ok) throw new Error();
-        return resp.text();
-      })
-      .then(function (html) {
-        var holder = document.createElement("div");
-        holder.innerHTML = html;
-        var incoming = holder.querySelector(".grid--cards, .grid--list");
-        var target = recordsRoot.querySelector(".grid--cards, .grid--list");
-        if (incoming && target) {
-          while (incoming.firstChild) target.appendChild(incoming.firstChild);
-        }
-        var oldPager = btn.closest(".pager");
-        var newPager = holder.querySelector(".pager, .pager-end");
-        if (newPager) oldPager.replaceWith(newPager); else oldPager.remove();
-        loading = false;
-        watchPager();
-      })
-      .catch(function () {
-        loading = false;
-        setBusy(btn, false);
-        toast("Couldn't load more records.", null, null, true);
-      });
-  }
-
-  // Watch the pager row, not the last record: it is replaced wholesale by
-  // every load, so re-observing after each one is enough.
-  function watchPager() {
-    if (pagerObserver) pagerObserver.disconnect();
-    var btn = document.getElementById("load-more");
-    if (!btn || !infiniteOn() || !("IntersectionObserver" in window)) return;
-    pagerObserver = new IntersectionObserver(function (entries) {
-      if (entries[0].isIntersecting) loadMore(document.getElementById("load-more"));
-    }, { rootMargin: "600px 0px" });
-    pagerObserver.observe(btn.closest(".pager"));
-  }
-
-  document.addEventListener("click", function (e) {
-    var btn = e.target.closest("#load-more");
-    if (btn) loadMore(btn);
-  });
-  watchPager();
-
-  /* ————— Pull to refresh (touch devices) ————— */
-  (function initPullToRefresh() {
-    var ptr = document.getElementById("ptr");
-    if (!ptr || !("ontouchstart" in window)) return;
-    var THRESHOLD = 80, startY = null, pull = 0;
-    document.addEventListener("touchstart", function (e) {
-      if (window.scrollY > 0 || document.querySelector("dialog[open]") ||
-          (sidebar && sidebar.classList.contains("is-open"))) { startY = null; return; }
-      startY = e.touches[0].clientY;
-      pull = 0;
-    }, { passive: true });
-    document.addEventListener("touchmove", function (e) {
-      if (startY === null) return;
-      pull = Math.max(0, e.touches[0].clientY - startY);
-      // Resistance: the spinner follows the finger at a third of its travel.
-      var y = Math.min(pull / 2.5, THRESHOLD + 20);
-      ptr.classList.add("is-dragging");
-      ptr.classList.toggle("is-armed", pull > THRESHOLD * 1.6);
-      ptr.style.transform = "translateY(" + y + "px) rotate(" + (pull * 1.5) + "deg)";
-    }, { passive: true });
-    document.addEventListener("touchend", function () {
-      if (startY === null) return;
-      startY = null;
-      ptr.classList.remove("is-dragging");
-      if (ptr.classList.contains("is-armed")) {
-        ptr.classList.add("is-refreshing");
-        ptr.style.transform = "translateY(" + (THRESHOLD + 10) + "px)";
-        location.reload();
-      } else {
-        ptr.style.transform = "";
-      }
-    });
-  })();
 
   /* ————— Dialogs survive a reload ————— */
   // Refreshing the page brings back the dialog that was open, as it was: the
@@ -1051,36 +568,6 @@
         var pane = d.querySelector(".settings-pane.is-active");
         if (pane) requestAnimationFrame(function () { pane.scrollTop = s.scroll || 0; });
       }
-    },
-    "item-modal": {
-      save: function () {
-        return {
-          id: document.getElementById("item-id").value,
-          title: document.getElementById("item-title").value,
-          body: document.getElementById("item-body").value
-        };
-      },
-      restore: function (d, s) {
-        openDialog("item-modal");   // resets the form, then the draft goes back in
-        document.getElementById("item-id").value = s.id || "";
-        document.getElementById("item-title").value = s.title || "";
-        document.getElementById("item-body").value = s.body || "";
-        document.getElementById("item-modal-title").textContent = s.id ? "Edit record" : "New record";
-      }
-    },
-    "search-modal": {
-      save: function () { return { q: searchInput.value }; },
-      restore: function (d, s) {
-        openPalette();
-        searchInput.value = s.q || "";
-        searchInput.dispatchEvent(new Event("input"));
-      }
-    },
-    // The sheet's record lives in the URL (?open=<id>), which also makes it a
-    // link; only its scroll offset needs remembering.
-    "sheet": {
-      save: function (d) { return { scroll: d.scrollTop }; },
-      restore: function () {}
     }
   };
 
@@ -1118,19 +605,21 @@
   // The latest draft, section and scroll are read as the page goes away.
   window.addEventListener("pagehide", rememberDialog);
 
-  var deepLink = parseInt(new URLSearchParams(location.search).get("open"), 10);
-  if (deepLink) {
-    var sheetState = remembered && remembered.id === "sheet" ? remembered.state || {} : null;
-    openItem(deepLink, { restoring: !!sheetState, scroll: sheetState ? sheetState.scroll : 0 });
-  } else if (remembered) {
+  if (remembered) {
     var toRestore = document.getElementById(remembered.id);
-    if (toRestore && toRestore.tagName === "DIALOG" && toRestore.getAttribute("data-restore") !== "off" && remembered.id !== "sheet") {
+    if (toRestore && toRestore.tagName === "DIALOG" && toRestore.getAttribute("data-restore") !== "off") {
       markRestoring(toRestore);
       var memory = dialogMemory[remembered.id];
       if (memory) memory.restore(toRestore, remembered.state || {});
       else toRestore.showModal();
     }
   }
+
+  window.Flatout = {
+    api: api, get: get, request: request, setBusy: setBusy, toast: toast,
+    toastError: toastError, reloadWith: reloadWith, openDialog: openDialog,
+    closeDialog: closeDialog, csrf: CSRF
+  };
 
   /* ————— About hero: animated sine-wave gradient ————— */
   (function initAboutHeroBg() {

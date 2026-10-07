@@ -1,0 +1,18 @@
+{% from "site/macros.html" import command %}
+{%- set beta = s.repo.beta %}
+<section id="{{ sec.id }}" class="section section--tint" data-section="{{ sec.id }}">
+  <div class="container narrow">
+    <div class="section__head">
+      {%- if sec.title %}<h2 class="section__title">{{ s.fill(sec.title) }}</h2>{% endif %}
+      {%- if sec.lead %}<p class="section__lead">{{ s.fill(sec.lead) }}</p>{% endif %}
+      {%- if beta %}<p class="section__meta">Beta {{ beta.version }}</p>{% endif %}
+    </div>
+    {%- if sec.warning %}<div class="notice notice--warn reveal-me">{{ s.md(sec.warning) }}</div>{% endif %}
+    {%- if sec.button_label %}
+    <div class="actions reveal-me"><a class="btn btn--primary" href="{{ s.repo.beta_flatpakref_url }}" download>
+      <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1a1 1 0 0 1 1-1Z"/></svg>
+      {{ s.fill(sec.button_label) }}</a></div>
+    {%- endif %}
+    {%- if sec.body %}<div class="prose reveal-me">{{ s.md(sec.body) }}</div>{% endif %}
+  </div>
+</section>

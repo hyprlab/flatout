@@ -1,15 +1,19 @@
 """First-run setup wizard.
 
 Shown exactly once: while the instance has zero users, every request is steered
-to /setup. The wizard creates the admin account and the initial instance
-settings in one POST, signs the admin in, and hands over to the app. There is
+to /setup. The wizard creates the admin account, names the app, and seeds the
+placeholder site in one POST, signs the admin in, and hands over to the app. There is
 no seeded account and no default password.
 """
+import json
+import re
+
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 from flask_login import login_user
 
 from .auth import EMAIL_RE, MIN_PASSWORD
-from .models import User, db, set_setting
+from . import site_schema
+from .models import SiteDocument, User, db, set_setting
 
 bp = Blueprint("setup", __name__)
 
@@ -47,12 +51,11 @@ def submit():
     if len(password) < MIN_PASSWORD:
         return jsonify(error=f"Passwords need at least {MIN_PASSWORD} characters."), 400
 
-    try:
-        worker = int(data.get("worker_minutes", 15))
-    except (TypeError, ValueError):
-        return jsonify(error="The background interval must be a number."), 400
-    if not 0 <= worker <= 1440:
-        return jsonify(error="The background interval must be between 0 and 1440 minutes."), 400
+    app_name = (data.get("app_name") or "").strip()[:80]
+    tagline = (data.get("app_tagline") or "").strip()[:160]
+    public_url = (data.get("public_url") or "").strip().rstrip("/")
+    if public_url and not re.match(r"^https?://[^\s/]+(/\S*)?$", public_url):
+        return jsonify(error="The public address must start with https:// (or http://)."), 400
 
     admin = User(username=username, is_admin=True,
                  name=(data.get("name") or "").strip()[:120] or None)
@@ -60,9 +63,29 @@ def submit():
     db.session.add(admin)
     db.session.commit()
 
-    set_setting("registration_open", "1" if data.get("registration_open", True) else "0")
-    set_setting("worker_minutes", str(worker))
+    set_setting("registration_open", "1" if data.get("registration_open", False) else "0")
+    if public_url:
+        set_setting("public_url", public_url)
+    _seed_site(app_name, tagline, admin.display_name)
 
     _completed["done"] = True
     login_user(admin, remember=True)
     return jsonify(ok=True)
+
+
+def _seed_site(name: str, tagline: str, who: str) -> None:
+    """The placeholder site with the app's own name in it, draft and live
+    alike, so the homepage says the right name from the first visit."""
+    doc = site_schema.default_document()
+    if name:
+        doc["app"]["name"] = name
+    if tagline:
+        doc["app"]["tagline"] = tagline
+    data = json.dumps(doc)
+    for row_name in ("draft", "live"):
+        row = db.session.get(SiteDocument, row_name)
+        if row is None:
+            db.session.add(SiteDocument(name=row_name, data=data, updated_by=who))
+        else:
+            row.data, row.updated_by = data, who
+    db.session.commit()

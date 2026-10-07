@@ -134,13 +134,13 @@ def safe_next(dest: str | None) -> str:
     the sign-in form into an open redirect."""
     if dest and dest.startswith("/") and not dest.startswith("//") and "\\" not in dest:
         return dest
-    return url_for("main.index")
+    return url_for("admin.home")
 
 
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("main.index"))
+        return redirect(url_for("admin.home"))
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         if _too_many(username):
@@ -164,7 +164,7 @@ def login():
 @bp.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for("main.index"))
+        return redirect(url_for("admin.home"))
     if not registration_open():
         flash("Registration is closed on this server.", "error")
         return redirect(url_for("auth.login"))
@@ -191,7 +191,7 @@ def register():
             db.session.add(user)
             db.session.commit()
             login_user(user)
-            return redirect(url_for("main.index"))
+            return redirect(url_for("admin.home"))
         return render_template("auth/register.html"), 400
     return render_template("auth/register.html")
 

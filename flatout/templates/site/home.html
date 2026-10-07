@@ -1,0 +1,8 @@
+{% extends "site/layout.html" %}
+{% block body %}
+<main id="main">
+  {%- for sec in s.sections() %}
+  {% include "site/sections/" ~ sec.type ~ ".html" %}
+  {%- endfor %}
+</main>
+{% endblock %}

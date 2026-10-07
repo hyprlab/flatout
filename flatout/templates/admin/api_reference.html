@@ -1,0 +1,21 @@
+{% extends "admin/shell.html" %}
+{% block content %}
+<div class="page-body">
+  <p class="hint">Every endpoint under <code>{{ base_url }}/api/v1</code>. Send <code>Authorization: Bearer &lt;token&gt;</code>;
+    the badge on each says which scope it needs. The same list, machine-readable:
+    <a class="link" href="{{ url_for('api.openapi') }}">openapi.json</a>.</p>
+  {%- for path, ops in spec.paths.items() %}
+  {%- for method, op in ops.items() %}
+  <section class="panel endpoint">
+    <div class="endpoint-head">
+      <span class="method method--{{ method }}">{{ method|upper }}</span>
+      <code class="endpoint-path">{{ path }}</code>
+      {%- if op['x-scope'] %}<span class="chip chip--muted">{{ op['x-scope'] }}</span>{% else %}<span class="chip chip--muted">session only</span>{% endif %}
+    </div>
+    <p class="endpoint-summary">{{ op.summary }}</p>
+    {%- if op.description %}<p class="hint">{{ op.description }}</p>{% endif %}
+  </section>
+  {%- endfor %}
+  {%- endfor %}
+</div>
+{% endblock %}

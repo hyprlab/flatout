@@ -1,0 +1,62 @@
+{% extends "admin/shell.html" %}
+{% block bodyextra %} admin--releases{% endblock %}
+{% block content %}
+<div class="page-body" id="releases-page">
+  <div class="banner banner--warn" id="releases-blocker" hidden></div>
+
+  <section class="panel">
+    <h3 class="panel-title">Upload a release</h3>
+    <form id="upload-form" class="upload" autocomplete="off">
+      <label class="dropzone" id="bundle-drop" data-dropzone>
+        <input type="file" id="bundle-file" accept=".flatpak,application/vnd.flatpak" hidden>
+        <svg viewBox="0 0 24 24"><path d="M12 3 4 7v10l8 4 8-4V7l-8-4ZM4 7l8 4 8-4M12 11v10"/></svg>
+        <span class="dropzone-text" id="bundle-name"><strong>Choose a .flatpak bundle</strong> or drop it here</span>
+        <span class="hint">Made with <code>flatpak build-bundle</code>. One per architecture.</span>
+      </label>
+      <div class="upload-fields">
+        <div class="field">
+          <span class="field-label">Channel</span>
+          <div class="seg" role="radiogroup" aria-label="Channel">
+            <label><input type="radio" name="channel" value="stable" checked><span>Stable</span></label>
+            <label><input type="radio" name="channel" value="beta"><span>Beta</span></label>
+          </div>
+        </div>
+        <label class="field"><span class="field-label">Version</span>
+          <input id="upload-version" maxlength="60" placeholder="Read from the app's metainfo if left empty"></label>
+        <label class="field"><span class="field-label">Release notes (Markdown)</span>
+          <textarea id="upload-notes" rows="4" placeholder="What changed, from the user's side."></textarea></label>
+        <details class="term-like">
+          <summary>Or fetch the bundle from an address</summary>
+          <label class="field"><span class="field-label">Bundle address</span>
+            <input id="upload-url" type="url" placeholder="https://github.com/…/releases/download/v1.2.0/app-x86_64.flatpak"></label>
+        </details>
+        <p class="form-error" id="upload-error" hidden></p>
+        <div class="upload-actions">
+          <button class="btn btn--primary" type="submit" id="upload-btn"><span class="btn-label">Upload and publish</span><span class="btn-busy" hidden>Uploading…</span></button>
+          <progress id="upload-progress" max="100" value="0" hidden></progress>
+        </div>
+      </div>
+    </form>
+  </section>
+
+  <div class="tiles" id="channel-tiles"></div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h3 class="panel-title">History</h3>
+      <span class="hint" id="jobs-state" role="status" aria-live="polite"></span>
+    </div>
+    <ul class="release-rows" id="release-rows"><li class="hint">Loading…</li></ul>
+  </section>
+</div>
+{% endblock %}
+{% block dialogs %}
+<dialog class="modal modal--wide" id="release-modal" data-restore="off" aria-labelledby="release-modal-title">
+  <div class="modal-head">
+    <h3 id="release-modal-title">Release</h3>
+    <button class="iconbtn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="modal-body" id="release-modal-body"></div>
+</dialog>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('js/admin.js') }}" defer></script>{% endblock %}

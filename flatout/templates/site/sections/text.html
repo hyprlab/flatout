@@ -1,0 +1,11 @@
+{% from "site/macros.html" import buttons %}
+<section id="{{ sec.id }}" class="section{% if sec.tinted %} section--tint{% endif %}" data-section="{{ sec.id }}">
+  <div class="container narrow text-block text-block--{{ sec.align }}">
+    {%- if sec.icon %}<div class="badge-icon reveal-me">{{ s.icon(sec.icon) }}</div>{% endif %}
+    {%- if sec.eyebrow %}<p class="eyebrow reveal-me">{{ s.fill(sec.eyebrow) }}</p>{% endif %}
+    {%- if sec.title %}<h2 class="section__title reveal-me">{{ s.fill(sec.title) }}</h2>{% endif %}
+    {%- if sec.lead %}<p class="section__lead reveal-me">{{ s.fill(sec.lead) }}</p>{% endif %}
+    {%- if sec.body %}<div class="prose reveal-me">{{ s.md(sec.body) }}</div>{% endif %}
+    {{ buttons(s, sec.buttons) }}
+  </div>
+</section>

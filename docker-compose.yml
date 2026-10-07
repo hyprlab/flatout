@@ -11,25 +11,26 @@ services:
       # host:container. Change the left side if 8102 is taken on your host.
       - "8102:8000"
     environment:
-      # What the app calls itself.
-      - APP_NAME=${APP_NAME:-Flatout}
-      - APP_TAGLINE=${APP_TAGLINE:-A self-hosted Flatpak repository with a homepage for your app.}
       # Session signing key. If unset, one is generated and kept in the volume.
       - SECRET_KEY=${SECRET_KEY:-}
-      # Set to 1 when the app is served over HTTPS.
+      # Set to 1 when the site is served over HTTPS.
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-0}
       # How many reverse proxies sit in front (Cloudflare Tunnel, Caddy...).
       - TRUST_PROXY=${TRUST_PROXY:-0}
-      # Cloudflare Turnstile. Usually set up in Settings > Security instead.
+      # The largest bundle accepted, in megabytes.
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-2048}
+      # Cloudflare Turnstile for the sign-in page. Usually set up in Settings > Security instead.
       - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY:-}
       - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-}
-      # Fresh-install defaults. After setup, Settings > Admin wins.
-      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-1}
-      - WORKER_MINUTES=${WORKER_MINUTES:-15}
-      - ITEMS_PER_PAGE=${ITEMS_PER_PAGE:-40}
     volumes:
+      # Everything: the database, uploads, the repository and its signing key.
       - flatout-data:/data
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   flatout-data:

@@ -12,7 +12,7 @@ import time
 from datetime import datetime
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
-from flask_login import LoginManager
+from flask_login import LoginManager, current_user
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from werkzeug.exceptions import HTTPException
@@ -89,18 +89,26 @@ def create_app(config_class=Config) -> Flask:
             return jsonify(error="You are signed out. Reload the page to sign in again."), 401
         return redirect(url_for("auth.login", next=request.full_path.rstrip("?")))
 
-    from . import auth, cli, main, setup
+    from . import admin, api, auth, cli, main, mcp, public, serve, setup
     app.register_blueprint(auth.bp)
     app.register_blueprint(main.bp)
     app.register_blueprint(setup.bp)
+    app.register_blueprint(admin.bp)
+    app.register_blueprint(api.bp)
+    app.register_blueprint(public.bp)
+    app.register_blueprint(serve.bp)
+    app.register_blueprint(mcp.bp)
     cli.register(app)
 
     @app.before_request
     def steer_to_setup():
         """A fresh install (zero users) goes to the wizard, nowhere else."""
-        if request.endpoint in ("setup.wizard", "setup.submit", "static", "main.healthz"):
+        if request.endpoint in ("setup.wizard", "setup.submit", "static", "main.healthz") \
+                or (request.endpoint or "").startswith("serve."):
             return None
         if setup.needs_setup():
+            if _is_machine_path():
+                return jsonify(error="Flatout isn't set up yet. Open it in a browser to create the first account."), 503
             return redirect(url_for("setup.wizard"))
         return None
 
@@ -116,6 +124,15 @@ def create_app(config_class=Config) -> Flask:
     def check_csrf():
         if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
             return None
+        # CSRF protects requests a session cookie authenticates. A bearer token
+        # is never sent by a browser on its own, so it can't be forged across
+        # sites; and a machine request with neither gets the API's own 401,
+        # which says what to send, rather than a confusing CSRF error.
+        if _is_machine_path() and (
+                request.headers.get("Authorization", "")[:7].lower() == "bearer "
+                or request.path.startswith("/mcp")
+                or not current_user.is_authenticated):
+            return None
         sent = request.headers.get("X-CSRF") or request.form.get("_csrf") or ""
         expected = session.get("_csrf", "")
         if not expected or not secrets.compare_digest(sent, expected):
@@ -129,7 +146,8 @@ def create_app(config_class=Config) -> Flask:
         if resp.mimetype == "text/html":
             resp.headers["Cache-Control"] = "no-store"
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
-        resp.headers.setdefault("X-Frame-Options", "DENY")
+        # The editor shows its preview of the draft in a frame on the same site.
+        resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN" if request.path.startswith("/admin/preview") else "DENY")
         resp.headers.setdefault("Referrer-Policy", "same-origin")
         resp.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         return resp
@@ -140,6 +158,10 @@ def create_app(config_class=Config) -> Flask:
     def http_error(err):
         if _wants_json():
             return jsonify(error=err.description or err.name), err.code
+        if err.code == 404 and public.is_public_path() and not setup.needs_setup():
+            page = public.not_found_page()
+            if page is not None:
+                return page, 404
         return render_template("error.html", code=err.code, title=err.name,
                                message=_ERROR_TEXT.get(err.code, err.description)), err.code
 
@@ -204,6 +226,9 @@ def create_app(config_class=Config) -> Flask:
         _migrate(app)
 
     _start_worker(app)
+    if not app.config.get("TESTING") and not (app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true"):
+        from . import jobs
+        jobs.start(app)
     return app
 
 
@@ -217,9 +242,13 @@ _ERROR_TEXT = {
 }
 
 
+def _is_machine_path() -> bool:
+    return request.path.startswith(("/api/", "/mcp"))
+
+
 def _wants_json() -> bool:
     """API callers get JSON errors; page loads get the error page."""
-    if request.headers.get("X-CSRF") or request.is_json:
+    if _is_machine_path() or request.headers.get("X-CSRF") or request.is_json:
         return True
     # HTML first: a client that accepts anything (curl, */*) gets the page;
     # only one that asks for JSON by name gets JSON.
@@ -243,14 +272,12 @@ def _migrate(app: Flask) -> None:
     def columns(table: str) -> set[str]:
         return {c["name"] for c in inspector.get_columns(table)}
 
-    # The shape every step takes. Keep it as the pattern, or delete it once
-    # the app has steps of its own.
-    if "infinite_scroll" not in columns("users"):
-        db.session.execute(text(
-            "ALTER TABLE users ADD COLUMN infinite_scroll BOOLEAN NOT NULL DEFAULT 1"
-        ))
-        db.session.commit()
-        app.logger.info("migrated: added users.infinite_scroll")
+    # The shape every step takes, kept as the pattern for the first real one:
+    #
+    # if "new_column" not in columns("users"):
+    #     db.session.execute(text("ALTER TABLE users ADD COLUMN new_column ..."))
+    #     db.session.commit()
+    #     app.logger.info("migrated: added users.new_column")
 
 
 def _start_worker(app: Flask) -> None:

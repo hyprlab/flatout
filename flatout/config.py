@@ -75,8 +75,16 @@ class Config:
     TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
     TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 
+    # The largest upload accepted, in megabytes: a Flatpak bundle with its
+    # runtime extensions can be large.
+    MAX_UPLOAD_MB = _int("MAX_UPLOAD_MB", 2048)
+    MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
+
     # ——— Fresh-install defaults; an admin overrides these at runtime ———
-    ALLOW_REGISTRATION = _flag("ALLOW_REGISTRATION", "1")
-    # Background worker cadence, in minutes. 0 keeps the thread from starting.
-    WORKER_MINUTES = _int("WORKER_MINUTES", 15)
-    ITEMS_PER_PAGE = _int("ITEMS_PER_PAGE", 40)
+    # Accounts are for the people who run the site, so sign-up starts closed.
+    ALLOW_REGISTRATION = _flag("ALLOW_REGISTRATION", "0")
+    # Housekeeping cadence, in minutes (pruning old stats). 0 turns it off.
+    WORKER_MINUTES = _int("WORKER_MINUTES", 60)
+
+    # Last, so the lines above still see the module's Path.
+    DATA_DIR = str(DATA_DIR)

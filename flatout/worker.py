@@ -1,13 +1,12 @@
-"""Periodic background work.
+"""Periodic housekeeping.
 
 ``run_once`` is called by the thread that ``__init__._start_worker`` starts,
 every ``worker_minutes`` (an admin setting whose default is the WORKER_MINUTES
 environment variable). It runs in the web process, so keep it short and let it
 fail loudly: the caller logs the traceback and tries again next cycle.
 
-Replace the body with whatever the app does on a schedule: fetch, prune, send,
-reconcile. If the work grows past a few seconds or needs more than one process,
-move it to its own container rather than growing this thread.
+Repository work doesn't run here: it is queued as jobs and run by its own
+thread (jobs.py), as soon as it is asked for.
 """
 import logging
 import time
@@ -34,5 +33,7 @@ def run_once(app: Flask) -> None:
 
 
 def _work() -> int:
-    """The actual work. Returns the number of rows it changed, for the log."""
-    return 0
+    """Forget the daily visitor hashes once they are old enough not to
+    matter for any count. Returns the number of rows removed, for the log."""
+    from . import stats
+    return stats.prune()

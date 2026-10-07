@@ -1,0 +1,19 @@
+{% from "site/macros.html" import head %}
+{%- set entries = s.repo.history if sec.channel == 'all' else s.repo.history|selectattr('channel', 'equalto', 'stable')|list %}
+<section id="{{ sec.id }}" class="section" data-section="{{ sec.id }}">
+  <div class="container narrow">
+    {{ head(s, sec) }}
+    <ol class="releases">
+      {%- for r in entries[:sec.count] %}
+      <li class="release reveal-me">
+        <div class="release__head">
+          <h3 class="release__version">{{ r.version or 'Untitled build' }}</h3>
+          {%- if r.channel == 'beta' %}<span class="release__chip">beta</span>{% endif %}
+          <time class="release__date" datetime="{{ r.published_at }}">{{ r.published_at[:10] }}</time>
+        </div>
+        {%- if r.notes %}<div class="prose release__notes">{{ s.md(r.notes) }}</div>{% endif %}
+      </li>
+      {%- endfor %}
+    </ol>
+  </div>
+</section>

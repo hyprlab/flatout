@@ -31,10 +31,12 @@ _SAFE_URL = re.compile(r"^(https?:)?//|^https?:|^/|^#|^mailto:", re.I)
 
 
 class _Sanitizer(HTMLParser):
-    def __init__(self):
+    def __init__(self, demote: dict, site: bool):
         super().__init__(convert_charrefs=True)
         self.out = []
         self.skip_depth = 0
+        self.demote = demote
+        self.site = site
 
     def handle_starttag(self, tag, attrs):
         if self.skip_depth:
@@ -54,10 +56,14 @@ class _Sanitizer(HTMLParser):
                     continue
                 parts.append(f' {name}="{escape(value, quote=True)}"')
         if tag == "a":
-            parts.append(' target="_blank" rel="noopener noreferrer"')
+            href = dict(attrs).get("href") or ""
+            # Foreign HTML opens every link elsewhere; the site's own text only
+            # sends links that leave the site to a new tab.
+            if not self.site or re.match(r"^(https?:)?//", href.strip(), re.I):
+                parts.append(' target="_blank" rel="noopener noreferrer"')
         if tag == "img":
             parts.append(' loading="lazy"')
-        out_tag = DEMOTE.get(tag, tag)
+        out_tag = self.demote.get(tag, tag)
         self.out.append(f"<{out_tag}{''.join(parts)}{' /' if tag in VOID else ''}>")
 
     def handle_endtag(self, tag):
@@ -66,17 +72,24 @@ class _Sanitizer(HTMLParser):
                 self.skip_depth -= 1
             return
         if tag in ALLOWED and tag not in VOID:
-            self.out.append(f"</{DEMOTE.get(tag, tag)}>")
+            self.out.append(f"</{self.demote.get(tag, tag)}>")
 
     def handle_data(self, data):
         if not self.skip_depth and data:
             self.out.append(escape(data))
 
 
-def sanitize_html(html: str) -> str:
+# The site's own Markdown keeps its heading levels, under the page's one <h1>.
+SITE_DEMOTE = {"h1": "h2"}
+
+
+def sanitize_html(html: str, site: bool = False) -> str:
+    """``site=True`` is for the owner's own Markdown: headings keep their
+    level (an <h1> becomes <h2>) and only links that leave the site open in a
+    new tab."""
     if not html:
         return ""
-    s = _Sanitizer()
+    s = _Sanitizer(SITE_DEMOTE if site else DEMOTE, site)
     try:
         s.feed(html)
         s.close()

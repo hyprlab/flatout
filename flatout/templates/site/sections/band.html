@@ -1,0 +1,25 @@
+<section id="{{ sec.id }}" class="band" data-section="{{ sec.id }}">
+  <div class="container band__inner{% if not sec.stat_value %} band__inner--solo{% endif %}">
+    <div class="band__text reveal-me">
+      {%- if sec.eyebrow %}<p class="eyebrow eyebrow--light">{{ s.fill(sec.eyebrow) }}</p>{% endif %}
+      {%- if sec.title %}<h2 class="band__title">{{ s.fill(sec.title) }}</h2>{% endif %}
+      {%- if sec.lead %}<p class="band__lead">{{ s.fill(sec.lead) }}</p>{% endif %}
+      {%- if sec['items'] %}
+      <ul class="checklist">
+        {%- for item in sec['items'] %}
+        <li><span class="checklist__mark" aria-hidden="true">✓</span>
+          <div>{% if item.title %}<strong>{{ s.fill(item.title) }}</strong>{% endif %}{% if item.body %}<p>{{ s.fill(item.body) }}</p>{% endif %}</div></li>
+        {%- endfor %}
+      </ul>
+      {%- endif %}
+    </div>
+    {%- if sec.stat_value %}
+    <div class="band__aside reveal-me">
+      <div class="stat-card">
+        <span class="stat-card__big">{{ s.fill(sec.stat_value) }}</span>
+        {%- if sec.stat_label %}<span class="stat-card__label">{{ s.fill(sec.stat_label) }}</span>{% endif %}
+      </div>
+    </div>
+    {%- endif %}
+  </div>
+</section>

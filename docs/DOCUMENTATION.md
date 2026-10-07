@@ -4,7 +4,9 @@ Installing, configuring and running Flatout.
 
 ## Installing
 
-Flatout runs as one Docker container with its data in one volume.
+Flatout runs as one Docker container with all its data in one volume: the
+database, uploaded images and fonts, the Flatpak repository, its signing key
+and the uploaded bundles.
 
 ```sh
 mkdir flatout && cd flatout
@@ -13,13 +15,162 @@ docker compose up -d
 ```
 
 Open `http://<host>:8102`. The first visit opens the setup wizard, which
-creates the admin account. There is no default account or password.
-Changing a password, in Settings > Account or by an admin's reset, signs the
-account out everywhere else; the session that changed it stays signed in.
+creates your account and names your app. There is no default account or
+password. The admin is at `/admin`; the homepage is at `/`.
 
 From a clone of the repository, `docker compose up -d --build` builds the
 image from source instead: `docker-compose.override.yml` is picked up
 automatically.
+
+## Getting started
+
+The admin's Overview lists the steps and ticks them off:
+
+1. **Name the app and give it an icon**, under Content > App and Images.
+2. **Choose the colors and fonts**, under Theme.
+3. **Write the homepage**, under Content: every section's text, which
+   sections show, and their order.
+4. **Create the repository's signing key**, under Signing and addresses.
+5. **Upload the first release**, under Releases.
+6. **Publish the site.** Until then visitors see the placeholder site.
+
+## The site
+
+Everything on the homepage is set in the admin; there is no template to edit.
+
+- **Content** holds the parts every page shares (the app's name and links,
+  images, the header, the footer, the install dialog, the page title) and the
+  homepage's sections. A section can be shown or hidden, moved, duplicated or
+  deleted, and new ones added: hero, feature cards, screenshots, highlight
+  band, text, install guide, beta channel, what's new, questions, people, and
+  a closing call to action.
+- **Theme** sets every color, for light and dark separately, the icon
+  palette, the fonts (Cantarell, Inter, system fonts, or an uploaded font
+  file), the base text size, the heading weight, the corner rounding and the
+  content width. A site can follow the visitor's light or dark setting, or
+  stay in one mode.
+- **Pages** are extra pages at their own address, such as `/privacy`,
+  written in Markdown and linked from the header or the footer.
+- **Media** holds uploaded images and fonts. A file the site uses can't be
+  deleted until the site stops using it.
+
+Every change saves to a draft at once, and the preview beside the form shows
+the draft as visitors will see it, at desktop, tablet or phone width and in
+either color mode. **Publish** makes it live. **History** lists every
+published version; restoring one puts it in the draft for review.
+
+Text can use placeholders, filled in when the page is shown: `{app_name}`,
+`{version}`, `{flatpakref_url}` and others, listed in the editor. Commands on
+the install guide stay right after each release without being edited.
+
+Some sections follow the repository on their own: the beta section appears
+only while a beta release is live, and What's new once a release exists.
+
+## Releases
+
+Flatout keeps a signed Flatpak repository at `/repo/` and the files that
+install from it:
+
+| Address | What it is |
+| --- | --- |
+| `/flatpak/<app-id>.flatpakref` | The install file for the stable channel |
+| `/flatpak/<app-id>-beta.flatpakref` | The install file for the beta channel |
+| `/flatpak/<remote>.flatpakrepo` | Adds the repository without installing anything |
+| `/flatpak/<remote>.gpg` | The public signing key |
+| `/download/<app-id>-<arch>.flatpak` | The newest uploaded bundle (`-beta-<arch>` for the beta) |
+
+A release is a bundle made by `flatpak build-bundle`, one per architecture:
+
+```sh
+flatpak-builder --repo=build-repo build-dir org.example.App.yml
+flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+  build-repo org.example.App-x86_64.flatpak org.example.App
+```
+
+Upload it under Releases, on the stable or the beta channel. Flatout reads the
+app ID, the architecture and the version (from the app's AppStream metainfo)
+from the bundle, signs it into the repository with a fresh timestamp,
+regenerates the signed summary and the static deltas, and the update reaches
+installed copies the next time they check. The job's log is under the
+release's Details.
+
+- **Promote to stable** copies the live beta to the stable channel without
+  uploading it again.
+- **Bring back** makes an earlier build of a channel live again. It goes out
+  as a new commit, since Flatpak won't update to an older one.
+- **End the beta** tells installed betas, with your message, that no more
+  updates are coming.
+
+Past builds kept for rollback default to ten per channel (Signing and
+addresses > Advanced); the newest three bundles of each channel and
+architecture stay available to download.
+
+### The signing key
+
+Create the key under Signing and addresses, or import one you already have
+(exported without a passphrase: the server signs every update on its own).
+**Download a backup of the secret key and keep it off the server.** If the key
+is lost, every install has to add the repository again with a new one.
+
+### Addresses
+
+Install files and commands use the site's public address. Set it under
+Signing and addresses (or in the setup wizard) once the site has its real
+domain; until then Flatout uses the address each request arrives on.
+
+## Publishing from CI or an agent
+
+Make a token under API and agents with the scopes it needs: **site** to change
+and publish the site, **releases** to publish releases. A token is shown once.
+
+From a release workflow:
+
+```sh
+curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
+  -F file=@org.example.App-x86_64.flatpak -F channel=beta -F notes="$(cat NOTES.md)" \
+  https://app.example.org/api/v1/releases
+```
+
+or have Flatout fetch the bundle itself, which suits release assets that are
+already published somewhere:
+
+```sh
+curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" -H "Content-Type: application/json" \
+  -d '{"url": "https://github.com/me/app/releases/download/v1.2.0/app-x86_64.flatpak", "channel": "stable"}' \
+  https://app.example.org/api/v1/releases
+```
+
+Both answer at once with the release and its job; `GET /api/v1/releases/<id>`
+shows when it is live.
+
+The whole API is described in OpenAPI at `/api/v1/openapi.json`, and listed
+in the admin under API and agents > Reference. Errors are
+`{"error": "a sentence"}`; a site change that doesn't validate also lists
+each problem with its path, such as `$.sections[2].title`.
+
+### MCP
+
+AI agents that speak the Model Context Protocol can connect to `/mcp` with a
+token in the `Authorization` header. The server's tools cover the same ground
+as the API: reading and changing the site, sections one at a time, media,
+previewing the draft as text, publishing, releases, promotion, rollback, and
+install numbers. With Claude Code:
+
+```sh
+claude mcp add --transport http flatout https://app.example.org/mcp \
+  --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+An agent's changes go to the draft like anyone's; it publishes only with a
+token that has the site scope and when it calls `publish_site`.
+
+## Install numbers
+
+The Installs page counts, per day, the distinct installs that checked the
+repository for updates, and per release, the distinct installs that
+downloaded it. Both come from ordinary repository requests; the app itself
+reports nothing. No address is stored: each is hashed with a secret and the
+day, so the hash changes daily.
 
 ## Configuration
 
@@ -30,72 +181,57 @@ Everything is optional. Put values in a `.env` file next to
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `IMAGE_TAG` | `latest` | The image to run: `latest` for stable, `beta`, or a version to pin |
-| `APP_NAME` | `Flatout` | What the app calls itself |
-| `APP_TAGLINE` | `A self-hosted Flatpak repository with a homepage for your app.` | The line under the name on the sign-in page and in About |
 | `SECRET_KEY` | generated | Signs sessions. If unset, one is generated and kept in the volume |
-| `SESSION_COOKIE_SECURE` | `0` | Set to `1` when the app is served over HTTPS |
+| `SESSION_COOKIE_SECURE` | `0` | Set to `1` when the site is served over HTTPS |
 | `TRUST_PROXY` | `0` | How many reverse proxies are in front; see below |
-| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | empty | Cloudflare Turnstile keys; see [Turnstile](#turnstile). Usually set in the app instead |
-| `ALLOW_REGISTRATION` | `1` | Whether anyone can create an account |
-| `WORKER_MINUTES` | `15` | How often background work runs; `0` turns it off |
-| `ITEMS_PER_PAGE` | `40` | Records per page |
-| `DATA_DIR` | `/data` | Where the database lives inside the container |
+| `MAX_UPLOAD_MB` | `2048` | The largest bundle accepted |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | empty | Cloudflare Turnstile keys for the sign-in page; usually set in the admin instead |
+| `ALLOW_REGISTRATION` | `0` | Whether anyone can create their own account |
+| `WORKER_MINUTES` | `60` | How often housekeeping runs (pruning old stats); `0` turns it off |
+| `APP_NAME` | `Flatout` | What the admin calls itself |
+| `DATA_DIR` | `/data` | Where everything is kept inside the container |
 
-`ALLOW_REGISTRATION`, `WORKER_MINUTES`, `ITEMS_PER_PAGE` and the Turnstile
-keys are only defaults for a fresh install. Once they are changed in Settings
-(under Admin or Security), what is saved there wins.
+Every account can edit the site and publish releases; admins also manage
+accounts and security, in Settings.
 
 ## Turnstile
 
 [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) puts a
-challenge on the sign-in and sign-up pages, which stops most automated
-password guessing and sign-up spam. It is off until an admin turns it on.
+challenge on the sign-in page, which stops most automated password guessing.
+It is off until an admin turns it on.
 
 1. In the [Cloudflare dashboard](https://dash.cloudflare.com/?to=/:account/turnstile),
-   add a widget and list the hostname the app is reached on (for example
-   `app.example.com`, or the server's address on a LAN).
-2. In the app, open Settings > Security, paste the site key and the secret key,
-   and press **Verify and turn on**.
+   add a widget and list the hostname the site is reached on.
+2. In the admin, open Settings > Security, paste the site key and the secret
+   key, and press **Verify and turn on**.
 3. Complete the challenge that appears. The keys are saved only if Cloudflare
-   accepts the answer, which proves they belong together and work on this
-   hostname, so a wrong key can't lock anyone out.
+   accepts the answer, so a wrong key can't lock anyone out.
 
-To change keys, do the same again; leave the secret empty to keep the saved
-one. **Turn off** removes the challenge at once and keeps the keys. The secret
-is stored in the database and never sent to the browser.
-
-If sign-in becomes impossible anyway (the widget's hostname list was changed,
-or Cloudflare is unreachable), turn it off from the server:
+If sign-in becomes impossible anyway, turn it off from the server:
 
 ```sh
 docker exec flatout flask turnstile off
 ```
 
-The `TURNSTILE_*` variables still work, as a fresh-install default: with both
-set and nothing saved in the app, Turnstile is on with those keys. Turning it
-off in Settings overrides them.
-
-For testing, Cloudflare publishes
-[dummy keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/)
-that always pass: site key `1x00000000000000000000AA`, secret
-`1x0000000000000000000000000000000AA`.
-
 ## Channels
 
-`IMAGE_TAG=beta` follows the beta channel: previews of the next minor
-release, published whenever the maintainer asks. Betas can break things;
-back up first. `IMAGE_TAG=1.4.0` pins a version. Switching back from beta to
-`latest` works as long as the beta did not run a migration the stable can't
-read, which the changelog says.
+`IMAGE_TAG=beta` follows Flatout's own beta channel: previews of the next
+minor release. Betas can break things; back up first. `IMAGE_TAG=1.4.0` pins
+a version.
 
 ## Behind a reverse proxy
 
 Behind Cloudflare Tunnel, Caddy, Traefik or nginx, set `TRUST_PROXY` to the
-number of proxies in front, usually `1`. The app then takes the client's
-address and the scheme from the `X-Forwarded-*` headers, which the sign-in
-throttle and redirects need. Setting it higher than the real number lets a
-client forge its address. With HTTPS at the proxy, also set
-`SESSION_COOKIE_SECURE=1`.
+number of proxies in front, usually `1`. Flatout then takes the client's
+address, the scheme and the host from the `X-Forwarded-*` headers, which the
+install files, the sign-in throttle and the install numbers need. Setting it
+higher than the real number lets a client forge its address. With HTTPS at
+the proxy, also set `SESSION_COOKIE_SECURE=1`, and allow request bodies as
+large as `MAX_UPLOAD_MB` (nginx's `client_max_body_size`).
+
+A CDN in front works: the repository's summary and signatures are sent with
+`Cache-Control: no-store`, and content objects, which never change, may be
+cached for good.
 
 ## Updating
 
@@ -108,18 +244,19 @@ existing install needs something done by hand; the changelog says what.
 
 ## Backups
 
-Everything is in the volume: the SQLite database and the generated secret key.
-For a consistent copy while the app runs:
+Back up the whole volume: it holds the database, the repository, the signing
+key, uploads and bundles. With the container stopped:
 
 ```sh
-docker exec flatout flask backup /data/backup-$(date +%F).db
-docker cp flatout:/data/backup-$(date +%F).db .
+docker compose stop
+docker run --rm -v flatout_flatout-data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/flatout-$(date +%F).tar.gz -C /data .
+docker compose start
 ```
 
-`flask backup` uses SQLite's online backup API; copying the `.db` file by hand
-while the app writes can produce a torn copy. To restore, stop the container,
-replace `flatout.db` in the volume (and remove any `-wal` and `-shm` files
-beside it), and start it again.
+For the database alone while the site runs, `docker exec flatout flask backup
+/data/backup.db` writes a consistent copy. Keep a separate copy of the secret
+signing key (Signing and addresses > Download a backup).
 
 ## Commands
 
@@ -132,45 +269,27 @@ Run inside the container:
 | `flask backup PATH` | Write a consistent copy of the database |
 | `flask turnstile status`, `flask turnstile off` | Show whether Turnstile is on; turn it off when nobody can sign in |
 
-```sh
-docker exec -it flatout flask reset-password you@example.com
-```
-
 ## Health
 
-`GET /healthz` answers `{"ok": true, "version": "..."}` once the app can reach
-its database, without signing in. The image's `HEALTHCHECK` uses it, so
-`docker ps` shows the container as healthy or not.
-
-## Keyboard
-
-| Key | Where | What it does |
-| --- | --- | --- |
-| Ctrl K, ⌘K or `/` | anywhere | Search |
-| `n` | the list | New record |
-| `j`, `k` | a record | Next, previous |
-| `p`, `d`, `e` | a record | Pin, mark as done, edit |
-| Esc | a dialog | Close it |
+`GET /healthz` answers `{"ok": true, "version": "..."}` once Flatout can
+reach its database. The image's `HEALTHCHECK` uses it.
 
 ## Troubleshooting
 
-**"Your session expired. Reload the page and try again."** The CSRF token no
-longer matches, usually because the secret key changed (a new `SECRET_KEY`, or
-a lost volume) or the session cookie was cleared. Reload.
+**Install files say the wrong address.** Set the public address under
+Signing and addresses, or pass the Host header through the proxy and set
+`TRUST_PROXY`. Then press **Re-sign the repository**.
 
-**Signed out on every restart.** `SECRET_KEY` is unset and the volume is not
-persistent, so a new key is generated each time. Keep the volume, or set
-`SECRET_KEY`.
+**A release failed.** Its Details show the job's log; the last lines are
+`flatpak`'s own message. A file that isn't a bundle, an app ID that doesn't
+match, or a runtime bundle instead of an app are the usual causes.
 
-**"Too many attempts."** Eight failed sign-ins for one account from one
-address lock that pair out for fifteen minutes. Restarting the container
-clears it. Behind a proxy without `TRUST_PROXY`, every client shares the
-proxy's address.
+**Clients say the signature is invalid after a key change.** Installs trust
+the key they were installed with. After replacing it, every install has to
+add the repository again; keep the old key's backup if you may need it.
 
-**The challenge on the sign-in page fails for everyone.** The Turnstile
-widget no longer lists the hostname the app is reached on. Run
-`docker exec flatout flask turnstile off`, fix the hostname list in the
-Cloudflare dashboard, then turn it back on in Settings > Security.
+**"Your session expired. Reload the page and try again."** The secret key
+changed or the session cookie was cleared. Reload.
 
 **The container stays unhealthy.** `docker compose logs` shows why. The usual
 cause is a volume the container user (uid 1000) can't write to.

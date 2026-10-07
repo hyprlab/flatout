@@ -55,7 +55,7 @@ def admin(client, csrf):
     """A signed-in admin, created through the setup wizard."""
     resp = client.post("/setup", json={
         "username": "admin@example.com", "password": "password1",
-        "name": "Ada", "registration_open": True, "worker_minutes": 0,
+        "name": "Ada", "registration_open": True, "app_name": "Gnomish",
     }, headers={"X-CSRF": csrf})
     assert resp.status_code == 200
     return {"username": "admin@example.com", "password": "password1"}

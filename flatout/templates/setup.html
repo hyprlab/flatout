@@ -11,28 +11,27 @@
     </div>
 
     <div class="wiz-dots" aria-hidden="true">
-      <span class="wiz-dot is-active"></span><span class="wiz-dot"></span><span class="wiz-dot"></span><span class="wiz-dot"></span>
+      <span class="wiz-dot is-active"></span><span class="wiz-dot"></span><span class="wiz-dot"></span>
     </div>
 
     <!-- Step 1 · Welcome -->
     <section class="wiz-step is-active" data-step="0">
       <h2 class="wiz-title">Welcome</h2>
-      <p class="wiz-text">Setting up this instance takes about a minute.</p>
+      <p class="wiz-text">Flatout gives your app a homepage and its own Flatpak repository. Setting it up takes a minute.</p>
       <ul class="wiz-list">
-        <li>Create the admin account</li>
-        <li>Choose how the instance behaves</li>
-        <li>Add a first record</li>
+        <li>Create your account</li>
+        <li>Name your app</li>
+        <li>Then the admin walks you through the rest</li>
       </ul>
       <div class="wiz-nav">
         <button class="btn btn--primary btn--block" data-next>Get started</button>
       </div>
     </section>
 
-    <!-- Step 2 · Admin account -->
+    <!-- Step 2 · The account -->
     <section class="wiz-step" data-step="1">
-      <h2 class="wiz-title">Create the admin account</h2>
-      <p class="wiz-text">This account manages users, registration and instance
-        settings. More accounts can be added later.</p>
+      <h2 class="wiz-title">Create your account</h2>
+      <p class="wiz-text">It runs the site and the repository. More accounts can be added later, in Settings.</p>
       <div class="auth-form">
         <label class="field">
           <span class="field-label">Name</span>
@@ -58,49 +57,32 @@
       </div>
     </section>
 
-    <!-- Step 3 · Instance settings -->
+    <!-- Step 3 · The app -->
     <section class="wiz-step" data-step="2">
-      <h2 class="wiz-title">Choose how the instance behaves</h2>
-      <p class="wiz-text">Everything here can be changed later in Settings, under Admin.</p>
+      <h2 class="wiz-title">Name your app</h2>
+      <p class="wiz-text">The homepage and the install files use these. Everything can be changed later.</p>
       <div class="auth-form">
-        <label class="check">
-          <input type="checkbox" id="wiz-registration" checked>
-          <span>Allow others to create accounts</span>
+        <label class="field">
+          <span class="field-label">App name</span>
+          <input id="wiz-app" type="text" maxlength="80" placeholder="Your App" required>
         </label>
         <label class="field">
-          <span class="field-label">Background work every (minutes)</span>
-          <input id="wiz-worker" type="number" min="0" max="1440" step="1" value="15">
+          <span class="field-label">What it does, in one line</span>
+          <input id="wiz-tagline" type="text" maxlength="160" placeholder="A short line about what it does.">
         </label>
-        <p class="hint">0 turns the background worker off.</p>
+        <label class="field">
+          <span class="field-label">The site's public address</span>
+          <input id="wiz-url" type="url" spellcheck="false" placeholder="https://app.example.org">
+        </label>
+        <p class="hint">Optional. Install files point here. Left empty, Flatout uses the address it is reached on.</p>
       </div>
       <p class="form-error" id="wiz-error-2" hidden></p>
       <div class="wiz-nav">
         <button class="btn btn--ghost" data-back>Back</button>
         <button class="btn btn--primary" data-next>
-          <span class="btn-label">Create the instance</span>
+          <span class="btn-label">Finish</span>
           <span class="btn-busy" hidden>Setting up…</span>
         </button>
-      </div>
-    </section>
-
-    <!-- Step 4 · First record -->
-    <section class="wiz-step" data-step="3">
-      <h2 class="wiz-title">Add a first record</h2>
-      <p class="wiz-text">Something to look at when the app opens. This step can be skipped.</p>
-      <form class="auth-form" id="wiz-add-form">
-        <label class="field">
-          <span class="field-label">Title</span>
-          <input id="wiz-title" type="text" maxlength="300" placeholder="Shape this app into something">
-        </label>
-        <button class="btn btn--ghost" type="submit">
-          <span class="btn-label">Add</span>
-          <span class="btn-busy" hidden>Adding…</span>
-        </button>
-      </form>
-      <p class="form-error" id="wiz-error-3" hidden></p>
-      <ul class="wiz-added" id="wiz-added"></ul>
-      <div class="wiz-nav">
-        <button class="btn btn--primary btn--block" id="wiz-finish">Open {{ app_name }}</button>
       </div>
     </section>
 
@@ -114,7 +96,6 @@
   var steps = Array.prototype.slice.call(document.querySelectorAll(".wiz-step"));
   var dots = Array.prototype.slice.call(document.querySelectorAll(".wiz-dot"));
   var current = 0;
-  var accountCreated = false;
 
   function show(n) {
     current = n;
@@ -175,11 +156,11 @@
           name: document.getElementById("wiz-name").value.trim(),
           username: document.getElementById("wiz-email").value.trim(),
           password: document.getElementById("wiz-password").value,
-          registration_open: document.getElementById("wiz-registration").checked,
-          worker_minutes: parseInt(document.getElementById("wiz-worker").value, 10)
+          app_name: document.getElementById("wiz-app").value.trim(),
+          app_tagline: document.getElementById("wiz-tagline").value.trim(),
+          public_url: document.getElementById("wiz-url").value.trim()
         }).then(function () {
-          accountCreated = true;
-          show(3);
+          location.href = "/admin";
         }).catch(function (e) {
           err(2, e.message);
         }).finally(function () { setBusy(btn, false); });
@@ -187,29 +168,6 @@
     });
   });
 
-  document.getElementById("wiz-add-form").addEventListener("submit", function (e) {
-    e.preventDefault();
-    if (!accountCreated) return;
-    var input = document.getElementById("wiz-title");
-    var title = input.value.trim();
-    if (!title) return;
-    var btn = this.querySelector("button");
-    err(3, null);
-    setBusy(btn, true);
-    api("/items", { title: title })
-      .then(function (data) {
-        var li = document.createElement("li");
-        li.textContent = data.item.title;
-        document.getElementById("wiz-added").appendChild(li);
-        input.value = "";
-      })
-      .catch(function (e) { err(3, e.message); })
-      .finally(function () { setBusy(btn, false); });
-  });
-
-  document.getElementById("wiz-finish").addEventListener("click", function () {
-    location.href = "/";
-  });
 })();
 </script>
 {% endblock %}

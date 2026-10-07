@@ -1,0 +1,29 @@
+{% from "site/macros.html" import button, download, picture %}
+<section id="{{ sec.id }}" class="hero{% if sec.screenshot %} hero--shot{% endif %}" data-section="{{ sec.id }}">
+  <div class="container hero__inner">
+    {%- if sec.show_icon %}
+    <div class="hero__art"><img class="hero__icon" src="{{ s.icon_url }}" alt="{{ s.fill(s.doc.app.name) }} icon" width="260" height="260"></div>
+    {%- endif %}
+    {%- if sec.announcement.text %}
+    <p class="hero__pill"><span>{{ s.fill(sec.announcement.text) }}</span>
+      {%- if sec.announcement.link_url and sec.announcement.link_label %} <a href="{{ s.link(sec.announcement.link_url) }}">{{ s.fill(sec.announcement.link_label) }}&nbsp;→</a>{% endif %}</p>
+    {%- endif %}
+    {%- if sec.title %}<h1 class="hero__title">{{ s.fill(sec.title) }}</h1>{% endif %}
+    {%- if sec.subtitle %}<p class="hero__sub">{{ s.fill(sec.subtitle) }}</p>{% endif %}
+    <div class="hero__actions">
+      {%- if sec.download_label %}{{ download(s, sec.download_label) }}{% endif %}
+      {%- for b in sec.buttons %}{{ button(s, b) }}{% endfor %}
+    </div>
+    {%- set badges = sec.badges|selectattr('text')|list %}
+    {%- if badges %}
+    <ul class="hero__badges">
+      {%- for b in badges %}<li><span class="dot" style="background: var(--c-{{ b.color }})"></span> {{ s.fill(b.text) }}</li>{% endfor %}
+    </ul>
+    {%- endif %}
+  </div>
+  {%- if sec.screenshot %}
+  <figure class="shot">
+    {{ picture(sec.screenshot, sec.screenshot_dark, s.fill(sec.screenshot_alt), 'shot__img', 'data-zoom fetchpriority="high"') }}
+  </figure>
+  {%- endif %}
+</section>

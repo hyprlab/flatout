@@ -1,0 +1,72 @@
+{% extends "admin/shell.html" %}
+{% block bodyextra %} admin--api{% endblock %}
+{% block content %}
+<div class="page-body" id="api-page" data-base="{{ base_url }}">
+  <section class="panel">
+    <h3 class="panel-title">Tokens</h3>
+    <p class="hint">A token lets a script, a CI job or an AI agent use the API and the MCP server as you, within the
+      scopes you give it. It is shown once, when it is made.</p>
+    <form id="token-form" class="token-form" autocomplete="off">
+      <label class="field"><span class="field-label">Name</span>
+        <input id="token-name" maxlength="80" placeholder="Release workflow, Claude, …" required></label>
+      <fieldset class="field token-scopes">
+        <legend class="field-label">It may</legend>
+        <label class="check"><input type="checkbox" checked disabled><span>Read everything</span></label>
+        <label class="check"><input type="checkbox" name="scope" value="site"><span>Change and publish the site</span></label>
+        <label class="check"><input type="checkbox" name="scope" value="releases"><span>Publish and manage releases</span></label>
+      </fieldset>
+      <label class="field field--narrow"><span class="field-label">Expires after (days)</span>
+        <input id="token-days" type="number" min="1" max="3650" placeholder="Never"></label>
+      <p class="form-error" id="token-error" hidden></p>
+      <div><button class="btn btn--primary" type="submit">Create the token</button></div>
+    </form>
+    <div class="token-new" id="token-new" hidden>
+      <p><strong>Copy the token now.</strong> It won't be shown again.</p>
+      <div class="code-line"><code id="token-value"></code><button class="btn btn--ghost btn--xs" type="button" id="token-copy">Copy</button></div>
+    </div>
+    <ul class="manage-list" id="token-list"><li class="hint">Loading…</li></ul>
+  </section>
+
+  <section class="panel">
+    <h3 class="panel-title">For AI agents: the MCP server</h3>
+    <p class="hint">Agents that speak the Model Context Protocol can edit the site and publish releases through
+      tools, with a token in the Authorization header.</p>
+    <dl class="addresses">
+      <dt>Server address</dt><dd><code>{{ base_url }}/mcp</code></dd>
+    </dl>
+    <p class="setting-label">Claude Code</p>
+    <pre class="snippet"><code>claude mcp add --transport http flatout {{ base_url }}/mcp --header "Authorization: Bearer YOUR_TOKEN"</code></pre>
+    <p class="setting-label">Clients configured with JSON</p>
+    <pre class="snippet"><code>{
+  "mcpServers": {
+    "flatout": {
+      "type": "http",
+      "url": "{{ base_url }}/mcp",
+      "headers": { "Authorization": "Bearer YOUR_TOKEN" }
+    }
+  }
+}</code></pre>
+  </section>
+
+  <section class="panel">
+    <h3 class="panel-title">For scripts: the REST API</h3>
+    <dl class="addresses">
+      <dt>Base address</dt><dd><code>{{ base_url }}/api/v1</code></dd>
+      <dt>OpenAPI description</dt><dd><a class="link" href="{{ url_for('api.openapi') }}" target="_blank" rel="noopener"><code>{{ base_url }}/api/v1/openapi.json</code></a></dd>
+      <dt>Reference</dt><dd><a class="link" href="{{ url_for('admin.api_reference') }}">Every endpoint, with its parameters</a></dd>
+    </dl>
+    <p class="setting-label">Publish a release from CI</p>
+    <pre class="snippet"><code>curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
+  -F file=@app-x86_64.flatpak -F channel=stable -F notes="$(cat NOTES.md)" \
+  {{ base_url }}/api/v1/releases</code></pre>
+    <p class="setting-label">Promote the beta to stable</p>
+    <pre class="snippet"><code>curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" -H "Content-Type: application/json" \
+  -d '{"from": "beta", "to": "stable"}' {{ base_url }}/api/v1/releases/promote</code></pre>
+    <p class="setting-label">Change the headline and publish</p>
+    <pre class="snippet"><code>curl -fsS -X PATCH -H "Authorization: Bearer $FLATOUT_TOKEN" -H "Content-Type: application/json" \
+  -d '{"title": "A new headline"}' {{ base_url }}/api/v1/site/sections/top
+curl -fsS -X POST -H "Authorization: Bearer $FLATOUT_TOKEN" {{ base_url }}/api/v1/site/publish</code></pre>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('js/admin.js') }}" defer></script>{% endblock %}

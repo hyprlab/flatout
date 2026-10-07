@@ -1,0 +1,17 @@
+{#- The media picker, shared by the editor's image, icon and font fields. -#}
+<dialog class="modal modal--media" id="media-modal" data-restore="off" aria-labelledby="media-title">
+  <div class="modal-head">
+    <h3 id="media-title">Choose a file</h3>
+    <button class="iconbtn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="modal-body">
+    <div class="media-toolbar">
+      <label class="btn btn--primary btn--xs media-upload-btn">
+        <input type="file" id="media-modal-file" multiple hidden>
+        Upload
+      </label>
+      <span class="hint" id="media-modal-hint">Or drop files here.</span>
+    </div>
+    <div class="media-grid media-grid--pick" id="media-modal-grid" data-dropzone></div>
+  </div>
+</dialog>

@@ -1,0 +1,53 @@
+{#- Pieces several sections share. Each takes the Renderer `s`. -#}
+
+{% macro button(s, b, extra='') -%}
+{%- set href = s.link(b.url) -%}
+{%- if href and b.label -%}
+{%- if href == '#install' -%}
+<button class="btn btn--{{ b.style }} {{ extra }}" type="button" data-install-open>{{ s.icon(b.icon, 'btn__icon') }}{{ s.fill(b.label) }}</button>
+{%- else -%}
+<a class="btn btn--{{ b.style }} {{ extra }}" href="{{ href }}"{% if href.startswith('http') %} target="_blank" rel="noopener"{% endif %}>{{ s.icon(b.icon, 'btn__icon') }}{{ s.fill(b.label) }}</a>
+{%- endif -%}
+{%- endif -%}
+{%- endmacro %}
+
+{% macro buttons(s, list, extra='') -%}
+{%- set shown = [] -%}
+{%- for b in list if s.link(b.url) and b.label %}{% set _ = shown.append(b) %}{% endfor -%}
+{%- if shown %}<div class="actions">{% for b in shown %}{{ button(s, b, extra) }}{% endfor %}</div>{% endif -%}
+{%- endmacro %}
+
+{% macro download(s, label) -%}
+<button class="btn btn--primary" type="button" data-install-open>
+  <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1a1 1 0 0 1 1-1Z"/></svg>
+  {{ s.fill(label) }}
+</button>
+{%- endmacro %}
+
+{% macro command(s, text, id) -%}
+<div class="code-copy{% if '\n' in text %} code-copy--multi{% endif %}">
+  <code id="{{ id }}">{{ s.fill(text) }}</code>
+  <button class="code-copy__btn" type="button" data-copy="#{{ id }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3a2 2 0 0 0-2 2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2a2 2 0 0 0-2-2H9Zm0 2h5v2H9V5ZM5 7h1v10a2 2 0 0 0 2 2h6H5V7Zm4 2h9v8H9V9Z"/></svg><span class="code-copy__label">Copy</span></button>
+</div>
+{%- endmacro %}
+
+{% macro head(s, sec, center=true) -%}
+{%- if sec.eyebrow or sec.title or sec.lead %}
+<div class="section__head{% if not center %} section__head--left{% endif %}">
+  {%- if sec.eyebrow %}<p class="eyebrow">{{ s.fill(sec.eyebrow) }}</p>{% endif %}
+  {%- if sec.title %}<h2 class="section__title">{{ s.fill(sec.title) }}</h2>{% endif %}
+  {%- if sec.lead %}<p class="section__lead">{{ s.fill(sec.lead) }}</p>{% endif %}
+</div>
+{%- endif %}
+{%- endmacro %}
+
+{% macro picture(light, dark, alt, cls='', attrs='') -%}
+{%- if dark %}
+<picture data-theme-swap>
+  <source srcset="{{ dark }}" media="(prefers-color-scheme: dark)">
+  <img class="{{ cls }}" src="{{ light }}" alt="{{ alt }}" loading="lazy" {{ attrs|safe }}>
+</picture>
+{%- else %}
+<img class="{{ cls }}" src="{{ light }}" alt="{{ alt }}" loading="lazy" {{ attrs|safe }}>
+{%- endif %}
+{%- endmacro %}

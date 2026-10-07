@@ -1,0 +1,15 @@
+{% from "site/macros.html" import head %}
+<section id="{{ sec.id }}" class="section section--features" data-section="{{ sec.id }}">
+  <div class="container">
+    {{ head(s, sec) }}
+    <div class="grid grid--{{ sec.columns }}">
+      {%- for card in sec.cards %}
+      <article class="card reveal-me">
+        {%- if card.icon %}<div class="card__icon" style="--c: var(--c-{{ card.color }}); --ci: var(--c-{{ card.color }}-ink)">{{ s.icon(card.icon) }}</div>{% endif %}
+        {%- if card.title %}<h3>{{ s.fill(card.title) }}</h3>{% endif %}
+        <div class="card__body">{{ s.md(card.body) }}</div>
+      </article>
+      {%- endfor %}
+    </div>
+  </div>
+</section>

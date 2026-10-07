@@ -1,0 +1,30 @@
+{% extends "admin/shell.html" %}
+{% block bodyextra %} admin--stats{% endblock %}
+{% block content %}
+<div class="page-body" id="stats-page">
+  <div class="filters" role="group" aria-label="Range">
+    <div class="seg">
+      <label><input type="radio" name="stats-days" value="30" checked><span>30 days</span></label>
+      <label><input type="radio" name="stats-days" value="90"><span>90 days</span></label>
+      <label><input type="radio" name="stats-days" value="365"><span>A year</span></label>
+    </div>
+  </div>
+  <div class="tiles" id="stats-tiles"></div>
+  <section class="panel">
+    <h3 class="panel-title">Installs checking for updates, per day</h3>
+    <p class="hint">Distinct installs that asked this repository for updates. Each counts once a day, from a hash
+      that changes daily; no address is kept.</p>
+    <div class="chart" id="stats-chart"></div>
+    <details class="table-view">
+      <summary>Show as a table</summary>
+      <table class="data-table" id="stats-table"></table>
+    </details>
+  </section>
+  <section class="panel">
+    <h3 class="panel-title">By release</h3>
+    <p class="hint">Distinct installs that downloaded each release, counted once per day they pulled it.</p>
+    <table class="data-table" id="release-stats"></table>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('js/admin.js') }}" defer></script>{% endblock %}

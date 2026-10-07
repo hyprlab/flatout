@@ -1,0 +1,15 @@
+{% from "site/macros.html" import head %}
+<section id="{{ sec.id }}" class="section section--tint" data-section="{{ sec.id }}">
+  <div class="container narrow">
+    {{ head(s, sec) }}
+    <ul class="people">
+      {%- for p in sec.people if p.name %}
+      <li class="reveal-me">
+        {%- if p.url %}<a href="{{ s.link(p.url) }}" target="_blank" rel="noopener"><strong>{{ p.name }}</strong></a>{% else %}<strong>{{ p.name }}</strong>{% endif %}
+        {%- if p.note %} <span>{{ s.fill(p.note) }}</span>{% endif %}
+      </li>
+      {%- endfor %}
+    </ul>
+    {%- if sec.after %}<div class="prose people__after">{{ s.md(sec.after) }}</div>{% endif %}
+  </div>
+</section>

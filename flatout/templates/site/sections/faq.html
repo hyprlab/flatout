@@ -1,0 +1,14 @@
+{% from "site/macros.html" import head %}
+<section id="{{ sec.id }}" class="section" data-section="{{ sec.id }}">
+  <div class="container narrow">
+    {{ head(s, sec) }}
+    <div class="faq">
+      {%- for item in sec['items'] if item.question %}
+      <details class="faq__item reveal-me">
+        <summary>{{ s.fill(item.question) }}</summary>
+        <div class="prose">{{ s.md(item.answer) }}</div>
+      </details>
+      {%- endfor %}
+    </div>
+  </div>
+</section>

@@ -1,0 +1,38 @@
+{% extends "admin/shell.html" %}
+{% block bodyextra %} admin--repository{% endblock %}
+{% block content %}
+<div class="page-body" id="repository-page">
+  <div class="banner banner--warn" id="tools-blocker" hidden></div>
+
+  <section class="panel">
+    <h3 class="panel-title">Signing key</h3>
+    <p class="hint">Flatpak checks every update against this key, so nobody can slip a change in between this
+      server and the people who install the app. Keep a backup: if the key is lost, every install has to add the
+      repository again.</p>
+    <div id="key-panel"><p class="hint">Loading…</p></div>
+  </section>
+
+  <section class="panel">
+    <h3 class="panel-title">Addresses</h3>
+    <form id="address-form" class="stack" autocomplete="off">
+      <label class="field"><span class="field-label">This site's public address</span>
+        <input id="public-url" type="url" placeholder="https://app.example.org"></label>
+      <p class="hint" id="public-url-hint">Every install file and command uses it. Leave it empty to use the
+        address each request arrives on, which is right when the proxy in front passes the Host header through.</p>
+      <dl class="addresses" id="addresses"></dl>
+      <details class="term-like">
+        <summary>Advanced</summary>
+        <label class="field"><span class="field-label">Runtime repository</span>
+          <input id="runtime-repo" type="url"></label>
+        <p class="hint">Where installs get the runtime the app needs. Flathub, unless the app's runtime lives elsewhere.</p>
+        <label class="field field--narrow"><span class="field-label">Builds kept for rollback, per channel</span>
+          <input id="prune-depth" type="number" min="1" max="100"></label>
+      </details>
+      <p class="form-error" id="address-error" hidden></p>
+      <div><button class="btn btn--primary" type="submit">Save</button>
+        <button class="btn btn--ghost" type="button" id="rebuild-btn">Re-sign the repository</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('js/admin.js') }}" defer></script>{% endblock %}

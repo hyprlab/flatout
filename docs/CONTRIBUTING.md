@@ -41,9 +41,10 @@ Subjects follow [Conventional Commits](https://www.conventionalcommits.org):
   `style`, `chore`, `revert`. A `!` after the type (`feat(api)!:`) marks a
   breaking change. The type is not decoration: `tools/next-version.sh` reads
   it to decide the next version ([RELEASING.md](RELEASING.md)).
-- The area is where the change lives: `auth`, `setup`, `admin`, `settings`,
-  `sidebar`, `sheet`, `search`, `worker`, `db`, `ui`, `docker`, `release`,
-  plus the app's own. Leave it out only when there is no single place.
+- The area is where the change lives: `site` (the public site and its
+  schema), `editor`, `media`, `repo` (the repository, jobs and serving),
+  `releases`, `stats`, `api`, `mcp`, `admin`, `auth`, `setup`, `settings`,
+  `worker`, `db`, `ui`, `docker`, `release`. Leave it out only when there is no single place.
 - An issue number goes at the end: `fix(auth): keep the next page after sign-in (#12)`.
 - Releases: `chore(release): 1.4.0`, `chore(release): 1.5.0-beta.1`.
 

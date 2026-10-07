@@ -1,0 +1,56 @@
+{% extends "admin/shell.html" %}
+{% block content %}
+<div class="page-body">
+  {%- set steps = checklist %}
+  {%- if steps|selectattr('done', 'equalto', false)|list %}
+  <section class="panel">
+    <h3 class="panel-title">Getting started</h3>
+    <ol class="checklist-steps">
+      {%- for step in steps %}
+      <li class="{{ 'is-done' if step.done }}">
+        <span class="step-mark" aria-hidden="true">{% if step.done %}<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>{% else %}{{ loop.index }}{% endif %}</span>
+        <div class="step-text">
+          <a href="{{ step.url }}"><strong>{{ step.title }}</strong></a>
+          <span class="hint">{{ step.hint }}</span>
+        </div>
+      </li>
+      {%- endfor %}
+    </ol>
+  </section>
+  {%- endif %}
+
+  <div class="tiles">
+    <section class="panel tile">
+      <p class="tile-label">Site</p>
+      {%- if site_has_changes %}
+      <p class="tile-big">Unpublished changes</p>
+      <p class="hint">Draft saved by {{ draft_meta.updated_by }}. Visitors see the last published version.</p>
+      {%- else %}
+      <p class="tile-big">Up to date</p>
+      <p class="hint">{% if revisions %}Published by {{ revisions[0].published_by }}.{% else %}Showing the placeholder site. Publish to make your changes visible.{% endif %}</p>
+      {%- endif %}
+      <div class="tile-actions">
+        <a class="btn btn--primary btn--xs" href="{{ url_for('admin.site') }}">Edit the site</a>
+        <a class="btn btn--ghost btn--xs" href="{{ url_for('public.home') }}" target="_blank" rel="noopener">View it</a>
+      </div>
+    </section>
+    <section class="panel tile">
+      <p class="tile-label">Stable</p>
+      <p class="tile-big">{{ repo.stable.version if repo.stable else 'No release yet' }}</p>
+      <p class="hint">{% if repo.stable %}{{ repo.stable.arches|join(', ') }}{% else %}Upload a .flatpak bundle to publish the first version.{% endif %}</p>
+      <div class="tile-actions"><a class="btn btn--ghost btn--xs" href="{{ url_for('admin.releases') }}">Releases</a></div>
+    </section>
+    <section class="panel tile">
+      <p class="tile-label">Beta</p>
+      <p class="tile-big">{{ repo.beta.version if repo.beta else 'None' }}</p>
+      <p class="hint">{% if repo.beta %}{{ repo.beta.arches|join(', ') }}{% else %}The beta section of the site appears once a beta exists.{% endif %}</p>
+    </section>
+    <section class="panel tile">
+      <p class="tile-label">Update checks today</p>
+      <p class="tile-big">{{ installs_today }}</p>
+      <p class="hint">Distinct installs that checked this repository for updates.</p>
+      <div class="tile-actions"><a class="btn btn--ghost btn--xs" href="{{ url_for('admin.stats') }}">Installs</a></div>
+    </section>
+  </div>
+</div>
+{% endblock %}

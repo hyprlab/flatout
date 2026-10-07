@@ -30,12 +30,12 @@ def test_a_new_password_ends_the_other_sessions(app, client, csrf, admin):
     other.post("/login", data={"_csrf": tok, "username": "admin@example.com", "password": "password1",
                                "remember": "on"})
     json = {"Accept": "application/json"}
-    assert other.get("/search?q=ab", headers=json).status_code == 200
+    assert other.get("/api/v1/site", headers=json).status_code == 200
     resp = client.post("/account/password", json={"current": "password1", "new": "password2"},
                        headers={"X-CSRF": csrf})
     assert resp.status_code == 200
-    assert client.get("/search?q=ab", headers=json).status_code == 200      # this session stays
-    assert other.get("/search?q=ab", headers=json).status_code == 401       # that one ends, cookie and all
+    assert client.get("/api/v1/site", headers=json).status_code == 200      # this session stays
+    assert other.get("/api/v1/site", headers=json).status_code == 401       # that one ends, cookie and all
     # CSRF survives the fresh sign-in.
     assert client.post("/account/password", json={"current": "password2", "new": "password3"},
                        headers={"X-CSRF": csrf}).status_code == 200

@@ -17,6 +17,8 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements*.txt
+      - name: Flatpak tools, for the repository tests
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends flatpak ostree gnupg
       - run: pip install -r requirements-dev.txt
       - name: Tests
         run: python -m pytest -q

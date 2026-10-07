@@ -1,0 +1,12 @@
+{% extends "site/layout.html" %}
+{% block title %}{{ s.fill(page.title) }} · {{ s.fill(s.doc.app.name) }}{% endblock %}
+{% block body %}
+<main id="main" class="page">
+  <div class="container">
+    <article class="prose">
+      <h1>{{ s.fill(page.title) }}</h1>
+      {{ s.md(page.body) }}
+    </article>
+  </div>
+</main>
+{% endblock %}

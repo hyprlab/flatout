@@ -1,0 +1,121 @@
+{#- The install dialog: pick the machine (only when ARM builds exist), pick
+    a method, see only that method. Every address comes from the repository
+    (releases.public_info), so it follows the uploads. -#}
+{%- set repo = s.repo %}
+{%- set conf = doc.install %}
+{%- set copy_icon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3a2 2 0 0 0-2 2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2a2 2 0 0 0-2-2H9Zm0 2h5v2H9V5ZM5 7h1v10a2 2 0 0 0 2 2h6H5V7Zm4 2h9v8H9V9Z"/></svg>'|safe %}
+{%- set dl_icon = '<svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3 1.4 1.4L12 17.4l-5.7-5.7 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1ZM5 19h14v2H5v-2Z"/></svg>'|safe %}
+{%- set arches = (repo.stable or {}).get('arches', []) %}
+{%- set bundle_arches = [] %}
+{%- for a, has in ((repo.stable or {}).get('bundles', {})).items() if has %}{% set _ = bundle_arches.append(a) %}{% endfor %}
+{%- set methods = [] %}
+{%- if conf.ref_method %}{% set _ = methods.append('ref') %}{% endif %}
+{%- if conf.bundle_method and bundle_arches %}{% set _ = methods.append('bundle') %}{% endif %}
+{%- if conf.repo_method %}{% set _ = methods.append('repo') %}{% endif %}
+<div class="modal" id="install-modal" hidden>
+  <div class="modal__backdrop" data-install-close></div>
+  <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="install-title">
+  <div class="modal__scroll" tabindex="-1">
+    <button class="modal__close" type="button" data-install-close aria-label="Close">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z"/></svg>
+    </button>
+    <div class="modal__head">
+      <img class="modal__icon" src="{{ s.icon_url }}" alt="" width="64" height="64">
+      <h2 class="modal__title" id="install-title">{{ s.fill(conf.title) }}</h2>
+      {%- if repo.stable %}<p class="modal__sub">Version {{ repo.stable.version }}</p>{% endif %}
+    </div>
+
+    {%- if not repo.stable %}
+    <p class="modal__empty">{{ app_name }} has no release yet. Check back soon.</p>
+    {%- else %}
+
+    {%- if conf.show_arch_picker and arches|length > 1 %}
+    <div class="pick">
+      <div class="pick__label"><span class="pick__num">1</span> Your computer</div>
+      <div class="seg" role="radiogroup" aria-label="Processor type">
+        {%- for a in arches %}
+        <label class="seg__opt">
+          <input type="radio" name="install-arch" value="{{ a }}"{% if loop.first %} checked{% endif %}>
+          <span class="seg__face">
+            <span class="seg__title">{{ repo.arch_names.get(a, a) }}</span>
+            <span class="seg__hint">{{ {'x86_64': 'most laptops and desktops', 'aarch64': 'Raspberry Pi, Snapdragon, Apple silicon'}.get(a, a) }}</span>
+          </span>
+        </label>
+        {%- endfor %}
+      </div>
+    </div>
+    {%- else %}
+    <input type="hidden" name="install-arch" value="{{ arches|first }}">
+    {%- endif %}
+
+    {%- if methods|length > 1 %}
+    <div class="pick">
+      <div class="pick__label">{% if conf.show_arch_picker and arches|length > 1 %}<span class="pick__num">2</span> {% endif %}How to install</div>
+      <div class="methods" role="radiogroup" aria-label="Install method">
+        {%- for m in methods %}
+        <label class="method">
+          <input type="radio" name="install-method" value="{{ m }}"{% if loop.first %} checked{% endif %}>
+          <span class="method__face">
+            {%- if m == 'ref' %}
+            <span class="method__icon method__icon--ref"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16a1 1 0 0 1 1 1v3H3V5a1 1 0 0 1 1-1Zm-1 6h18v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9Zm5 3v2h8v-2H8Z"/></svg></span>
+            <span class="method__text"><span class="method__title">Install file <span class="install-badge">Easiest</span></span>
+              <span class="method__desc">A small file your app store opens, and keeps the app updated.</span></span>
+            {%- elif m == 'bundle' %}
+            <span class="method__icon method__icon--bundle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 6.5v11L12 22l9-4.5v-11L12 2Zm0 2.2 6.4 3.2L12 10.6 5.6 7.4 12 4.2ZM5 9.1l6 3v7.3l-6-3V9.1Zm14 0v7.3l-6 3v-7.3l6-3Z"/></svg></span>
+            <span class="method__text"><span class="method__title">Full download</span>
+              <span class="method__desc">The whole app in one .flatpak file.</span></span>
+            {%- else %}
+            <span class="method__icon method__icon--repo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm1 2v3h12V6H6Zm0 5v3h12v-3H6Zm0 5v2h12v-2H6Z"/></svg></span>
+            <span class="method__text"><span class="method__title">Add the repository</span>
+              <span class="method__desc">For app stores that only search repositories they know.</span></span>
+            {%- endif %}
+          </span>
+        </label>
+        {%- endfor %}
+      </div>
+    </div>
+    {%- endif %}
+
+    {%- if 'ref' in methods %}
+    <section class="how" data-method="ref"{% if methods|first != 'ref' %} hidden{% endif %}>
+      <a class="btn btn--primary how__btn" href="{{ repo.flatpakref_url }}">{{ dl_icon }}Download the install file</a>
+      <p class="how__after"><strong>Open the downloaded file</strong> and your app store (GNOME Software,
+        KDE Discover or similar) installs {{ app_name }} and keeps it updated. New to Flatpak?
+        <a href="{{ conf.flatpak_setup_url }}" target="_blank" rel="noopener">Set it up for your distro</a> first.</p>
+      <details class="term">
+        <summary>Prefer the terminal?</summary>
+        <div class="code-copy"><code id="install-cmd-ref">flatpak install --from {{ repo.flatpakref_url }}</code>
+          <button class="code-copy__btn" type="button" data-copy="#install-cmd-ref">{{ copy_icon }}<span class="code-copy__label">Copy</span></button></div>
+        {%- if repo.app_id %}<p>Then start it from the applications menu or with <code>flatpak run {{ repo.app_id }}</code>.</p>{% endif %}
+      </details>
+    </section>
+    {%- endif %}
+
+    {%- if 'bundle' in methods %}
+    <section class="how" data-method="bundle"{% if methods|first != 'bundle' %} hidden{% endif %}>
+      <a class="btn btn--primary how__btn" data-bundle-link data-href="{{ repo.bundle_url }}" href="{{ repo.bundle_url|replace('{arch}', bundle_arches|first) }}">{{ dl_icon }}<span>Download for <span class="dl-arch-name">{{ repo.arch_names.get(bundle_arches|first, bundle_arches|first) }}</span></span></a>
+      <p class="how__after"><strong>Open it like any download</strong> and your app store installs it. Flatpak has to be
+        <a href="{{ conf.flatpak_setup_url }}" target="_blank" rel="noopener">set up</a> already.</p>
+      <details class="term">
+        <summary>Prefer the terminal?</summary>
+        <div class="code-copy code-copy--multi"><code id="install-cmd-bundle" data-template="curl -LO {{ repo.bundle_url }}&#10;flatpak install ./{{ repo.bundle_url.rsplit('/', 1)[-1] }}">curl -LO {{ repo.bundle_url|replace('{arch}', bundle_arches|first) }}
+flatpak install ./{{ repo.bundle_url.rsplit('/', 1)[-1]|replace('{arch}', bundle_arches|first) }}</code>
+          <button class="code-copy__btn" type="button" data-copy="#install-cmd-bundle">{{ copy_icon }}<span class="code-copy__label">Copy</span></button></div>
+      </details>
+    </section>
+    {%- endif %}
+
+    {%- if 'repo' in methods %}
+    <section class="how" data-method="repo"{% if methods|first != 'repo' %} hidden{% endif %}>
+      <p class="how__lead">Add the repository once, then find {{ app_name }} in your app store or install it from a terminal:</p>
+      <div class="code-copy code-copy--multi"><code id="install-cmd-repo">flatpak remote-add --if-not-exists {{ repo.remote_name }} {{ repo.flatpakrepo_url }}
+flatpak install {{ repo.remote_name }} {{ repo.app_id }}</code>
+        <button class="code-copy__btn" type="button" data-copy="#install-cmd-repo">{{ copy_icon }}<span class="code-copy__label">Copy</span></button></div>
+    </section>
+    {%- endif %}
+    {%- endif %}
+
+    {%- if conf.footer %}<div class="modal__foot">{{ s.md(conf.footer) }}</div>{% endif %}
+  </div>
+  </div>
+</div>

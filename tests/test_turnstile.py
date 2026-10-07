@@ -32,11 +32,11 @@ def fake_cloudflare(monkeypatch):
 
 def turn_on(client, csrf, **overrides):
     body = {"site_key": "site-123", "secret_key": "secret-abcd", "token": GOOD_TOKEN, **overrides}
-    return client.post("/admin/turnstile", json=body, headers={"X-CSRF": csrf})
+    return client.post("/settings/turnstile", json=body, headers={"X-CSRF": csrf})
 
 
 def test_off_by_default(client, csrf, admin):
-    body = client.get("/").data.decode()
+    body = client.get("/admin").data.decode()
     assert 'id="ts-chip">Off' in body
 
 
@@ -73,7 +73,7 @@ def test_turned_on_the_sign_in_page_needs_the_challenge(client, csrf, admin, app
 
 def test_the_secret_never_reaches_the_page(client, csrf, admin):
     turn_on(client, csrf)
-    body = client.get("/").data.decode()
+    body = client.get("/admin").data.decode()
     assert "secret-abcd" not in body
     assert "ends in abcd" in body
 
@@ -89,9 +89,9 @@ def test_blank_secret_keeps_the_saved_one(client, csrf, admin):
 def test_turning_off_wins_over_the_environment(client, csrf, admin, app):
     app.config["TURNSTILE_SITE_KEY"] = "env-site"
     app.config["TURNSTILE_SECRET_KEY"] = "env-secret"
-    status = client.get("/").data.decode()
+    status = client.get("/admin").data.decode()
     assert "From the TURNSTILE_SITE_KEY" in status
-    resp = client.post("/admin/turnstile/disable", headers={"X-CSRF": csrf})
+    resp = client.post("/settings/turnstile/disable", headers={"X-CSRF": csrf})
     assert resp.get_json()["status"]["on"] is False
     client.post("/logout", headers={"X-CSRF": csrf})
     assert b"cf-turnstile" not in client.get("/login").data
@@ -99,15 +99,15 @@ def test_turning_off_wins_over_the_environment(client, csrf, admin, app):
 
 def test_only_admins_can_change_it(second_user):
     other, token = second_user
-    assert other.post("/admin/turnstile", json={"site_key": "x", "token": GOOD_TOKEN},
+    assert other.post("/settings/turnstile", json={"site_key": "x", "token": GOOD_TOKEN},
                       headers={"X-CSRF": token}).status_code == 403
-    assert other.post("/admin/turnstile/disable", headers={"X-CSRF": token}).status_code == 403
+    assert other.post("/settings/turnstile/disable", headers={"X-CSRF": token}).status_code == 403
 
 
 def test_security_section_is_admin_only(client, csrf, admin, second_user):
-    assert 'data-pane="security"' in client.get("/").data.decode()
+    assert 'data-pane="security"' in client.get("/admin").data.decode()
     other, _ = second_user
-    assert 'data-pane="security"' not in other.get("/").data.decode()
+    assert 'data-pane="security"' not in other.get("/admin").data.decode()
 
 
 def test_cli_turns_it_off(client, csrf, admin, app):
