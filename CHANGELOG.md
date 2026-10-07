@@ -7,46 +7,12 @@ All notable changes to Flatout are documented here. The format follows
 ## Unreleased
 
 ### Added
-- The Installs page estimates how many installs exist, shows the installs
-  of the latest stable and beta by architecture, how many are on an older
-  release, releases in the last 30 days, a table by architecture and one
-  for each build, and when counting began
-- Backups under Settings > Backup: one file with everything, encrypted with
-  a passphrase, to download
-- A fresh install's setup can restore a backup, uploaded in 90 MB pieces so
-  it gets through Cloudflare and similar proxies, or with `flask
-  restore-backup` on the server
-- Bundles upload in 90 MB pieces too, from the admin and through the API
-  (`/api/v1/uploads`), so large ones get through Cloudflare
-- Several bundles can be chosen or dropped at once under Releases, and upload
-  one after another, each its own release
-
-### Changed
-- Site > Theme is now called Design, at /admin/design; the old address
-  leads there
-- An app built for several architectures shows the right version for each:
-  when one is behind, the admin says so, the site shows its version next to
-  the others, and the release notes come from whichever upload has them
-- Flatout has its own icon, in the admin, on the sign-in and setup pages, in
-  the browser tab and on home-screen shortcuts
-- The icon on the maintenance and coming-soon pages holds still; only the
-  ring around it pulses
-
-### Fixed
-- A release import no longer fails with "database is locked" when something
-  else was saved while it ran, such as a second upload
-- The install dialog offers Intel/AMD first, and its download, unless the
-  visitor's machine is ARM; it used to start on ARM
-
-## [0.1.0] — 2026-10-07
-
-### Added
 - A homepage for your app, edited in the admin: the app's name, links and
   images; a header and footer; a hero, feature cards, screenshots, a
   highlight band, text, an install guide with steps per distro, a beta
   section, the newest release notes, questions, credits and a call to action.
   Sections can be shown, hidden, reordered, duplicated and added
-- A theme with every color for light and dark, an icon palette, built-in or
+- Design: every color for light and dark, an icon palette, built-in or
   uploaded fonts, the text size, heading weight, corner rounding and width
 - Extra pages at their own address, written in Markdown
 - A media library for images and fonts
@@ -60,14 +26,24 @@ All notable changes to Flatout are documented here. The format follows
 - Repository > App sets the Flatpak app ID the site installs, the remote
   name, the runtime repository and how many builds are kept for rollback;
   they take effect without publishing the site
-- A signed Flatpak repository: upload a bundle to the stable or beta channel,
-  or give its address; promote the beta to stable; bring back an earlier
-  build; end a channel with a message to its installs
+- A signed Flatpak repository: upload bundles to the stable or beta channel,
+  several at once, or give a bundle's address; promote the beta to stable;
+  bring back an earlier build; end a channel with a message to its installs.
+  Uploads go in 90 MB pieces, so large bundles get through Cloudflare and
+  similar proxies
+- Apps built for several architectures, one bundle each: every user's
+  Flatpak picks their machine's build, and the site and the admin show each
+  architecture's version and say when one is behind
 - Install files, the repository file, the public key and the newest bundle
   at fixed addresses, written from the current release, key and address
-- Install numbers per day and per release, from ordinary repository traffic,
-  without storing any address
-- An API under /api/v1 with scoped, revocable tokens, described in OpenAPI
+- Install numbers from ordinary repository traffic, without storing any
+  address: installs checking for updates per day, an estimate of the
+  installs in use, the installs of the latest stable and beta, those on an
+  older release, and installs by release, by architecture and for each build
+- Encrypted backups of everything under Settings > Backup, restored by a
+  fresh install's setup or with `flask restore-backup` on the server
+- An API under /api/v1 with scoped, revocable tokens, described in OpenAPI,
+  including uploads in pieces for CI behind a proxy
 - An MCP server at /mcp, so AI agents can edit the site and publish releases
 - A setup wizard that names the app, and a getting-started list in the
   admin whose steps tick themselves, can be ticked or unticked by hand, and
