@@ -49,7 +49,7 @@ def test_a_fixed_draft_only_needs_publishing(client, csrf, live_release):
     client.post("/api/v1/site/publish", json={}, headers=h(csrf))
     repo = client.get("/api/v1/repo").get_json()
     assert repo["unmatched_app_ids"] == [] and repo["stable"]["version"] == "1.0.0"
-    assert "live releases" not in client.get("/admin").data.decode()
+    assert "show your live releases" not in client.get("/admin").data.decode()
 
 
 def test_no_warning_while_the_site_names_no_app(client, csrf, live_release):

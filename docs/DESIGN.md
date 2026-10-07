@@ -1,7 +1,8 @@
 # Design system
 
 Flatout has two looks. The **admin** uses the Hyprlab design described on
-this page: Hyprfeed's "electric editorial", Inter everywhere, warm neutrals,
+this page: Hyprfeed's "electric editorial", Inter everywhere, true neutral
+greys,
 and one accent color spent sparingly, in `static/css/app.css`. The **public
 site** belongs to whoever runs it: `static/site/site.css` draws it from
 tokens the owner sets in Theme (see [The public site](#the-public-site)).
@@ -13,7 +14,8 @@ tokens the owner sets in Theme (see [The public site](#the-public-site)).
   stops meaning anything.
 - **Surfaces carry the hierarchy**, not borders and shadows: `--bg` for the
   page, `--panel` for the sidebar and quiet containers, `--surface` for cards
-  and dialogs, `--field` for inputs.
+  and dialogs, `--field` for inputs. Every surface, line and text color is a
+  true grey (equal red, green and blue), so the accent is the only color.
 - **Motion explains where something went.** Dialogs rise into place and a
   toast confirms what happened. Every animation is off under
   `prefers-reduced-motion`.
@@ -34,7 +36,7 @@ Set on `:root` and per theme on `html[data-theme="light"|"dark"]`.
 | `--ink`, `--muted`, `--faint` | Text: primary, secondary, tertiary. Each reads at 4.5:1 or better (WCAG AA) on every surface in both themes; a new shade must too |
 | `--line`, `--line-strong` | Rules and borders |
 | `--wash` | The accent at low opacity: washes behind chosen chips and cards |
-| `--selected`, `--hover` | The chosen row (sidebar, settings, the editor's lists) and a row under the pointer: a neutral grey a step darker than the panel in the light theme, the wash in the dark |
+| `--selected`, `--hover` | The chosen row (sidebar, settings, the editor's lists) and a row under the pointer: a neutral grey a step darker than the panel in the light theme and a step lighter in the dark |
 | `--scrim` | Behind dialogs and the mobile sidebar |
 | `--danger` | Destructive actions and errors; lighter in the dark theme, so it reads at 4.5:1 there as well |
 | `--radius`, `--radius-sm` | 14px for cards and panels, 10px for controls |

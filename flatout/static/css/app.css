@@ -36,28 +36,31 @@
   --radius-sm: 10px;
   --topbar-h: 59px;             /* 12px padding + 34px controls + 1px rule */
   --sidebar-w: 276px;
-  --shadow-1: 0 1px 2px rgb(20 20 10 / .04), 0 4px 16px rgb(20 20 10 / .05);
-  --shadow-2: 0 2px 6px rgb(20 20 10 / .07), 0 14px 34px rgb(20 20 10 / .10);
+  --shadow-1: 0 1px 2px rgb(16 16 16 / .04), 0 4px 16px rgb(16 16 16 / .05);
+  --shadow-2: 0 2px 6px rgb(16 16 16 / .07), 0 14px 34px rgb(16 16 16 / .10);
 }
 
+/* Surfaces, lines and text are true greys (equal red, green and blue) in both
+   themes; the accent is the only color. Each grey has the luminance of the
+   warm one it replaced, so every contrast ratio is where it was. */
 html[data-theme="light"] {
   color-scheme: light;
-  --bg: #F6F6F3;
-  --panel: #EFEFEA;
+  --bg: #F6F6F6;
+  --panel: #EFEFEF;
   --surface: #FFFFFF;
-  --field: #F3F3EF;
-  --ink: #191917;
-  --muted: #55554F;
-  --faint: #61615A;
-  --line: #E4E4DD;
-  --line-strong: #D4D4CC;
+  --field: #F3F3F3;
+  --ink: #191919;
+  --muted: #555555;
+  --faint: #616161;
+  --line: #E4E4E4;
+  --line-strong: #D3D3D3;
   --wash: rgb(255 214 10 / .17);
   /* The chosen row (sidebar, settings, the editor's lists) and a row under
      the pointer: grey a step darker than the panel, the accent bar alone
      marking it. */
-  --selected: #E2E2DB;
-  --hover: #E8E8E2;
-  --scrim: rgb(25 25 20 / .40);
+  --selected: #E2E2E2;
+  --hover: #E8E8E8;
+  --scrim: rgb(22 22 22 / .40);
 }
 
 html[data-theme="dark"] {
@@ -65,19 +68,20 @@ html[data-theme="dark"] {
   --accent: #F7DF1E;
   /* Charcoal rather than black: lifted enough to read comfortably, with
      every text color still at 5:1 or better on each surface. */
-  --bg: #202026;
-  --panel: #1A1A1F;
-  --surface: #29292F;
-  --field: #222228;
-  --ink: #ECECE7;
-  --muted: #B0B0AB;
-  --faint: #9A9A95;
+  --bg: #202020;
+  --panel: #1A1A1A;
+  --surface: #292929;
+  --field: #222222;
+  --ink: #ECECEC;
+  --muted: #B0B0B0;
+  --faint: #9A9A9A;
   --danger: #EC7A70;
-  --line: #36363D;
-  --line-strong: #46464E;
+  --line: #373737;
+  --line-strong: #474747;
   --wash: rgb(247 223 30 / .10);
-  --selected: var(--wash);
-  --hover: var(--wash);
+  /* Grey here too, a step above the panel: the accent bar alone marks it. */
+  --selected: #2F2F2F;
+  --hover: #262626;
   --scrim: rgb(0 0 0 / .55);
   --shadow-1: 0 1px 2px rgb(0 0 0 / .35), 0 6px 20px rgb(0 0 0 / .30);
   --shadow-2: 0 2px 8px rgb(0 0 0 / .45), 0 18px 44px rgb(0 0 0 / .45);
@@ -466,9 +470,9 @@ dialog.is-restoring, dialog.is-restoring::backdrop { animation: none !important;
 .theme-opt input:checked + .theme-chip { border-color: var(--accent); color: var(--ink); background: var(--wash); }
 .theme-opt input:focus-visible + .theme-chip { outline: 2px solid var(--accent); outline-offset: 2px; }
 .theme-chip-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line-strong); }
-.theme-chip--system .theme-chip-dot { background: linear-gradient(90deg, #FFF 50%, #29292F 50%); }
+.theme-chip--system .theme-chip-dot { background: linear-gradient(90deg, #FFF 50%, #292929 50%); }
 .theme-chip--light .theme-chip-dot { background: #FFF; }
-.theme-chip--dark .theme-chip-dot { background: #29292F; }
+.theme-chip--dark .theme-chip-dot { background: #292929; }
 
 .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .seg label { position: relative; }
@@ -650,7 +654,7 @@ html[data-theme="light"] .tech-tile-name { color: #000; }
 .toast--error { background: var(--danger); color: #fff; }
 /* Dark: a raised charcoal pill with light text, where the light theme's is
    dark on light; the accent Undo reads on both. */
-html[data-theme="dark"] .toast { background: #34343B; color: var(--ink); box-shadow: var(--shadow-2), 0 0 0 1px var(--line-strong); }
+html[data-theme="dark"] .toast { background: #353535; color: var(--ink); box-shadow: var(--shadow-2), 0 0 0 1px var(--line-strong); }
 html[data-theme="dark"] .toast--error { background: #4E2320; color: #FFE1DD; box-shadow: var(--shadow-2), 0 0 0 1px #6E302B; }
 .toast-action {
   margin-left: 12px; color: var(--accent); font-weight: 750; font-size: 13px;
