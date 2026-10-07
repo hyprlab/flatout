@@ -207,6 +207,10 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .navitem:hover { color: var(--ink); background: var(--hover); }
 .navitem.is-active { color: var(--ink); font-weight: 650; background: var(--selected); box-shadow: inset 3px 0 0 var(--accent); }
 .navitem .count { margin-left: auto; }
+/* Content has edits not yet published: a pencil, in the row's own grey. */
+.navitem .unpublished { margin-left: auto; display: grid; place-items: center; color: var(--muted); }
+.navitem .unpublished svg { width: 15px; height: 15px; }
+.navitem.is-active .unpublished { color: var(--ink); }
 
 .sidebar-label {
   display: flex; align-items: center; justify-content: space-between;

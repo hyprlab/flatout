@@ -304,8 +304,8 @@
     var busy = E.saving || E.dirty;
     publishBtn.disabled = !E.hasChanges && !busy;
     discardBtn.hidden = !E.hasChanges;
-    var dot = document.querySelector('.navitem[href$="/admin/site"] .count');
-    if (dot) dot.hidden = !E.hasChanges;
+    var marker = document.querySelector('.navitem[href$="/admin/site"] .unpublished');
+    if (marker) marker.hidden = !E.hasChanges;
   }
   function changed() {
     E.dirty = true;
