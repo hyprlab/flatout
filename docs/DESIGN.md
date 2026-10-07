@@ -33,7 +33,8 @@ Set on `:root` and per theme on `html[data-theme="light"|"dark"]`.
 | `--bg`, `--panel`, `--surface`, `--field` | The four surface levels |
 | `--ink`, `--muted`, `--faint` | Text: primary, secondary, tertiary. Each reads at 4.5:1 or better (WCAG AA) on every surface in both themes; a new shade must too |
 | `--line`, `--line-strong` | Rules and borders |
-| `--wash` | The accent at low opacity: hover and active backgrounds |
+| `--wash` | The accent at low opacity: washes behind chosen chips and cards |
+| `--selected`, `--hover` | The chosen row (sidebar, settings, the editor's lists) and a row under the pointer: a neutral grey a step darker than the panel in the light theme, the wash in the dark |
 | `--scrim` | Behind dialogs and the mobile sidebar |
 | `--danger` | Destructive actions and errors; lighter in the dark theme, so it reads at 4.5:1 there as well |
 | `--radius`, `--radius-sm` | 14px for cards and panels, 10px for controls |
@@ -61,7 +62,7 @@ Long-form text uses `.prose` at 16.5px and 1.72.
 | `.theme-picker`, `.theme-chip` | Chip-style radio group |
 | `.chip`, `.chip--muted`, `.count`, `.count--accent`, `.title-chip` | Small labels and counters |
 | `.shell`, `.sidebar`, `.sidebar-head/-scroll/-foot` | The layout. The head and foot stay pinned; only the middle scrolls. |
-| `.navitem`, `.sidebar-label`, `.sidelist`, `.sideitem` | Sidebar rows. `.is-active` adds the wash and an inset accent bar. |
+| `.navitem`, `.sidebar-label`, `.sidelist`, `.sideitem` | Sidebar rows. `.is-active` adds `--selected` and an inset accent bar. |
 | `.topbar`, `.context-title`, `.topbar-actions` | The sticky, blurred bar over the content |
 | `.modal`, `.modal--wide`, `.modal-head`, `.modal-body` | Dialogs, built on `<dialog>` |
 | `.settings`, `.settings-nav`, `.settings-navitem`, `.settings-head`, `.settings-pane` | The settings window: a rail of sections beside the chosen one; on phones a list that slides into each section |

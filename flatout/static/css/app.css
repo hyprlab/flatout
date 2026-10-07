@@ -52,6 +52,11 @@ html[data-theme="light"] {
   --line: #E4E4DD;
   --line-strong: #D4D4CC;
   --wash: rgb(255 214 10 / .17);
+  /* The chosen row (sidebar, settings, the editor's lists) and a row under
+     the pointer: grey a step darker than the panel, the accent bar alone
+     marking it. */
+  --selected: #E2E2DB;
+  --hover: #E8E8E2;
   --scrim: rgb(25 25 20 / .40);
 }
 
@@ -69,6 +74,8 @@ html[data-theme="dark"] {
   --line: #26262B;
   --line-strong: #34343A;
   --wash: rgb(247 223 30 / .10);
+  --selected: var(--wash);
+  --hover: var(--wash);
   --scrim: rgb(0 0 0 / .55);
   --shadow-1: 0 1px 2px rgb(0 0 0 / .35), 0 6px 20px rgb(0 0 0 / .30);
   --shadow-2: 0 2px 8px rgb(0 0 0 / .45), 0 18px 44px rgb(0 0 0 / .45);
@@ -191,8 +198,8 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
   transition: background .15s, color .15s;
 }
 .navitem svg { width: 18px; height: 18px; }
-.navitem:hover { color: var(--ink); background: var(--wash); }
-.navitem.is-active { color: var(--ink); font-weight: 650; background: var(--wash); box-shadow: inset 3px 0 0 var(--accent); }
+.navitem:hover { color: var(--ink); background: var(--hover); }
+.navitem.is-active { color: var(--ink); font-weight: 650; background: var(--selected); box-shadow: inset 3px 0 0 var(--accent); }
 .navitem .count { margin-left: auto; }
 
 .sidebar-label {
@@ -398,8 +405,8 @@ dialog.is-restoring, dialog.is-restoring::backdrop { animation: none !important;
 .settings-navitem svg { width: 18px; height: 18px; }
 .settings-navitem span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-navitem-chev { display: none; }
-.settings-navitem:hover { color: var(--ink); background: var(--wash); }
-.settings-navitem.is-active { color: var(--ink); font-weight: 650; background: var(--wash); box-shadow: inset 3px 0 0 var(--accent); }
+.settings-navitem:hover { color: var(--ink); background: var(--hover); }
+.settings-navitem.is-active { color: var(--ink); font-weight: 650; background: var(--selected); box-shadow: inset 3px 0 0 var(--accent); }
 .settings-nav-foot { flex: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 .settings-nav-version { padding: 8px 10px 0; font-size: 11.5px; font-weight: 550; color: var(--faint); }
 
@@ -807,7 +814,7 @@ input.switch:checked::after { transform: translateX(14px); }
 .ed-label--row { display: flex; align-items: center; justify-content: space-between; }
 .ed-label--row .btn svg { width: 14px; height: 14px; }
 .ed-row { display: flex; align-items: center; gap: 4px; border-radius: var(--radius-sm); }
-.ed-row:hover { background: var(--wash); }
+.ed-row:hover { background: var(--hover); }
 .ed-row-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 9px 8px; text-align: left; border-radius: var(--radius-sm); }
 .ed-row-open > svg { color: var(--faint); width: 16px; height: 16px; }
 .ed-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
