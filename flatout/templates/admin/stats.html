@@ -2,28 +2,46 @@
 {% block bodyextra %} admin--stats{% endblock %}
 {% block content %}
 <div class="page-body" id="stats-page">
-  <div class="filters" role="group" aria-label="Range">
-    <div class="seg">
-      <label><input type="radio" name="stats-days" value="30" checked><span>30 days</span></label>
-      <label><input type="radio" name="stats-days" value="90"><span>90 days</span></label>
-      <label><input type="radio" name="stats-days" value="365"><span>A year</span></label>
-    </div>
-  </div>
+  <p class="hint stats-meta" id="stats-meta" role="status" aria-live="polite"></p>
+  <div class="tiles" id="stats-summary"></div>
   <div class="tiles" id="stats-tiles"></div>
+
   <section class="panel">
-    <h3 class="panel-title">Installs checking for updates, per day</h3>
-    <p class="hint">Distinct installs that asked this repository for updates. Each counts once a day, from a hash
-      that changes daily; no address is kept.</p>
+    <div class="panel-head">
+      <h3 class="panel-title">Installs checking for updates, per day</h3>
+      <div class="seg" role="radiogroup" aria-label="Range">
+        <label><input type="radio" name="stats-days" value="30" checked><span>30 days</span></label>
+        <label><input type="radio" name="stats-days" value="90"><span>90 days</span></label>
+        <label><input type="radio" name="stats-days" value="365"><span>A year</span></label>
+      </div>
+    </div>
+    <p class="hint">Distinct installs that asked this repository for updates. Each counts once a day however
+      often it checks, from a hash that changes daily, so days can't be added together; no address is kept.</p>
     <div class="chart" id="stats-chart"></div>
+    <p class="hint" id="stats-caption"></p>
     <details class="table-view">
       <summary>Show as a table</summary>
       <table class="data-table" id="stats-table"></table>
     </details>
   </section>
+
   <section class="panel">
     <h3 class="panel-title">By release</h3>
-    <p class="hint">Distinct installs that downloaded each release, counted once per day they pulled it.</p>
-    <table class="data-table" id="release-stats"></table>
+    <p class="hint">Distinct installs that downloaded each version, every architecture together, and the downloads
+      in all. An install counts once for each day it pulled the release, which in practice is once.</p>
+    <div class="table-scroll"><table class="data-table" id="release-stats"></table></div>
+  </section>
+
+  <section class="panel">
+    <h3 class="panel-title">Machines by architecture</h3>
+    <p class="hint">Installs that downloaded a release built for each architecture.</p>
+    <div class="table-scroll"><table class="data-table" id="arch-stats"></table></div>
+  </section>
+
+  <section class="panel">
+    <h3 class="panel-title">Each build</h3>
+    <p class="hint">Every signed commit installs have downloaded: uploads, promotions and rollbacks each make one.</p>
+    <div class="table-scroll"><table class="data-table" id="build-stats"></table></div>
   </section>
 </div>
 {% endblock %}

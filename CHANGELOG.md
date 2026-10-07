@@ -7,6 +7,10 @@ All notable changes to Flatout are documented here. The format follows
 ## Unreleased
 
 ### Added
+- The Installs page estimates how many installs exist, shows the installs
+  of the latest stable and beta by architecture, how many are on an older
+  release, releases in the last 30 days, a table by architecture and one
+  for each build, and when counting began
 - Backups under Settings > Backup: one file with everything, encrypted with
   a passphrase, to download
 - A fresh install's setup can restore a backup, uploaded in 90 MB pieces so

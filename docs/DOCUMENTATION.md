@@ -242,7 +242,25 @@ The Installs page counts, per day, the distinct installs that checked the
 repository for updates, and per release, the distinct installs that
 downloaded it. Both come from ordinary repository requests; the app itself
 reports nothing. No address is stored: each is hashed with a secret and the
-day, so the hash changes daily.
+day, so the hash changes daily, and the daily hashes are deleted after 60
+days. Install files, bundle downloads and page visits aren't counted.
+
+From those two signals the page shows:
+
+- **Estimated installs**: the busiest day of update checks in the last 7
+  days; until checks build up, the most-downloaded release of the last 14
+- **Latest stable** and **Latest beta**: the installs that downloaded the
+  current version since it came out, by architecture
+- **Active today**, the **seven-day average**, and how many installs are **on
+  an older release** than the latest stable or beta
+- **Releases in the last 30 days**, stable and beta
+- Update checks per day over 30 days, 90 days or a year, as a chart or a
+  table, with the busiest day
+- Installs and downloads **by release**, **by architecture** (the last 30
+  days and all time), and for **each build**: every signed commit, uploaded,
+  promoted or brought back, with when it was first and last downloaded
+
+`GET /api/v1/stats` returns the same, for scripts and agents.
 
 ## Configuration
 

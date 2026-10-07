@@ -1053,7 +1053,13 @@ input.switch:checked::after { transform: translateX(14px); }
 .table-view summary { cursor: pointer; font-size: 13px; color: var(--muted); font-weight: 600; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
 .data-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); font-weight: 700; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-.data-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.data-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; vertical-align: middle; }
+.data-table .mono { font-family: var(--mono); font-size: 12px; }
+.table-scroll { overflow-x: auto; }
+.table-scroll .data-table td, .table-scroll .data-table th { white-space: nowrap; }
+.tile-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.stats-meta { margin: 0; }
+#stats-page .panel-head { align-items: center; flex-wrap: wrap; }
 
 /* ——— API and agents ——— */
 .token-form { display: flex; flex-direction: column; gap: 12px; max-width: 560px; }

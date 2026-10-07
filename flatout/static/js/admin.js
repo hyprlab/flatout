@@ -671,40 +671,92 @@
       chartBox.appendChild(tip);
     };
 
+    var longDay = function (iso) {
+      try { return new Date(iso + "T00:00:00Z").toLocaleDateString(undefined, { dateStyle: "medium", timeZone: "UTC" }); }
+      catch (_) { return iso; }
+    };
+    var tileOf = function (label, value, note, chips) {
+      return el("section", { class: "panel tile" }, [
+        el("p", { class: "tile-label", text: label }),
+        el("p", { class: "tile-big", text: value }),
+        note ? el("p", { class: "hint", text: note }) : null,
+        chips && chips.length ? el("p", { class: "tile-chips" }, chips.map(function (c) { return el("span", { class: "chip chip--muted", text: c }); })) : null
+      ]);
+    };
+    var archChips = function (arches) {
+      return Object.keys(arches || {}).map(function (a) { return a + " " + fmt(arches[a]); });
+    };
+    var table = function (id, heads, rowsOf, empty) {
+      var t = document.getElementById(id);
+      t.innerHTML = "";
+      if (!rowsOf.length) {
+        t.appendChild(el("tbody", {}, [el("tr", {}, [el("td", { class: "hint", text: empty })])]));
+        return;
+      }
+      t.appendChild(el("thead", {}, [el("tr", {}, heads.map(function (h) { return el("th", { text: h }); }))]));
+      t.appendChild(el("tbody", {}, rowsOf.map(function (cells) {
+        return el("tr", {}, cells.map(function (c) { return el("td", typeof c === "object" && c ? c : { text: c }); }));
+      })));
+    };
+    var BASIS = {
+      checks: "The busiest day of update checks in the last 7 days.",
+      release: "The most-downloaded release of the last 14 days, until update checks build up.",
+      none: "No installs counted yet."
+    };
+
     var loadStats = function () {
       var range = document.querySelector('input[name="stats-days"]:checked').value;
       chartBox.classList.add("is-loading");
       call("GET", "/api/v1/stats?days=" + range).then(function (s) {
         chartBox.classList.remove("is-loading");
+        document.getElementById("stats-meta").textContent =
+          "Updated " + new Date(s.generated).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) +
+          (s.counting_since ? ". Counting since " + longDay(s.counting_since) + "." : ". Nothing counted yet.");
+
+        var summary = document.getElementById("stats-summary");
+        summary.innerHTML = "";
+        summary.appendChild(tileOf("Estimated installs", fmt(s.install_base), BASIS[s.install_base_basis]));
+        [["Latest stable", s.latest_stable, "No stable release yet."], ["Latest beta", s.latest_beta, "No beta running."]].forEach(function (p) {
+          var r = p[1];
+          summary.appendChild(r
+            ? tileOf(p[0] + " · " + r.version, fmt(r.installs), "Installs since " + longDay(r.published_at.slice(0, 10)) + ", " + fmt(r.downloads) + " downloads.", archChips(r.arches))
+            : tileOf(p[0], "None", p[2]));
+        });
+
         var t = document.getElementById("stats-tiles");
         t.innerHTML = "";
-        [["Today", s.today], ["Seven-day average", s.average_7_days], ["Busiest day", s.peak]].forEach(function (p) {
-          t.appendChild(el("section", { class: "panel tile" }, [el("p", { class: "tile-label", text: p[0] }), el("p", { class: "tile-big", text: fmt(p[1]) })]));
-        });
+        t.appendChild(tileOf("Active today", fmt(s.today), "Installs that checked for updates today, so far."));
+        t.appendChild(tileOf("Seven-day average", fmt(s.average_7_days), "Installs checking for updates per day."));
+        t.appendChild(tileOf("On an older release", fmt(s.older_installs), "Estimated installs minus those on the latest stable or beta."));
+        var shipped = s.releases_30_days;
+        t.appendChild(tileOf("Releases, last 30 days", fmt(shipped.total), fmt(shipped.stable) + " stable, " + fmt(shipped.beta) + " beta."));
+
         drawChart(s.days);
         window.onresize = function () { drawChart(s.days); };
-        var table = document.getElementById("stats-table");
-        table.innerHTML = "";
-        table.appendChild(el("thead", {}, [el("tr", {}, [el("th", { text: "Day" }), el("th", { text: "Installs" }), el("th", { text: "Checks" })])]));
-        var tb = el("tbody");
-        s.days.slice().reverse().forEach(function (d) {
-          tb.appendChild(el("tr", {}, [el("td", { text: d.day }), el("td", { text: fmt(d.installs) }), el("td", { text: fmt(d.checks) })]));
-        });
-        table.appendChild(tb);
-        var rel = document.getElementById("release-stats");
-        rel.innerHTML = "";
-        if (!s.releases.length) {
-          rel.appendChild(el("tbody", {}, [el("tr", {}, [el("td", { class: "hint", text: "No downloads counted yet." })])]));
-          return;
-        }
-        rel.appendChild(el("thead", {}, [el("tr", {}, ["Version", "Channel", "Installs", "Downloads", "By architecture", "Seen"].map(function (h) { return el("th", { text: h }); }))]));
-        var rb = el("tbody");
-        s.releases.forEach(function (r) {
-          var arches = Object.keys(r.arches).map(function (a) { return a + " " + fmt(r.arches[a]); }).join(", ");
-          rb.appendChild(el("tr", {}, [el("td", { text: r.version }), el("td", { text: r.channel }), el("td", { text: fmt(r.installs) }),
-            el("td", { text: fmt(r.downloads) }), el("td", { text: arches }), el("td", { text: r.first_seen + " to " + r.last_seen })]));
-        });
-        rel.appendChild(rb);
+        document.getElementById("stats-caption").textContent = s.peak_day
+          ? "Each column is one day (UTC). " + longDay(s.days[0].day) + " to " + longDay(s.days[s.days.length - 1].day) +
+            "; busiest day " + fmt(s.peak) + " installs on " + longDay(s.peak_day) + "."
+          : "No update checks counted in this range.";
+        table("stats-table", ["Day", "Installs", "Checks"],
+          s.days.slice().reverse().map(function (d) { return [d.day, fmt(d.installs), fmt(d.checks)]; }), "");
+
+        table("release-stats", ["Version", "Channel", "Installs", "Downloads", "By architecture", "Seen"],
+          s.releases.map(function (r) {
+            return [r.version, r.channel, fmt(r.installs), fmt(r.downloads), archChips(r.arches).join(", "),
+                    r.first_seen + " to " + r.last_seen];
+          }), "No downloads counted yet.");
+
+        table("arch-stats", ["Architecture", "Installs, last 30 days", "Installs, all time", "Downloads, all time"],
+          s.arches.map(function (a) { return [a.arch, fmt(a.installs_30_days), fmt(a.installs), fmt(a.downloads)]; }),
+          "No downloads counted yet.");
+
+        var ORIGIN = { upload: "uploaded", promote: "promoted", rollback: "brought back" };
+        table("build-stats", ["Version", "Channel", "Architecture", "Commit", "Installs", "Downloads", "First seen", "Last seen"],
+          s.builds.map(function (b) {
+            return [b.version ? b.version + (b.origin && b.origin !== "upload" ? " (" + ORIGIN[b.origin] + ")" : "") : "Unknown build",
+                    b.channel || "", b.arch || "", { text: b.commit.slice(0, 12), class: "mono", title: b.commit },
+                    fmt(b.installs), fmt(b.downloads), b.first_seen, b.last_seen];
+          }), "No downloads counted yet.");
       }).catch(function (err) { chartBox.classList.remove("is-loading"); F.toastError(err); });
     };
     document.querySelectorAll('input[name="stats-days"]').forEach(function (r) { r.addEventListener("change", loadStats); });

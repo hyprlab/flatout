@@ -104,29 +104,63 @@ def installs_today() -> int:
     return row.uniques if row else 0
 
 
+def _version_key(version: str) -> tuple:
+    from .releases import version_key
+    return version_key(version)
+
+
 def snapshot(days: int = 30) -> dict:
-    """Everything the Installs page and the API show, in one read."""
-    start = (date.today() - timedelta(days=days - 1)).isoformat()
+    """Everything the Installs page and the API show, in one read. ``days``
+    is the chart's range; the summary numbers use fixed windows, named in
+    their descriptions."""
+    today = date.today()
+    start = (today - timedelta(days=days - 1)).isoformat()
+    week_start = (today - timedelta(days=6)).isoformat()
+    month_start = (today - timedelta(days=29)).isoformat()
+    fortnight_start = (today - timedelta(days=13)).isoformat()
+
+    # ———— Update checks: installs in use ————
     rows = (StatDay.query.filter(StatDay.metric == "check", StatDay.day >= start)
             .order_by(StatDay.day).all())
     by_day = {r.day: r for r in rows}
     series = []
     for i in range(days):
-        d = (date.today() - timedelta(days=days - 1 - i)).isoformat()
+        d = (today - timedelta(days=days - 1 - i)).isoformat()
         r = by_day.get(d)
         series.append({"day": d, "installs": r.uniques if r else 0, "checks": r.hits if r else 0})
     week = [s["installs"] for s in series[-7:]]
+    busiest = max(series, key=lambda s: s["installs"]) if series else None
+    counting_since = db.session.query(func.min(StatDay.day)).filter(StatDay.metric == "check").scalar()
+    week_peak = (db.session.query(func.max(StatDay.uniques))
+                 .filter(StatDay.metric == "check", StatDay.day >= week_start).scalar()) or 0
 
+    # ———— Pulls: which build each install downloaded ————
     pulls = (db.session.query(StatDay.target, func.sum(StatDay.uniques), func.sum(StatDay.hits),
                               func.min(StatDay.day), func.max(StatDay.day))
              .filter(StatDay.metric == "pull").group_by(StatDay.target).all())
+    recent = dict(db.session.query(StatDay.target, func.sum(StatDay.uniques))
+                  .filter(StatDay.metric == "pull", StatDay.day >= month_start)
+                  .group_by(StatDay.target).all())
+    fortnight = dict(db.session.query(StatDay.target, func.sum(StatDay.uniques))
+                     .filter(StatDay.metric == "pull", StatDay.day >= fortnight_start)
+                     .group_by(StatDay.target).all())
     commits = {r.commit: r for r in Release.query.filter(Release.commit.isnot(None))}
+
     per_release: dict[tuple, dict] = {}
+    builds, arches = [], {}
     unmatched = 0
+    pulled_lately: dict[tuple, int] = {}
     for commit, uniques, hits, first, last in pulls:
+        uniques, hits = uniques or 0, hits or 0
         rel = commits.get(commit)
+        builds.append({
+            "commit": commit, "version": rel.version if rel else None, "channel": rel.channel if rel else None,
+            "arch": rel.arch if rel else None, "origin": rel.origin if rel else None,
+            "installs": uniques, "downloads": hits, "first_seen": first, "last_seen": last,
+            "published_at": (rel.published_at or rel.created_at).isoformat() + "Z" if rel else None,
+        })
         if rel is None:
-            unmatched += uniques or 0
+            unmatched += uniques
             continue
         key = (rel.channel, rel.version)
         entry = per_release.setdefault(key, {
@@ -134,17 +168,70 @@ def snapshot(days: int = 30) -> dict:
             "first_seen": first, "last_seen": last, "arches": {},
             "published_at": (rel.published_at or rel.created_at).isoformat() + "Z",
         })
-        entry["installs"] += uniques or 0
-        entry["downloads"] += hits or 0
-        entry["arches"][rel.arch] = entry["arches"].get(rel.arch, 0) + (uniques or 0)
+        entry["installs"] += uniques
+        entry["downloads"] += hits
+        entry["arches"][rel.arch] = entry["arches"].get(rel.arch, 0) + uniques
         entry["first_seen"] = min(entry["first_seen"], first)
         entry["last_seen"] = max(entry["last_seen"], last)
+        arch = arches.setdefault(rel.arch or "unknown", {"arch": rel.arch or "unknown", "installs_30_days": 0,
+                                                         "installs": 0, "downloads": 0})
+        arch["installs"] += uniques
+        arch["downloads"] += hits
+        arch["installs_30_days"] += recent.get(commit) or 0
+        pulled_lately[key] = pulled_lately.get(key, 0) + (fortnight.get(commit) or 0)
     releases = sorted(per_release.values(), key=lambda e: e["published_at"], reverse=True)
+    builds.sort(key=lambda b: (b["published_at"] or "", b["installs"]), reverse=True)   # unlabelled last
+
+    # ———— The summary ————
+    def latest(channel: str) -> dict | None:
+        """The channel's current version and the installs that took it, on
+        every architecture, since it was published."""
+        live = Release.query.filter_by(channel=channel, status="live").all()
+        if not live:
+            return None
+        top = max(live, key=lambda r: (_version_key(r.version), r.published_at or r.created_at))
+        entry = per_release.get((channel, top.version), {})
+        published = min((r.published_at or r.created_at) for r in Release.query.filter_by(
+            channel=channel, version=top.version).filter(Release.status.in_(("live", "superseded"))))
+        return {"version": top.version, "published_at": published.isoformat() + "Z",
+                "installs": entry.get("installs", 0), "downloads": entry.get("downloads", 0),
+                "arches": entry.get("arches", {})}
+
+    stable, beta = latest("stable"), latest("beta")
+    # Every install checks for updates daily, so the busiest recent day is
+    # the best estimate of how many exist. Before checks have built up, the
+    # most-pulled recent release says at least that many exist.
+    lately = max(pulled_lately.values(), default=0)
+    if week_peak >= lately and week_peak > 0:
+        base, basis = week_peak, "checks"
+    elif lately > 0:
+        base, basis = lately, "release"
+    else:
+        base, basis = 0, "none"
+    on_latest = (stable or {}).get("installs", 0) + (beta or {}).get("installs", 0)
+    month_ago = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30)
+    shipped = {(r.channel, r.version) for r in Release.query.filter(
+        Release.published_at >= month_ago, Release.origin != "rollback",
+        Release.status.in_(("live", "superseded", "ended")))}
+
     return {
+        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "counting_since": counting_since,
         "days": series,
-        "today": series[-1]["installs"],
+        "today": series[-1]["installs"] if series else 0,
         "average_7_days": round(sum(week) / len(week), 1) if week else 0,
-        "peak": max((s["installs"] for s in series), default=0),
+        "peak": busiest["installs"] if busiest else 0,
+        "peak_day": busiest["day"] if busiest and busiest["installs"] else None,
+        "install_base": base,
+        "install_base_basis": basis,
+        "latest_stable": stable,
+        "latest_beta": beta,
+        "older_installs": max(base - on_latest, 0),
+        "releases_30_days": {"total": len(shipped),
+                             "stable": sum(1 for c, _ in shipped if c == "stable"),
+                             "beta": sum(1 for c, _ in shipped if c == "beta")},
+        "arches": sorted(arches.values(), key=lambda a: -a["installs"]),
         "releases": releases,
+        "builds": builds,
         "pulls_without_release": unmatched,
     }
