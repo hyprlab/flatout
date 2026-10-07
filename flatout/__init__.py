@@ -279,6 +279,27 @@ def _migrate(app: Flask) -> None:
     #     db.session.commit()
     #     app.logger.info("migrated: added users.new_column")
 
+    # The Flatpak app ID and the remote name left the site document for
+    # repository settings. Values saved in a document move across once; the
+    # live document's win over the draft's.
+    import json
+    from .models import SiteDocument, get_setting, set_setting
+    from .site_schema import take_moved
+    for name in ("live", "draft"):
+        row = db.session.get(SiteDocument, name)
+        if row is None:
+            continue
+        doc = json.loads(row.data)
+        moved = take_moved(doc)
+        if not moved:
+            continue
+        for key, value in moved.items():
+            if value and not get_setting(key):
+                set_setting(key, value)
+        row.data = json.dumps(doc)
+        db.session.commit()
+        app.logger.info("migrated: the %s site's %s became repository settings", name, ", ".join(moved))
+
 
 def _start_worker(app: Flask) -> None:
     """Background thread for periodic work (worker.py).

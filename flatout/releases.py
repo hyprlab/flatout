@@ -7,9 +7,10 @@ where the install files are.
 """
 from __future__ import annotations
 
+import re
 from collections import OrderedDict
 
-from .models import Release
+from .models import Release, get_setting
 
 CHANNELS = ("stable", "beta")
 ARCH_NAMES = {"x86_64": "Intel/AMD", "aarch64": "ARM"}
@@ -60,19 +61,32 @@ def history(channel: str | None = "stable", limit: int = 20) -> list[dict]:
     return list(seen.values())[:limit]
 
 
-def app_id_for(doc: dict) -> str:
-    """The app ID the site installs: the one set in the editor, or the one
-    the newest upload carried."""
-    if doc["app"].get("app_id"):
-        return doc["app"]["app_id"]
+APP_ID_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*(\.[A-Za-z_][A-Za-z0-9_-]*){2,}$")
+REMOTE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,59}$")
+
+
+def app_id_for() -> str:
+    """The app ID the site installs: the one set under Repository > App, or
+    the one the newest upload carried."""
+    configured = get_setting("app_id")
+    if configured:
+        return configured
     newest = Release.query.order_by(Release.id.desc()).first()
     return newest.app_id if newest else ""
 
 
-def public_info(doc: dict, base: str) -> dict:
-    from .site import remote_name
+def remote_name(doc: dict) -> str:
+    """What `flatpak remote-add` calls this repository: the one set under
+    Repository > App, or the app's name in lower case."""
+    configured = get_setting("remote_name")
+    if configured:
+        return configured
+    slug = re.sub(r"[^a-z0-9]+", "-", (doc["app"].get("name") or "").lower()).strip("-")
+    return slug or "flatout"
 
-    app_id = app_id_for(doc)
+
+def public_info(doc: dict, base: str) -> dict:
+    app_id = app_id_for()
     remote = remote_name(doc)
     all_heads = heads("stable") + heads("beta")
     stable_rows = [r for r in heads("stable") if not app_id or r.app_id == app_id]

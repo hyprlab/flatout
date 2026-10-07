@@ -1,0 +1,33 @@
+{% extends "admin/shell.html" %}
+{% block bodyextra %} admin--app{% endblock %}
+{% block content %}
+<div class="page-body" id="app-page">
+  <div class="banner banner--warn" id="app-id-mismatch" role="alert" hidden></div>
+  <form id="app-form" class="stack" autocomplete="off">
+    <section class="panel stack">
+      <h3 class="panel-title">The app</h3>
+      <label class="field"><span class="field-label">Flatpak app ID</span>
+        <input id="app-id" spellcheck="false" maxlength="255" placeholder="org.example.App"></label>
+      <p class="hint" id="app-id-hint">The app the site installs: its install files, its download button and its
+        commands. Left empty, the newest upload's app ID is used.</p>
+      <div class="app-ids" id="app-ids" hidden></div>
+      <label class="field"><span class="field-label">Remote name</span>
+        <input id="remote-name" spellcheck="false" maxlength="60"></label>
+      <p class="hint">What <code>flatpak remote-add</code> calls this repository on the computers that install from
+        it. Left empty, the app's name in lower case.</p>
+    </section>
+    <section class="panel stack">
+      <h3 class="panel-title">Builds and runtime</h3>
+      <label class="field"><span class="field-label">Runtime repository</span>
+        <input id="runtime-repo" type="url" spellcheck="false"></label>
+      <p class="hint">Where installs get the runtime the app needs. Flathub, unless the app's runtime lives elsewhere.</p>
+      <label class="field field--narrow"><span class="field-label">Builds kept for rollback, per channel</span>
+        <input id="prune-depth" type="number" min="1" max="100"></label>
+      <p class="hint">Older builds are pruned from the repository's history and can no longer be brought back.</p>
+    </section>
+    <p class="form-error" id="app-error" hidden></p>
+    <div><button class="btn btn--primary" type="submit">Save</button></div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('js/admin.js') }}" defer></script>{% endblock %}

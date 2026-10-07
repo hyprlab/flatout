@@ -20,14 +20,6 @@
       <p class="hint" id="public-url-hint">Every install file and command uses it. Leave it empty to use the
         address each request arrives on, which is right when the proxy in front passes the Host header through.</p>
       <dl class="addresses" id="addresses"></dl>
-      <details class="term-like">
-        <summary>Advanced</summary>
-        <label class="field"><span class="field-label">Runtime repository</span>
-          <input id="runtime-repo" type="url"></label>
-        <p class="hint">Where installs get the runtime the app needs. Flathub, unless the app's runtime lives elsewhere.</p>
-        <label class="field field--narrow"><span class="field-label">Builds kept for rollback, per channel</span>
-          <input id="prune-depth" type="number" min="1" max="100"></label>
-      </details>
       <p class="form-error" id="address-error" hidden></p>
       <div><button class="btn btn--primary" type="submit">Save</button>
         <button class="btn btn--ghost" type="button" id="rebuild-btn">Re-sign the repository</button></div>

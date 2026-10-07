@@ -26,7 +26,8 @@ automatically.
 
 The admin's Overview lists the steps and ticks them off:
 
-1. **Name the app and give it an icon**, under Content > App and Images.
+1. **Name the app and give it an icon**, under Content > Name and links, and
+   Images.
 2. **Choose the colors and fonts**, under Theme.
 3. **Write the homepage**, under Content: every section's text, which
    sections show, and their order.
@@ -101,9 +102,24 @@ release's Details.
 - **End the beta** tells installed betas, with your message, that no more
   updates are coming.
 
-Past builds kept for rollback default to ten per channel (Signing and
-addresses > Advanced); the newest three bundles of each channel and
-architecture stay available to download.
+Past builds kept for rollback default to ten per channel (Repository >
+App); the newest three bundles of each channel and architecture stay
+available to download.
+
+### The app
+
+Repository > App holds what the repository needs to know about the app,
+and takes effect at once, without publishing the site:
+
+- **Flatpak app ID**: the app the site installs (its install files, its
+  download button, its commands). Left empty, the newest upload's app ID.
+  Releases for another app ID stay in the repository, but the site leaves
+  them out; Releases and the Overview say so.
+- **Remote name**: what `flatpak remote-add` calls the repository on the
+  computers that install from it. Left empty, the app's name in lower case.
+- **Runtime repository**: where installs get the app's runtime. Flathub
+  unless the app's runtime lives elsewhere.
+- **Builds kept for rollback**, per channel.
 
 ### The signing key
 
@@ -281,8 +297,8 @@ Signing and addresses, or pass the Host header through the proxy and set
 `TRUST_PROXY`. Then press **Re-sign the repository**.
 
 **The site says there is no release, but Releases lists one as live.** The
-release is for another app ID than the one set under Content > App. Releases
-and the Overview name both; set the app ID to the bundle's and publish, or
+release is for another app ID than the one set under Repository > App.
+Releases and the Overview name both; set the app ID to the bundle's, or
 upload a bundle for the site's app.
 
 **A release failed.** Its Details show the job's log; the last lines are

@@ -287,7 +287,7 @@
   };
 
   var GROUPS = [
-    ["app", "App", "Name, tagline, app ID, links"],
+    ["app", "Name and links", "Name, tagline, source and bug links, license"],
     ["images", "Images", "Icon, wordmark, social preview"],
     ["nav", "Header", "Links and the install button"],
     ["footer", "Footer", "Links, credit, buttons, small print"],

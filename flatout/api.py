@@ -674,6 +674,8 @@ def job_get(job_id):
 # ———————————————————————————— The repository ————————————————————————————
 
 REPO_SETTINGS = {
+    "app_id": "The Flatpak app ID the site installs, such as org.example.App; empty uses the newest upload's",
+    "remote_name": "What `flatpak remote-add` calls this repository; empty uses the app's name in lower case",
     "public_url": "The site's public address, such as https://app.example.org",
     "runtime_repo": "Where installs fetch the runtime from (a .flatpakrepo address)",
     "prune_depth": "How many past builds of each channel to keep for rollback (1-100)",
@@ -682,7 +684,7 @@ REPO_SETTINGS = {
 
 def _repo_json() -> dict:
     from . import releases, repo
-    from .models import get_setting
+    from .models import Release, get_setting
     doc = site.get("live")
     info = releases.public_info(doc, site.base_url())
     return {
@@ -690,12 +692,16 @@ def _repo_json() -> dict:
         # Live releases of another app ID than the site's: neither the site
         # nor its install files show them until the two agree.
         "unmatched_app_ids": info["unmatched_app_ids"],
-        "draft_app_id": site.get("draft")["app"]["app_id"],
+        # Every app ID uploaded so far, for choosing one.
+        "release_app_ids": sorted({r.app_id for r in Release.query if r.app_id}),
         "urls": {k: info[k] for k in ("repo_url", "flatpakref_url", "beta_flatpakref_url", "flatpakrepo_url")},
         "signing_key": repo.key_info(),
         "tools": repo.tools(),
         "stable": info["stable"], "beta": info["beta"],
+        # What is set; empty means the default described in REPO_SETTINGS.
         "settings": {
+            "app_id": get_setting("app_id") or "",
+            "remote_name": get_setting("remote_name") or "",
             "public_url": get_setting("public_url") or "",
             "runtime_repo": get_setting("runtime_repo") or "https://dl.flathub.org/repo/flathub.flatpakrepo",
             "prune_depth": int(get_setting("prune_depth") or 10),
@@ -713,19 +719,37 @@ def repo_get():
 @bp.route("/repo/settings", methods=["PATCH"])
 @needs("releases")
 def repo_settings():
+    """Any of app_id, remote_name, public_url, runtime_repo, prune_depth.
+    Everything is checked before anything is saved; an empty string returns
+    a setting to its default."""
     import re
     from .models import set_setting
+    from .releases import APP_ID_RE, REMOTE_RE
     data = body()
+    unknown = set(data) - set(REPO_SETTINGS)
+    if unknown:
+        raise ApiError(400, f"Not a repository setting: {', '.join(sorted(unknown))}.")
+    changes = {}
+    if "app_id" in data:
+        value = str(data["app_id"] or "").strip()
+        if value and not APP_ID_RE.match(value):
+            raise ApiError(400, "app_id must be an app ID like org.example.App.")
+        changes["app_id"] = value
+    if "remote_name" in data:
+        value = str(data["remote_name"] or "").strip()
+        if value and not REMOTE_RE.match(value):
+            raise ApiError(400, "remote_name may use letters, digits, dots, dashes and underscores.")
+        changes["remote_name"] = value
     if "public_url" in data:
         value = str(data["public_url"] or "").strip().rstrip("/")
         if value and not re.match(r"^https?://[^\s/]+(/[^\s]*)?$", value):
             raise ApiError(400, "public_url must start with https:// (or http://).")
-        set_setting("public_url", value)
+        changes["public_url"] = value
     if "runtime_repo" in data:
         value = str(data["runtime_repo"] or "").strip()
         if value and not value.startswith(("https://", "http://")):
             raise ApiError(400, "runtime_repo must be an http(s) address.")
-        set_setting("runtime_repo", value)
+        changes["runtime_repo"] = value
     if "prune_depth" in data:
         try:
             depth = int(data["prune_depth"])
@@ -733,7 +757,9 @@ def repo_settings():
             raise ApiError(400, "prune_depth must be a number.")
         if not 1 <= depth <= 100:
             raise ApiError(400, "prune_depth must be between 1 and 100.")
-        set_setting("prune_depth", str(depth))
+        changes["prune_depth"] = str(depth)
+    for key, value in changes.items():
+        set_setting(key, value)
     return jsonify(_repo_json())
 
 

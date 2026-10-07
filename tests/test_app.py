@@ -53,7 +53,7 @@ def test_admin_pages_need_an_account(app, admin):
 
 def test_every_admin_page_renders(client, admin):
     for path in ("/admin", "/admin/site", "/admin/theme", "/admin/pages", "/admin/media", "/admin/preview",
-                 "/admin/releases", "/admin/repository", "/admin/stats", "/admin/api", "/admin/api/reference"):
+                 "/admin/app", "/admin/releases", "/admin/repository", "/admin/stats", "/admin/api", "/admin/api/reference"):
         assert client.get(path).status_code == 200, path
 
 

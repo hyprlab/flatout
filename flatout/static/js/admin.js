@@ -68,6 +68,27 @@
     failed: "Failed", ended: "Ended"
   };
 
+  // Live builds of another app than the site's: the site, its install files
+  // and the channel tiles leave them out, so say so and say how to fix it.
+  // On the App page itself the fix is the form underneath.
+  function showMismatch(repoInfo, onAppPage) {
+    var box = document.getElementById("app-id-mismatch");
+    if (!box) return;
+    box.innerHTML = "";
+    var ids = repoInfo.unmatched_app_ids || [];
+    box.hidden = !ids.length;
+    if (!ids.length) return;
+    box.appendChild(el("p", {}, [
+      el("strong", { text: "The site doesn't show these releases. " }),
+      "They are for " + ids.join(", ") + ", but the site's app ID is " + repoInfo.app_id + ". " +
+      "The homepage, the install files and the channel tiles only show releases of the site's app."
+    ]));
+    box.appendChild(el("p", {}, onAppPage
+      ? ["Set the app ID below to " + ids[0] + ", or upload a bundle for " + repoInfo.app_id + "."]
+      : [el("a", { class: "link", href: "/admin/app", text: "Set the app ID under Repository > App" }),
+         ", or upload a bundle for " + repoInfo.app_id + "."]));
+  }
+
   /* ————— Releases ————— */
   var releasesPage = document.getElementById("releases-page");
   if (releasesPage) {
@@ -227,28 +248,6 @@
       }).catch(function (err) { body.innerHTML = ""; body.appendChild(el("p", { class: "form-error", text: err.message })); });
     };
 
-    // Live builds of another app than the site's: the site, its install files
-    // and the tiles above leave them out, so say so and say how to fix it.
-    var showMismatch = function (repoInfo) {
-      var box = document.getElementById("app-id-mismatch");
-      box.innerHTML = "";
-      var ids = repoInfo.unmatched_app_ids || [];
-      box.hidden = !ids.length;
-      if (!ids.length) return;
-      var their = ids.join(", ");
-      var fixed = ids.indexOf(repoInfo.draft_app_id) !== -1;
-      box.appendChild(el("p", {}, [
-        el("strong", { text: "The site doesn't show these releases. " }),
-        "They are for " + their + ", but the site's app ID is " + repoInfo.app_id + ". " +
-        "The homepage, the install files and the tiles below only show releases of the site's app."
-      ]));
-      box.appendChild(el("p", {}, fixed
-        ? ["The draft already uses " + repoInfo.draft_app_id + ". ",
-           el("a", { class: "link", href: "/admin/site", text: "Publish the site" }), " to apply it."]
-        : [el("a", { class: "link", href: "/admin/site#group/app", text: "Change the app ID under Content > App" }),
-           " to " + ids[0] + " and publish, or upload a bundle for " + repoInfo.app_id + "."]));
-    };
-
     var refresh = function () {
       clearTimeout(pollTimer);
       Promise.all([call("GET", "/api/v1/repo"), call("GET", "/api/v1/releases?limit=100")]).then(function (res) {
@@ -296,6 +295,47 @@
       }).catch(F.toastError);
     };
     refresh();
+  }
+
+  /* ————— App ————— */
+  var appPage = document.getElementById("app-page");
+  if (appPage) {
+    var fill = function (info) {
+      document.getElementById("app-id").value = info.settings.app_id;
+      document.getElementById("app-id").placeholder = info.settings.app_id ? "" : (info.app_id || "org.example.App");
+      document.getElementById("remote-name").value = info.settings.remote_name;
+      document.getElementById("remote-name").placeholder = info.settings.remote_name ? "" : info.remote_name;
+      document.getElementById("runtime-repo").value = info.settings.runtime_repo;
+      document.getElementById("prune-depth").value = info.settings.prune_depth;
+      showMismatch(info, true);
+      // The app IDs uploaded so far, one click from being the site's.
+      var box = document.getElementById("app-ids");
+      box.innerHTML = "";
+      var others = info.release_app_ids.filter(function (id) { return id !== info.settings.app_id; });
+      box.hidden = !others.length;
+      if (!others.length) return;
+      box.appendChild(el("span", { class: "hint", text: "Uploaded:" }));
+      others.forEach(function (id) {
+        box.appendChild(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Use " + id, onclick: function () {
+          document.getElementById("app-id").value = id;
+          document.getElementById("app-form").requestSubmit();
+        } }));
+      });
+    };
+    call("GET", "/api/v1/repo").then(fill).catch(F.toastError);
+    document.getElementById("app-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      showError("app-error", null);
+      call("PATCH", "/api/v1/repo/settings", {
+        app_id: document.getElementById("app-id").value.trim(),
+        remote_name: document.getElementById("remote-name").value.trim(),
+        runtime_repo: document.getElementById("runtime-repo").value.trim(),
+        prune_depth: parseInt(document.getElementById("prune-depth").value, 10)
+      }).then(function (info) {
+        fill(info);
+        F.toast("Saved");
+      }).catch(function (err) { showError("app-error", err); });
+    });
   }
 
   /* ————— Signing and addresses ————— */
@@ -364,8 +404,6 @@
     var renderAddresses = function (info) {
       document.getElementById("public-url").value = info.settings.public_url;
       if (info.detected_url) document.getElementById("public-url").placeholder = info.detected_url;
-      document.getElementById("runtime-repo").value = info.settings.runtime_repo;
-      document.getElementById("prune-depth").value = info.settings.prune_depth;
       var dl = document.getElementById("addresses");
       dl.innerHTML = "";
       [["Repository", info.urls.repo_url], ["Install file", info.app_id ? info.urls.flatpakref_url : ""],
@@ -376,7 +414,7 @@
         dl.appendChild(el("dd", {}, [el("code", { text: p[1] }), " ",
           el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Copy", onclick: function () { copy(p[1]); } })]));
       });
-      if (!info.app_id) dl.appendChild(el("dd", { class: "hint addresses-note", text: "The install files appear once a release is uploaded, or an app ID is set under Content > App." }));
+      if (!info.app_id) dl.appendChild(el("dd", { class: "hint addresses-note", text: "The install files appear once a release is uploaded, or an app ID is set under Repository > App." }));
     };
 
     var loadRepo = function () {
@@ -395,9 +433,7 @@
       e.preventDefault();
       showError("address-error", null);
       call("PATCH", "/api/v1/repo/settings", {
-        public_url: document.getElementById("public-url").value.trim(),
-        runtime_repo: document.getElementById("runtime-repo").value.trim(),
-        prune_depth: parseInt(document.getElementById("prune-depth").value, 10)
+        public_url: document.getElementById("public-url").value.trim()
       }).then(function (info) {
         renderAddresses(info);
         F.toast("Saved");

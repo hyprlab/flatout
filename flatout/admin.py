@@ -43,7 +43,7 @@ def _checklist(draft: dict, live: dict, published: bool) -> list[dict]:
     defaults = site_schema.default_document()
     return [
         {"title": "Name the app and give it an icon", "url": url_for("admin.site") + "#group/app",
-         "hint": "Content > App and Images.",
+         "hint": "Content > Name and links, and Images.",
          "done": draft["app"]["name"] != defaults["app"]["name"] and bool(draft["images"]["icon"])},
         {"title": "Choose the colors and fonts", "url": url_for("admin.theme"),
          "hint": "Theme. Every color has a light and a dark version.",
@@ -71,7 +71,6 @@ def home():
                  draft_meta=site.meta("draft"), revisions=revisions,
                  checklist=_checklist(draft, live, bool(revisions)),
                  repo=releases_info.public_info(live, site.base_url()),
-                 draft_app_id=draft["app"]["app_id"],
                  installs_today=install_stats.installs_today())
 
 
@@ -113,6 +112,11 @@ def preview_page(slug):
     if resp is None:
         abort(404)
     return resp
+
+
+@bp.route("/app", endpoint="app")
+def app_settings():
+    return _page("admin/app.html", "app", "App")
 
 
 @bp.route("/releases")

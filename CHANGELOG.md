@@ -21,6 +21,9 @@ All notable changes to Flatout are documented here. The format follows
 - Changes save to a draft with a live preview at desktop, tablet and phone
   widths; publishing makes them live, and every published version can be
   restored
+- Repository > App sets the Flatpak app ID the site installs, the remote
+  name, the runtime repository and how many builds are kept for rollback;
+  they take effect without publishing the site
 - A signed Flatpak repository: upload a bundle to the stable or beta channel,
   or give its address; promote the beta to stable; bring back an earlier
   build; end a channel with a message to its installs

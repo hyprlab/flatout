@@ -121,9 +121,12 @@ gets a page: the site's own 404 in its theme for public addresses, the admin's
 error page elsewhere.
 
 **Two kinds of setting.** Environment variables are fresh-install defaults.
-Anything changed while Flatout runs is a row in `settings` (the public
-address, the runtime repository, the prune depth, the signing key's
-fingerprint), and the stored value wins.
+Anything changed while Flatout runs is a row in `settings`, and the stored
+value wins: the app ID, the remote name, the public address, the runtime
+repository, the prune depth, the signing key's fingerprint. What the
+repository needs lives there rather than in the site document, so it takes
+effect at once instead of on the next publish, and the site document only
+describes the website.
 
 **The first account is the admin.** No seeded account, no default password.
 While there are no accounts every page goes to `/setup`, and the API and MCP

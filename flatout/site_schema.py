@@ -23,7 +23,6 @@ from .icons import ICONS
 
 HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
-APP_ID_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*(\.[A-Za-z_][A-Za-z0-9_-]*){2,}$")
 
 # Page slugs live at the site root (/privacy), so they can't shadow a route.
 RESERVED_SLUGS = {
@@ -31,6 +30,23 @@ RESERVED_SLUGS = {
     "flatpak", "repo", "static", "mcp", "preview", "download", "account",
     "settings", "search", "robots.txt", "sitemap.xml", "favicon.ico", "items",
 }
+
+
+# Fields that left the document, and where they went, so a client that still
+# sends them is told rather than just refused.
+MOVED = {
+    "$.app.app_id": "now a repository setting: Repository > App, or PATCH /api/v1/repo/settings",
+    "$.app.remote_name": "now a repository setting: Repository > App, or PATCH /api/v1/repo/settings",
+}
+
+
+def take_moved(doc: dict) -> dict:
+    """Remove the fields that became repository settings from a document
+    (one saved before they moved, or an old revision) and return them."""
+    app = doc.get("app") if isinstance(doc, dict) else None
+    if not isinstance(app, dict):
+        return {}
+    return {k: app.pop(k) for k in ("app_id", "remote_name") if k in app}
 
 
 class Invalid(Exception):
@@ -422,14 +438,12 @@ THEME = group("Theme", {
 # ———————————————————————————— The document ————————————————————————————
 
 DOCUMENT = group("Site", {
-    "app": group("App", {
+    # The Flatpak app ID and the remote name are repository settings, not
+    # part of the site: Repository > App, PATCH /api/v1/repo/settings.
+    "app": group("Name and links", {
         "name": text("App name", "Your App", max=80),
         "tagline": text("Tagline", "A short line about what it does.", max=160,
                         help="Used in the footer and as the page description."),
-        "app_id": text("Flatpak app ID", "", max=255,
-                       help="Such as org.example.App. Filled in from the first upload when left empty."),
-        "remote_name": text("Remote name", "", max=60,
-                            help="What `flatpak remote-add` calls this repository. Defaults to the app name in lower case."),
         "source_url": url("Source code", help="Used by {source_url}."),
         "issues_url": url("Bug reports", help="Used by {issues_url}."),
         "license": text("License", "", max=80, help="Shown in the footer, such as GPL-3.0-or-later."),
@@ -630,7 +644,8 @@ def _check(value, f: F, path: str, errors: list, media_ok) -> Any:
         for name, sub in f.fields.items():
             out[name] = _check(value[name], sub, f"{path}.{name}", errors, media_ok) if name in value else sub.default_value()
         for extra in set(value) - set(f.fields):
-            errors.append({"path": f"{path}.{extra}", "message": "not a field here"})
+            moved = MOVED.get(f"{path}.{extra}")
+            errors.append({"path": f"{path}.{extra}", "message": moved or "not a field here"})
         return out
     if f.type == "list":
         if not isinstance(value, list):
@@ -751,9 +766,6 @@ def validate(doc: Any, media_ok=lambda url, kind: True) -> dict:
             errors.append({"path": f"$.pages[{i}].slug", "message": f"/{slug} is used twice"})
         slugs.add(slug)
     out["pages"] = pages
-    app_id = out["app"]["app_id"]
-    if app_id and not APP_ID_RE.match(app_id):
-        errors.append({"path": "$.app.app_id", "message": "an app ID like org.example.App"})
     if errors:
         raise Invalid(errors)
     return out

@@ -123,8 +123,12 @@ def restore_revision(revision_id: int, who: str) -> dict | None:
     rev = db.session.get(SiteRevision, revision_id)
     if rev is None:
         return None
+    doc = json.loads(rev.data)
+    # A revision from before the app ID became a repository setting carries
+    # it; the setting stays as it is now.
+    site_schema.take_moved(doc)
     # Validated on the way in: the revision may name files deleted since.
-    return save_draft(json.loads(rev.data), who)
+    return save_draft(doc, who)
 
 
 def revisions(limit: int = 50) -> list[dict]:
@@ -157,12 +161,6 @@ def base_url() -> str:
         return request.url_root.rstrip("/")
     except RuntimeError:
         return "http://localhost:8000"
-
-
-def remote_name(doc: dict) -> str:
-    name = doc["app"].get("remote_name") or doc["app"].get("name") or "flatout"
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-    return slug or "flatout"
 
 
 # ———————————————————————————— Rendering ————————————————————————————

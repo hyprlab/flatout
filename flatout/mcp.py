@@ -118,10 +118,13 @@ TOOLS = {
     "end_channel": ("Retire a channel: installed copies are told no more updates will come.",
                     _obj({"channel": CHANNEL, "message": S}, ["channel"]), "POST", "/channels/{channel}/end", "*", False, True),
     "get_job": ("A repository job's status and log.", _obj({"id": I}, ["id"]), "GET", "/jobs/{id}", None, True, False),
-    "get_repository": ("The repository: app ID, install addresses, signing key, settings.",
+    "get_repository": ("The repository: the app ID, install addresses, signing key and settings, and live releases "
+                       "for another app ID than the site's (unmatched_app_ids).",
                        _obj({}), "GET", "/repo", None, True, False),
-    "update_repository_settings": ("Set the public address, the runtime repository or how many builds to keep.",
-                                   _obj({"public_url": S, "runtime_repo": S, "prune_depth": I}), "PATCH", "/repo/settings", "*", False, False),
+    "update_repository_settings": ("Set the Flatpak app ID the site installs, the remote name, the public address, "
+                                   "the runtime repository or how many builds to keep. An empty string restores a default.",
+                                   _obj({"app_id": S, "remote_name": S, "public_url": S, "runtime_repo": S, "prune_depth": I}),
+                                   "PATCH", "/repo/settings", "*", False, False),
     "create_signing_key": ("Create the repository's signing key, if it has none yet.", _obj({"name": S, "email": S}),
                            "POST", "/repo/key", "generate", False, False),
     "get_install_stats": ("Installs checking for updates per day, and downloads per release.", _obj({"days": I}),

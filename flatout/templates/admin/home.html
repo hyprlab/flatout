@@ -5,12 +5,8 @@
   <div class="banner banner--warn" role="alert">
     <p><strong>The site doesn't show your live releases.</strong> They are for
       {{ repo.unmatched_app_ids|join(', ') }}, but the site's app ID is {{ repo.app_id }}.
-      {%- if draft_app_id in repo.unmatched_app_ids %}
-      The draft already uses {{ draft_app_id }}: <a class="link" href="{{ url_for('admin.site') }}">publish the site</a> to apply it.
-      {%- else %}
-      <a class="link" href="{{ url_for('admin.site') }}#group/app">Change the app ID under Content &gt; App</a> and publish,
-      or upload a bundle for {{ repo.app_id }}.
-      {%- endif %}</p>
+      <a class="link" href="{{ url_for('admin.app') }}">Set the app ID under Repository &gt; App</a>,
+      or upload a bundle for {{ repo.app_id }}.</p>
   </div>
   {%- endif %}
   {%- set steps = checklist %}
