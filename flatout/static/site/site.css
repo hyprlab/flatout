@@ -1584,7 +1584,6 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .status__icon {
   position: relative;
   width: 144px; height: auto;
-  animation: floaty 6s ease-in-out infinite;
   filter: drop-shadow(0 18px 30px color-mix(in srgb, #000 22%, transparent));
 }
 .status__ring {
@@ -1668,6 +1667,6 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   color: color-mix(in srgb, var(--hero-ink) 70%, transparent);
 }
 @media (prefers-reduced-motion: reduce) {
-  .status__glow, .status__icon, .status__ring, .status__pulse, .status__dots span { animation: none; }
+  .status__glow, .status__ring, .status__pulse, .status__dots span { animation: none; }
   .status__ring { opacity: .35; }
 }

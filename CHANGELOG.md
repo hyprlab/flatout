@@ -16,6 +16,8 @@ All notable changes to Flatout are documented here. The format follows
   the others, and the release notes come from whichever upload has them
 - Flatout has its own icon, in the admin, on the sign-in and setup pages, in
   the browser tab and on home-screen shortcuts
+- The icon on the maintenance and coming-soon pages holds still; only the
+  ring around it pulses
 
 ### Fixed
 - A release import no longer fails with "database is locked" when something
