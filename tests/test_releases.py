@@ -148,3 +148,43 @@ def test_notes_come_from_whichever_build_has_them(app, client, csrf, admin):
     add_build(app, "aarch64", "2.0", minutes=5)
     stable = client.get("/api/v1/repo").get_json()["stable"]
     assert stable["notes"] == "Faster startup." and stable["behind"] == []
+
+
+def test_a_beta_published_as_a_separate_app(client, csrf, live_release):
+    live_release("org.example.App")
+    live_release("org.example.App.Beta", channel="beta", version="1.1.0-beta.1")
+    settings(client, csrf, app_id="org.example.App")
+    repo = client.get("/api/v1/repo").get_json()
+    assert repo["unmatched_app_ids"] == ["org.example.App.Beta"]
+    assert repo["unmatched_beta_app_ids"] == ["org.example.App.Beta"]
+    assert repo["beta"] is None
+    assert "site's beta app ID is org.example.App" in client.get("/admin").data.decode()
+
+    assert settings(client, csrf, beta_app_id="not-an-id").status_code == 400
+    repo = settings(client, csrf, beta_app_id="org.example.App.Beta").get_json()
+    assert repo["settings"]["beta_app_id"] == "org.example.App.Beta"
+    assert repo["unmatched_app_ids"] == [] and repo["beta"]["version"] == "1.1.0-beta.1"
+    assert repo["stable"]["version"] == "1.0.0"
+    assert "show your live releases" not in client.get("/admin").data.decode()
+
+
+def test_the_beta_install_file_names_the_beta_app(client, csrf, live_release, monkeypatch):
+    from flatout import repo
+    monkeypatch.setattr(repo, "public_key_base64", lambda: "S0VZ")
+    live_release("org.example.App")
+    live_release("org.example.App.Beta", channel="beta")
+    settings(client, csrf, app_id="org.example.App", beta_app_id="org.example.App.Beta")
+    beta = client.get("/flatpak/org.example.App-beta.flatpakref").data.decode()
+    assert "Name=org.example.App.Beta\n" in beta and "Branch=beta\n" in beta
+    stable = client.get("/flatpak/org.example.App.flatpakref").data.decode()
+    assert "Name=org.example.App\n" in stable and "Branch=stable\n" in stable
+
+
+def test_the_beta_is_the_same_app_by_default(client, csrf, live_release, monkeypatch):
+    from flatout import repo
+    monkeypatch.setattr(repo, "public_key_base64", lambda: "S0VZ")
+    live_release("org.example.App")
+    live_release("org.example.App", channel="beta", version="1.1.0-beta.1")
+    repo_info = settings(client, csrf, app_id="org.example.App").get_json()
+    assert repo_info["beta_app_id"] == "org.example.App" and repo_info["beta"]["version"] == "1.1.0-beta.1"
+    assert "Name=org.example.App\n" in client.get("/flatpak/org.example.App-beta.flatpakref").data.decode()

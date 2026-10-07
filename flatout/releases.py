@@ -106,6 +106,13 @@ def app_id_for() -> str:
     return newest.app_id if newest else ""
 
 
+def beta_app_id_for(app_id: str) -> str:
+    """The app ID beta builds use: a separate app (org.example.App.Beta, which
+    installs beside the stable one) when set under Repository > App, or else
+    the site's own app on the beta branch."""
+    return get_setting("beta_app_id") or app_id
+
+
 def remote_name(doc: dict) -> str:
     """What `flatpak remote-add` calls this repository: the one set under
     Repository > App, or the app's name in lower case."""
@@ -118,16 +125,20 @@ def remote_name(doc: dict) -> str:
 
 def public_info(doc: dict, base: str) -> dict:
     app_id = app_id_for()
+    beta_id = beta_app_id_for(app_id)
     remote = remote_name(doc)
-    all_heads = heads("stable") + heads("beta")
-    stable_rows = [r for r in heads("stable") if not app_id or r.app_id == app_id]
-    beta_rows = [r for r in heads("beta") if not app_id or r.app_id == app_id]
+    stable_heads, beta_heads = heads("stable"), heads("beta")
+    stable_rows = [r for r in stable_heads if not app_id or r.app_id == app_id]
+    beta_rows = [r for r in beta_heads if not beta_id or r.app_id == beta_id]
     file_id = app_id or "app"
     # Live builds of another app than the one the site names: the site and
     # its install files leave them out, which the admin has to say out loud.
-    unmatched = sorted({r.app_id for r in all_heads if app_id and r.app_id != app_id})
+    # Those only on the beta channel are fixed by the beta app ID instead.
+    stable_off = {r.app_id for r in stable_heads if app_id and r.app_id != app_id}
+    beta_off = {r.app_id for r in beta_heads if beta_id and r.app_id != beta_id}
     return {
         "app_id": app_id,
+        "beta_app_id": beta_id,
         "remote_name": remote,
         "repo_url": f"{base}/repo/",
         "flatpakref_url": f"{base}/flatpak/{file_id}.flatpakref",
@@ -140,5 +151,6 @@ def public_info(doc: dict, base: str) -> dict:
         "arch_names": ARCH_NAMES,
         "bundle_url": f"{base}/download/{file_id}-{{arch}}.flatpak",
         "beta_bundle_url": f"{base}/download/{file_id}-beta-{{arch}}.flatpak",
-        "unmatched_app_ids": unmatched,
+        "unmatched_app_ids": sorted(stable_off | beta_off),
+        "unmatched_beta_app_ids": sorted(beta_off - stable_off),
     }

@@ -78,15 +78,21 @@
     var ids = repoInfo.unmatched_app_ids || [];
     box.hidden = !ids.length;
     if (!ids.length) return;
+    // Builds only the beta channel has are a separate beta app: the beta
+    // app ID is the setting that fixes them, not the app ID.
+    var betaIds = repoInfo.unmatched_beta_app_ids || [];
+    var betaOnly = ids.every(function (id) { return betaIds.indexOf(id) !== -1; });
+    var field = betaOnly ? "beta app ID" : "app ID";
+    var current = betaOnly ? repoInfo.beta_app_id : repoInfo.app_id;
     box.appendChild(el("p", {}, [
       el("strong", { text: "The site doesn't show these releases. " }),
-      "They are for " + ids.join(", ") + ", but the site's app ID is " + repoInfo.app_id + ". " +
+      "They are for " + ids.join(", ") + ", but the site's " + field + " is " + current + ". " +
       "The homepage, the install files and the channel tiles only show releases of the site's app."
     ]));
     box.appendChild(el("p", {}, onAppPage
-      ? ["Set the app ID below to " + ids[0] + ", or upload a bundle for " + repoInfo.app_id + "."]
-      : [el("a", { class: "link", href: "/admin/app", text: "Set the app ID under Repository > App" }),
-         ", or upload a bundle for " + repoInfo.app_id + "."]));
+      ? ["Set the " + field + " below to " + ids[0] + ", or upload a bundle for " + current + "."]
+      : [el("a", { class: "link", href: "/admin/app", text: "Set the " + field + " under Repository > App" }),
+         ", or upload a bundle for " + current + "."]));
   }
 
   /* ————— Getting started (the Overview) ————— */
@@ -440,6 +446,8 @@
     var fill = function (info) {
       document.getElementById("app-id").value = info.settings.app_id;
       document.getElementById("app-id").placeholder = info.settings.app_id ? "" : (info.app_id || "org.example.App");
+      document.getElementById("beta-app-id").value = info.settings.beta_app_id;
+      document.getElementById("beta-app-id").placeholder = info.settings.beta_app_id ? "" : (info.app_id || "org.example.App");
       document.getElementById("remote-name").value = info.settings.remote_name;
       document.getElementById("remote-name").placeholder = info.settings.remote_name ? "" : info.remote_name;
       document.getElementById("runtime-repo").value = info.settings.runtime_repo;
@@ -448,7 +456,9 @@
       // The app IDs uploaded so far, one click from being the site's.
       var box = document.getElementById("app-ids");
       box.innerHTML = "";
-      var others = info.release_app_ids.filter(function (id) { return id !== info.settings.app_id; });
+      var others = info.release_app_ids.filter(function (id) {
+        return id !== info.settings.app_id && id !== info.settings.beta_app_id;
+      });
       box.hidden = !others.length;
       if (!others.length) return;
       box.appendChild(el("span", { class: "hint", text: "Uploaded:" }));
@@ -465,6 +475,7 @@
       showError("app-error", null);
       call("PATCH", "/api/v1/repo/settings", {
         app_id: document.getElementById("app-id").value.trim(),
+        beta_app_id: document.getElementById("beta-app-id").value.trim(),
         remote_name: document.getElementById("remote-name").value.trim(),
         runtime_repo: document.getElementById("runtime-repo").value.trim(),
         prune_depth: parseInt(document.getElementById("prune-depth").value, 10)

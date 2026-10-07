@@ -149,6 +149,10 @@ and takes effect at once, without publishing the site:
   download button, its commands). Left empty, the newest upload's app ID.
   Releases for another app ID stay in the repository, but the site leaves
   them out; Releases and the Overview say so.
+- **Beta app ID**: for a beta published as a separate app, such as
+  `org.example.App.Beta`, which installs beside the stable one. Its beta
+  channel builds then appear on the site's beta section and in the beta
+  install file. Left empty, the beta is the same app on the beta branch.
 - **Remote name**: what `flatpak remote-add` calls the repository on the
   computers that install from it. Left empty, the app's name in lower case.
 - **Runtime repository**: where installs get the app's runtime. Flathub
@@ -404,7 +408,8 @@ Signing and addresses, or pass the Host header through the proxy and set
 **The site says there is no release, but Releases lists one as live.** The
 release is for another app ID than the one set under Repository > App.
 Releases and the Overview name both; set the app ID to the bundle's, or
-upload a bundle for the site's app.
+upload a bundle for the site's app. A beta built as a separate app needs the
+beta app ID instead.
 
 **A release failed.** Its Details show the job's log; the last lines are
 `flatpak`'s own message. A file that isn't a bundle, an app ID that doesn't

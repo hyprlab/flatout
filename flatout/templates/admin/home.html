@@ -2,11 +2,14 @@
 {% block content %}
 <div class="page-body">
   {%- if repo.unmatched_app_ids %}
+  {%- set beta_only = repo.unmatched_app_ids|reject('in', repo.unmatched_beta_app_ids)|list|length == 0 %}
+  {%- set field = 'beta app ID' if beta_only else 'app ID' %}
+  {%- set current = repo.beta_app_id if beta_only else repo.app_id %}
   <div class="banner banner--warn" role="alert">
     <p><strong>The site doesn't show your live releases.</strong> They are for
-      {{ repo.unmatched_app_ids|join(', ') }}, but the site's app ID is {{ repo.app_id }}.
-      <a class="link" href="{{ url_for('admin.app') }}">Set the app ID under Repository &gt; App</a>,
-      or upload a bundle for {{ repo.app_id }}.</p>
+      {{ repo.unmatched_app_ids|join(', ') }}, but the site's {{ field }} is {{ current }}.
+      <a class="link" href="{{ url_for('admin.app') }}">Set the {{ field }} under Repository &gt; App</a>,
+      or upload a bundle for {{ current }}.</p>
   </div>
   {%- endif %}
   {#- Each step is detected, and can be ticked or unticked by hand, which

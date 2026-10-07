@@ -11,6 +11,10 @@
       <p class="hint" id="app-id-hint">The app the site installs: its install files, its download button and its
         commands. Left empty, the newest upload's app ID is used.</p>
       <div class="app-ids" id="app-ids" hidden></div>
+      <label class="field"><span class="field-label">Beta app ID</span>
+        <input id="beta-app-id" spellcheck="false" maxlength="255"></label>
+      <p class="hint">For a beta published as a separate app, such as <code>org.example.App.Beta</code>, which
+        installs beside the stable one. Left empty, the beta is the same app on the beta branch.</p>
       <label class="field"><span class="field-label">Remote name</span>
         <input id="remote-name" spellcheck="false" maxlength="60"></label>
       <p class="hint">What <code>flatpak remote-add</code> calls this repository on the computers that install from

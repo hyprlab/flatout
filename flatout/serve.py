@@ -56,7 +56,7 @@ def _ref_file(doc: dict, branch: str) -> Response:
     icon = renderer.icon_url
     resp = _keyfile_lines([
         "[Flatpak Ref]",
-        f"Name={info['app_id']}",
+        f"Name={info['beta_app_id'] if branch == 'beta' else info['app_id']}",
         f"Branch={branch}",
         f"Title={renderer.fill(doc['app']['name'])}" + (" (beta)" if branch == "beta" else ""),
         f"Url={info['repo_url']}",
@@ -124,6 +124,9 @@ def download(name):
     channel = "stable"
     if app_id.endswith("-beta"):
         app_id, channel = app_id[:-len("-beta")], "beta"
+    if channel == "beta" and app_id == releases.app_id_for():
+        # The address names the site's app; a separate beta app has its own ID.
+        app_id = releases.beta_app_id_for(app_id)
     head = next((r for r in releases.heads(channel) if r.app_id == app_id and r.arch == arch and r.bundle_file), None)
     if head is None:
         abort(404)

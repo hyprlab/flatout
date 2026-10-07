@@ -906,6 +906,8 @@ def backup_delete():
 
 REPO_SETTINGS = {
     "app_id": "The Flatpak app ID the site installs, such as org.example.App; empty uses the newest upload's",
+    "beta_app_id": "The app ID beta builds use when the beta is a separate app, such as org.example.App.Beta; "
+                   "empty means the site's app ID on the beta branch",
     "remote_name": "What `flatpak remote-add` calls this repository; empty uses the app's name in lower case",
     "public_url": "The site's public address, such as https://app.example.org",
     "runtime_repo": "Where installs fetch the runtime from (a .flatpakrepo address)",
@@ -919,10 +921,12 @@ def _repo_json() -> dict:
     doc = site.get("live")
     info = releases.public_info(doc, site.base_url())
     return {
-        "app_id": info["app_id"], "remote_name": info["remote_name"],
+        "app_id": info["app_id"], "beta_app_id": info["beta_app_id"], "remote_name": info["remote_name"],
         # Live releases of another app ID than the site's: neither the site
         # nor its install files show them until the two agree.
         "unmatched_app_ids": info["unmatched_app_ids"],
+        # Of those, the ones only the beta channel has: the beta app ID fixes them.
+        "unmatched_beta_app_ids": info["unmatched_beta_app_ids"],
         # Every app ID uploaded so far, for choosing one.
         "release_app_ids": sorted({r.app_id for r in Release.query if r.app_id}),
         "urls": {k: info[k] for k in ("repo_url", "flatpakref_url", "beta_flatpakref_url", "flatpakrepo_url")},
@@ -932,6 +936,7 @@ def _repo_json() -> dict:
         # What is set; empty means the default described in REPO_SETTINGS.
         "settings": {
             "app_id": get_setting("app_id") or "",
+            "beta_app_id": get_setting("beta_app_id") or "",
             "remote_name": get_setting("remote_name") or "",
             "public_url": get_setting("public_url") or "",
             "runtime_repo": get_setting("runtime_repo") or "https://dl.flathub.org/repo/flathub.flatpakrepo",
@@ -950,7 +955,7 @@ def repo_get():
 @bp.route("/repo/settings", methods=["PATCH"])
 @needs("releases")
 def repo_settings():
-    """Any of app_id, remote_name, public_url, runtime_repo, prune_depth.
+    """Any of app_id, beta_app_id, remote_name, public_url, runtime_repo, prune_depth.
     Everything is checked before anything is saved; an empty string returns
     a setting to its default."""
     import re
@@ -966,6 +971,11 @@ def repo_settings():
         if value and not APP_ID_RE.match(value):
             raise ApiError(400, "app_id must be an app ID like org.example.App.")
         changes["app_id"] = value
+    if "beta_app_id" in data:
+        value = str(data["beta_app_id"] or "").strip()
+        if value and not APP_ID_RE.match(value):
+            raise ApiError(400, "beta_app_id must be an app ID like org.example.App.Beta.")
+        changes["beta_app_id"] = value
     if "remote_name" in data:
         value = str(data["remote_name"] or "").strip()
         if value and not REMOTE_RE.match(value):

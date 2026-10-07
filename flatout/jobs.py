@@ -197,6 +197,8 @@ def handle_import(job: Job, payload: dict, lines: list) -> None:
         raise repo.RepoError("The uploaded bundle is missing.")
     info = repo.import_bundle(bundle, rel.channel, lines)
     expected = get_setting("app_id")
+    if expected and rel.channel == "beta":
+        expected = get_setting("beta_app_id") or expected
     rel.app_id, rel.arch = info["app_id"], info["arch"]
     rel.source_ref, rel.commit, rel.runtime = info["source_ref"], info["commit"], info["runtime"]
     if not rel.version:
