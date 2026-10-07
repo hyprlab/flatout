@@ -140,18 +140,47 @@
     var tiles = document.getElementById("channel-tiles");
     var fileInput = document.getElementById("bundle-file");
     var drop = document.getElementById("bundle-drop");
-    var chosen = null;
+    var list = document.getElementById("bundle-list");
+    // The bundles waiting to go. They upload one after another, and each
+    // becomes its own release and import job, as if uploaded alone.
+    var queue = [];
+    var uploading = false;
     var pollTimer = null;
 
-    var choose = function (file) {
-      chosen = file || null;
-      document.getElementById("bundle-name").innerHTML = "";
-      document.getElementById("bundle-name").appendChild(chosen
-        ? el("strong", { text: chosen.name + " · " + size(chosen.size) })
-        : el("span", {}, [el("strong", { text: "Choose a .flatpak bundle" }), " or drop it here"]));
-      drop.classList.toggle("has-file", !!chosen);
+    var drawQueue = function () {
+      var name = document.getElementById("bundle-name");
+      name.innerHTML = "";
+      name.appendChild(queue.length
+        ? el("span", {}, [el("strong", { text: queue.length === 1 ? "1 bundle" : queue.length + " bundles" }), " · choose or drop more"])
+        : el("span", {}, [el("strong", { text: "Choose .flatpak bundles" }), " or drop them here"]));
+      drop.classList.toggle("has-file", queue.length > 0);
+      list.innerHTML = "";
+      list.hidden = !queue.length;
+      queue.forEach(function (item) {
+        item.stateEl = el("span", { class: "upload-file-state", text: item.note || size(item.file.size) });
+        var remove = null;
+        if (!uploading) {
+          remove = el("button", { type: "button", class: "iconbtn iconbtn--sm", "aria-label": "Remove " + item.file.name, title: "Remove",
+            onclick: function () { queue.splice(queue.indexOf(item), 1); drawQueue(); } });
+          remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+        }
+        list.appendChild(el("li", { class: "upload-file" + (item.failed ? " is-failed" : "") }, [
+          el("span", { class: "upload-file-name", text: item.file.name, title: item.file.name }), item.stateEl, remove]));
+      });
     };
-    fileInput.addEventListener("change", function () { choose(fileInput.files[0]); });
+    var add = function (files) {
+      if (uploading) return;
+      showError("upload-error", null);
+      var skipped = [];
+      Array.prototype.forEach.call(files, function (file) {
+        if (!/\.flatpak$/i.test(file.name)) { skipped.push(file.name); return; }
+        var known = queue.some(function (q) { return q.file.name === file.name && q.file.size === file.size; });
+        if (!known) queue.push({ file: file, note: "", failed: false });
+      });
+      if (skipped.length) showError("upload-error", new Error("Left out, not .flatpak bundles: " + skipped.join(", ") + "."));
+      drawQueue();
+    };
+    fileInput.addEventListener("change", function () { add(fileInput.files); fileInput.value = ""; });
     ["dragenter", "dragover"].forEach(function (t) {
       drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add("is-dropping"); });
     });
@@ -160,62 +189,101 @@
     });
     drop.addEventListener("drop", function (e) {
       e.preventDefault();
-      if (e.dataTransfer.files.length) choose(e.dataTransfer.files[0]);
+      if (e.dataTransfer.files.length) add(e.dataTransfer.files);
     });
+
+    // XMLHttpRequest, for the progress bar: bundles can be large.
+    var sendBundle = function (file, fields, progress) {
+      return new Promise(function (resolve, reject) {
+        var form = new FormData();
+        form.append("file", file);
+        Object.keys(fields).forEach(function (k) { form.append(k, fields[k]); });
+        var xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener("progress", function (ev) { if (ev.lengthComputable) progress(ev.loaded); });
+        xhr.addEventListener("load", function () {
+          var data = {};
+          try { data = JSON.parse(xhr.responseText); } catch (_) {}
+          if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+          else reject(new Error(data.error || (xhr.status === 413 ? "The file is larger than this server accepts." : "The upload failed.")));
+        });
+        xhr.addEventListener("error", function () { reject(new Error("The upload was cut off.")); });
+        xhr.open("POST", "/api/v1/releases");
+        xhr.setRequestHeader("X-CSRF", F.csrf);
+        xhr.setRequestHeader("Accept", "application/json");
+        xhr.send(form);
+      });
+    };
 
     document.getElementById("upload-form").addEventListener("submit", function (e) {
       e.preventDefault();
+      if (uploading) return;
       showError("upload-error", null);
       var btn = document.getElementById("upload-btn");
-      var channel = document.querySelector('input[name="channel"]:checked').value;
-      var version = document.getElementById("upload-version").value.trim();
-      var notes = document.getElementById("upload-notes").value;
+      var bar = document.getElementById("upload-progress");
+      var fields = {
+        channel: document.querySelector('input[name="channel"]:checked').value,
+        version: document.getElementById("upload-version").value.trim(),
+        notes: document.getElementById("upload-notes").value
+      };
       var url = document.getElementById("upload-url").value.trim();
-      var done = function () {
-        F.setBusy(btn, false);
-        document.getElementById("upload-progress").hidden = true;
+      var clearFields = function () {
+        ["upload-version", "upload-notes", "upload-url"].forEach(function (id) { document.getElementById(id).value = ""; });
       };
-      var success = function () {
-        choose(null);
-        fileInput.value = "";
-        document.getElementById("upload-version").value = "";
-        document.getElementById("upload-notes").value = "";
-        document.getElementById("upload-url").value = "";
-        F.toast("Uploaded. Publishing it now.");
-        refresh();
-      };
-      if (!chosen && !url) { showError("upload-error", new Error("Choose a bundle, or give the address to fetch one from.")); return; }
+      if (!queue.length && !url) { showError("upload-error", new Error("Choose a bundle, or give the address to fetch one from.")); return; }
+      if (queue.length && url) { showError("upload-error", new Error("Upload the chosen bundles or fetch one from the address, not both at once.")); return; }
       F.setBusy(btn, true);
-      if (!chosen) {
-        call("POST", "/api/v1/releases", { url: url, channel: channel, version: version, notes: notes })
-          .then(success).catch(function (err) { showError("upload-error", err); }).finally(done);
+      if (!queue.length) {
+        fields.url = url;
+        call("POST", "/api/v1/releases", fields)
+          .then(function () { clearFields(); F.toast("Fetching it. It's published once it's in."); refresh(); })
+          .catch(function (err) { showError("upload-error", err); })
+          .finally(function () { F.setBusy(btn, false); });
         return;
       }
-      // XMLHttpRequest, for the progress bar: bundles can be large.
-      var form = new FormData();
-      form.append("file", chosen);
-      form.append("channel", channel);
-      form.append("version", version);
-      form.append("notes", notes);
-      var xhr = new XMLHttpRequest();
-      var bar = document.getElementById("upload-progress");
+
+      var items = queue.slice();
+      var total = items.reduce(function (n, q) { return n + q.file.size; }, 0) || 1;
+      var before = 0, sent = 0, failed = 0;
+      uploading = true;
+      items.forEach(function (item) { item.failed = false; item.note = "Waiting"; });
+      drawQueue();
       bar.hidden = false;
       bar.value = 0;
-      xhr.upload.addEventListener("progress", function (ev) {
-        if (ev.lengthComputable) bar.value = Math.round(ev.loaded / ev.total * 100);
+      var next = function (i) {
+        if (i >= items.length) return Promise.resolve();
+        var item = items[i];
+        item.stateEl.textContent = "0%";
+        return sendBundle(item.file, fields, function (loaded) {
+          item.stateEl.textContent = Math.round(loaded / item.file.size * 100) + "%";
+          bar.value = Math.round((before + loaded) / total * 100);
+        }).then(function () {
+          sent++;
+          queue.splice(queue.indexOf(item), 1);
+        }, function (err) {
+          failed++;
+          item.failed = true;
+          item.note = err.message;
+        }).then(function () {
+          before += item.file.size;
+          drawQueue();
+          return next(i + 1);
+        });
+      };
+      next(0).then(function () {
+        uploading = false;
+        queue.forEach(function (q) { if (!q.failed) q.note = ""; });
+        drawQueue();
+        F.setBusy(btn, false);
+        bar.hidden = true;
+        if (sent) refresh();
+        if (!failed) {
+          clearFields();
+          F.toast(sent === 1 ? "Uploaded. Publishing it now." : "Uploaded " + sent + " bundles. Publishing them now.");
+        } else {
+          showError("upload-error", new Error((failed === 1 ? "One bundle" : failed + " bundles") + " didn't upload" +
+            (sent ? " (" + sent + " did)" : "") + ". The list says why; upload again to retry them."));
+        }
       });
-      xhr.addEventListener("load", function () {
-        var data = {};
-        try { data = JSON.parse(xhr.responseText); } catch (_) {}
-        done();
-        if (xhr.status >= 200 && xhr.status < 300) success();
-        else showError("upload-error", new Error(data.error || (xhr.status === 413 ? "The file is larger than this server accepts." : "The upload failed.")));
-      });
-      xhr.addEventListener("error", function () { done(); showError("upload-error", new Error("The upload was cut off.")); });
-      xhr.open("POST", "/api/v1/releases");
-      xhr.setRequestHeader("X-CSRF", F.csrf);
-      xhr.setRequestHeader("Accept", "application/json");
-      xhr.send(form);
     });
 
     var tile = function (label, info, actions) {

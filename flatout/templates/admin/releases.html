@@ -8,12 +8,15 @@
   <section class="panel">
     <h3 class="panel-title">Upload a release</h3>
     <form id="upload-form" class="upload" autocomplete="off">
-      <label class="dropzone" id="bundle-drop" data-dropzone>
-        <input type="file" id="bundle-file" accept=".flatpak,application/vnd.flatpak" hidden>
-        <svg viewBox="0 0 24 24"><path d="M12 3 4 7v10l8 4 8-4V7l-8-4ZM4 7l8 4 8-4M12 11v10"/></svg>
-        <span class="dropzone-text" id="bundle-name"><strong>Choose a .flatpak bundle</strong> or drop it here</span>
-        <span class="hint">Made with <code>flatpak build-bundle</code>. One per architecture.</span>
-      </label>
+      <div class="upload-pick">
+        <label class="dropzone" id="bundle-drop" data-dropzone>
+          <input type="file" id="bundle-file" accept=".flatpak,application/vnd.flatpak" multiple hidden>
+          <svg viewBox="0 0 24 24"><path d="M12 3 4 7v10l8 4 8-4V7l-8-4ZM4 7l8 4 8-4M12 11v10"/></svg>
+          <span class="dropzone-text" id="bundle-name"><strong>Choose .flatpak bundles</strong> or drop them here</span>
+          <span class="hint">Made with <code>flatpak build-bundle</code>, one per architecture. Choose them all at once.</span>
+        </label>
+        <ul class="upload-files" id="bundle-list" aria-live="polite" hidden></ul>
+      </div>
       <div class="upload-fields">
         <div class="field">
           <span class="field-label">Channel</span>
@@ -23,7 +26,7 @@
           </div>
         </div>
         <label class="field"><span class="field-label">Version</span>
-          <input id="upload-version" maxlength="60" placeholder="Read from the app's metainfo if left empty"></label>
+          <input id="upload-version" maxlength="60" placeholder="Read from each bundle's metainfo if left empty"></label>
         <label class="field"><span class="field-label">Release notes (Markdown)</span>
           <textarea id="upload-notes" rows="4" placeholder="What changed, from the user's side."></textarea></label>
         <details class="term-like">

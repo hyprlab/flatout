@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- Several bundles can be chosen or dropped at once under Releases, and upload
+  one after another, each its own release
+
 ### Changed
 - An app built for several architectures shows the right version for each:
   when one is behind, the admin says so, the site shows its version next to

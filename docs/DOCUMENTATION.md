@@ -111,12 +111,14 @@ flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakr
   build-repo org.example.App-x86_64.flatpak org.example.App
 ```
 
-Upload it under Releases, on the stable or the beta channel. Flatout reads the
-app ID, the architecture and the version (from the app's AppStream metainfo)
-from the bundle, signs it into the repository with a fresh timestamp,
-regenerates the signed summary and the static deltas, and the update reaches
-installed copies the next time they check. The job's log is under the
-release's Details.
+Upload it under Releases, on the stable or the beta channel. Several bundles
+can be chosen or dropped at once, say one per architecture: they share the
+version and notes typed with them and upload one after another, each its own
+release. Flatout reads the app ID, the architecture and the version (from the
+app's AppStream metainfo) from the bundle, signs it into the repository with a
+fresh timestamp, regenerates the signed summary and the static deltas, and the
+update reaches installed copies the next time they check. The job's log is
+under the release's Details.
 
 - **Promote to stable** copies the live beta to the stable channel without
   uploading it again.

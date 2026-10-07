@@ -975,6 +975,14 @@ input.switch:checked::after { transform: translateX(14px); }
 .dropzone.has-file { border-style: solid; border-color: var(--accent); }
 .dropzone svg { width: 34px; height: 34px; color: var(--muted); }
 .dropzone-text { font-size: 14px; }
+.upload-pick { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.upload-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.upload-file { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; min-height: 40px;
+  padding: 4px 6px 4px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--field); font-size: 13px; }
+.upload-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.upload-file-state { color: var(--muted); font-variant-numeric: tabular-nums; }
+.upload-file.is-failed { grid-template-columns: minmax(0, 1fr) auto; border-color: var(--danger); }
+.upload-file.is-failed .upload-file-state { grid-column: 1 / -1; grid-row: 2; color: var(--danger); padding-bottom: 4px; }
 .upload-fields { display: flex; flex-direction: column; gap: 12px; }
 .upload-fields input:not([type=radio]), .upload-fields textarea { width: 100%; }
 .upload-actions { display: flex; align-items: center; gap: 12px; }
