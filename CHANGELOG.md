@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.3.0] — 2026-10-08
+
 ### Fixed
 - Only an admin can export or replace the repository's signing key; before,
   any signed-in account could take it or swap it
