@@ -409,8 +409,10 @@ def restore_file(app: Flask, backup: Path, passphrase: str, work: Path | None = 
                 for member in tar:   # starts over at the manifest, already read
                     if member.name == MANIFEST or member.name.split("/")[0] in SKIP - {DATABASE}:
                         continue
-                    if not member.isfile() and not member.isdir():
-                        raise BackupError("The backup holds an entry that isn't a file or a folder; "
+                    # Hard links are how a promoted package shares its file; the data
+                    # filter keeps their targets inside the archive.
+                    if not (member.isfile() or member.isdir() or member.islnk()):
+                        raise BackupError("The backup holds an entry that isn't a file, a folder or a hard link; "
                                           "it wasn't restored.")
                     seen += 1
                     unpacked_size += member.size

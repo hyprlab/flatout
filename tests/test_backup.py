@@ -142,6 +142,28 @@ def test_a_fresh_install_restores_it_in_pieces(app, client, csrf, source, fresh,
     assert new_client.post("/setup/restore", json={"size": 10}, headers=h(new_csrf)).status_code == 409
 
 
+def test_a_hard_linked_file_survives_the_round_trip(app, client, csrf, admin, fresh, tmp_path):
+    """A promoted package shares its file with the original through a hard
+    link, which the backup stores as a link entry; the restore takes it."""
+    import os
+    from flatout import backup
+    with app.app_context():
+        folder = backup.data_dir() / "packages" / "stable"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "app.rpm").write_bytes(b"package bytes")
+    os.link(folder / "app.rpm", folder / "app-promoted.rpm")
+    data, _ = make_backup(app, client, csrf)
+    packed = tmp_path / "linked.tar.gpg"
+    packed.write_bytes(data)
+
+    new_app, _, _ = fresh()
+    with new_app.app_context():
+        backup.restore_file(new_app, packed, PASSPHRASE, work=tmp_path / "work")
+        restored = backup.data_dir() / "packages" / "stable"
+    assert (restored / "app.rpm").read_bytes() == b"package bytes"
+    assert (restored / "app-promoted.rpm").read_bytes() == b"package bytes"
+
+
 def test_what_isnt_a_backup_is_refused(fresh):
     new_app, new_client, new_csrf = fresh()
     upload_id = upload(new_client, new_csrf, b"just some text, not a backup" * 10)

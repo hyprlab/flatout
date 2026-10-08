@@ -45,9 +45,9 @@ All notable changes to Flatout are documented here. The format follows
 - A failed job's log shows the failing line instead of a traceback with the
   server's paths, and a chatty job keeps its last 400 lines instead of
   growing the database without bound
-- A restore now checks the backup as it unpacks: an entry that isn't a file
-  or a folder, an implausible file count, or a total that would overfill
-  the disk all refuse the restore before it replaces anything
+- A restore now checks the backup as it unpacks: an entry that isn't a
+  file, a folder or a hard link, an implausible file count, or a total that
+  would overfill the disk all refuse the restore before it replaces anything
 - The database file and its journal companions are now readable only by
   the app's own user, including right after a restore
 
