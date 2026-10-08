@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.4.0] — 2026-10-08
+
 ### Added
 - The hero can fade into the page below it instead of ending at a straight
   edge: Content > the hero > Fade into the page, with the fade's length
