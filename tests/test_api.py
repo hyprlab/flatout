@@ -46,6 +46,15 @@ def test_tokens_cant_manage_tokens_or_take_the_key(app, make_token):
     assert robot.get("/api/v1/repo/key/secret", headers=bearer(token)).status_code == 403
 
 
+def test_only_an_admin_can_take_or_replace_the_signing_key(app, client, csrf, second_user):
+    other, other_csrf = second_user
+    assert other.get("/api/v1/repo/key/secret").status_code == 403
+    assert other.post("/api/v1/repo/key", json={"action": "generate"},
+                      headers={"X-CSRF": other_csrf}).status_code == 403
+    # The admin passes the gate; there is no key yet, so the answer is 404.
+    assert client.get("/api/v1/repo/key/secret").status_code == 404
+
+
 def test_revoked_and_expired_tokens_stop_working(app, client, csrf, make_token):
     token = make_token()
     robot = app.test_client()

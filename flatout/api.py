@@ -1048,10 +1048,10 @@ def job_get(job_id):
 # A backup holds every account's password hash and the signing key, so only
 # an admin, signed in, makes or takes one: never an API token.
 
-def _admin_session():
+def _admin_session(message: str = "Only an admin can make or download backups."):
     _session_only()
     if not g.api_user.is_admin:
-        raise ApiError(403, "Only an admin can make or download backups.")
+        raise ApiError(403, message)
 
 
 def _backup_json() -> dict:
@@ -1232,6 +1232,11 @@ def repo_key():
     Replacing a key that has signed releases needs "replace": true, and every
     install will have to add the repository again."""
     from . import jobs, repo
+    # A key decides what every install trusts, so a signed-in account must be
+    # an admin to touch it. A token with the releases scope still may: the MCP
+    # server's create_signing_key uses one.
+    if token_from_header() is None and not g.api_user.is_admin:
+        raise ApiError(403, "Only an admin can create or replace the signing key.")
     data = body()
     if not repo.tools()["gpg"]:
         raise ApiError(503, "gpg isn't installed here. Run Flatout from its Docker image.")
@@ -1268,10 +1273,11 @@ def repo_key_public():
 
 @bp.route("/repo/key/secret")
 def repo_key_secret():
-    """The secret key, for the owner's backup. Session only: a token can't
-    take the key away."""
+    """The secret key, for the owner's backup. An admin, signed in: never a
+    token, and never a plain account, since the key is what every install
+    trusts."""
     from . import repo
-    _session_only()
+    _admin_session("Only an admin can take the signing key.")
     try:
         return jsonify(fingerprint=repo.key_fingerprint(), armored=repo.secret_key_armored())
     except repo.RepoError as err:
