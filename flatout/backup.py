@@ -398,6 +398,9 @@ def restore_file(app: Flask, backup: Path, passphrase: str, work: Path | None = 
     shutil.rmtree(unpacked, ignore_errors=True)
     unpacked.mkdir(parents=True)
     gpg = _Gpg(passphrase)
+    free = shutil.disk_usage(unpacked).free
+    unpacked_limit = free - 100 * 1024 * 1024   # leave headroom for the swap and the system
+    seen, unpacked_size = 0, 0
     proc = gpg.popen(["--decrypt", str(backup)], stdout=subprocess.PIPE)
     try:
         try:
@@ -406,6 +409,17 @@ def restore_file(app: Flask, backup: Path, passphrase: str, work: Path | None = 
                 for member in tar:   # starts over at the manifest, already read
                     if member.name == MANIFEST or member.name.split("/")[0] in SKIP - {DATABASE}:
                         continue
+                    if not member.isfile() and not member.isdir():
+                        raise BackupError("The backup holds an entry that isn't a file or a folder; "
+                                          "it wasn't restored.")
+                    seen += 1
+                    unpacked_size += member.size
+                    if unpacked_size > unpacked_limit:
+                        raise BackupError(f"The backup unpacks to more than the {human(unpacked_limit)} "
+                                          "of disk available for it; it wasn't restored.")
+                    if seen > 200_000:
+                        raise BackupError("The backup holds more files than a Flatout backup ever should; "
+                                          "it wasn't restored.")
                     tar.extract(member, unpacked, filter="data")
         except tarfile.FilterError as err:
             raise BackupError(f"The backup holds a file it shouldn't ({err}); it wasn't restored.")

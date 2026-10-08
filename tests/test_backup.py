@@ -165,3 +165,68 @@ def test_an_unfinished_upload_isnt_restored(fresh):
     assert resp.status_code == 400 and "finished uploading" in resp.get_json()["error"]
     big = new_client.post("/setup/restore", json={"size": 10 ** 15}, headers=h(new_csrf))
     assert big.status_code == 400 and "disk space" in big.get_json()["error"]
+
+
+def _made_backup_tar_gpg(tmp_path, members, passphrase):
+    """Encrypt a hand-built tar with gpg the same way backup.create does."""
+    import io
+    import json
+    import os
+    import subprocess
+    import tarfile
+    import tempfile
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w", format=tarfile.PAX_FORMAT) as tar:
+        manifest = json.dumps({"format": 1, "version": "0.0.1", "created_at": "2026-01-01T00:00:00Z",
+                               "public_url": ""}).encode()
+        info = tarfile.TarInfo("flatout-backup.json")
+        info.size = len(manifest)
+        tar.addfile(info, io.BytesIO(manifest))
+        for member, data in members:
+            if data is not None:
+                info = tarfile.TarInfo(member)
+                info.size = len(data)
+                tar.addfile(info, io.BytesIO(data))
+            else:
+                tar.addfile(member)
+    home = tempfile.mkdtemp(dir=tmp_path)
+    read, write = os.pipe()
+    os.write(write, passphrase.encode())
+    os.close(write)
+    out = tmp_path / "made.tar.gpg"
+    try:
+        proc = subprocess.run(
+            ["gpg", "--batch", "--yes", "--no-tty", "--pinentry-mode", "loopback",
+             "--passphrase-fd", str(read), "--symmetric", "--cipher-algo", "AES256",
+             "--compress-algo", "none", "--output", str(out)],
+            env=dict(os.environ, GNUPGHOME=home), pass_fds=(read,), input=buf.getvalue(), capture_output=True)
+        assert proc.returncode == 0, proc.stderr
+    finally:
+        os.close(read)
+        shutil.rmtree(home, ignore_errors=True)
+    return out
+
+
+def test_a_backup_full_of_zeros_doesnt_fill_the_disk(fresh, tmp_path, monkeypatch):
+    """The decompressed size is checked while unpacking, against the actual
+    free space — here shrunk so a small file proves the gate works."""
+    new_app, _, _ = fresh()
+    packed = _made_backup_tar_gpg(tmp_path, [("flatout.db", b"0" * 3000)], PASSPHRASE)
+    real_usage = shutil.disk_usage
+    monkeypatch.setattr(shutil, "disk_usage",
+                        lambda p: type(real_usage(p))(total=0, used=0, free=5000))
+    import flatout.backup as backup
+    with pytest.raises(backup.BackupError, match="more than the .* of disk"):
+        backup.restore_file(new_app, packed, PASSPHRASE, work=tmp_path / "work")
+
+
+def test_a_backup_with_a_link_inside_is_refused(fresh, tmp_path):
+    import tarfile
+    link = tarfile.TarInfo("media/evil")
+    link.type = tarfile.SYMTYPE
+    link.linkname = "/etc/passwd"
+    packed = _made_backup_tar_gpg(tmp_path, [(link, None), ("flatout.db", b"...")], PASSPHRASE)
+    new_app, _, _ = fresh()
+    import flatout.backup as backup
+    with pytest.raises(backup.BackupError, match="wasn't restored"):
+        backup.restore_file(new_app, packed, PASSPHRASE, work=tmp_path / "work")

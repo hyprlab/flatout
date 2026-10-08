@@ -45,6 +45,9 @@ All notable changes to Flatout are documented here. The format follows
 - A failed job's log shows the failing line instead of a traceback with the
   server's paths, and a chatty job keeps its last 400 lines instead of
   growing the database without bound
+- A restore now checks the backup as it unpacks: an entry that isn't a file
+  or a folder, an implausible file count, or a total that would overfill
+  the disk all refuse the restore before it replaces anything
 
 ### Changed
 - New passwords hash with scrypt at OWASP's current work factor (2^17), and
