@@ -267,8 +267,8 @@ class _PublicHTTPHandler(urllib.request.HTTPHandler):
 
 class _PublicHTTPSHandler(urllib.request.HTTPSHandler):
     def https_open(self, req):
-        return self.do_open(_PublicHTTPSConnection, req, context=self._context,
-                            check_hostname=self._check_hostname)
+        # The context checks the certificate against the host name, as SNI sends it.
+        return self.do_open(_PublicHTTPSConnection, req, context=self._context)
 
 
 def _fetch(url: str, dest: Path, lines: list) -> tuple[int, str]:

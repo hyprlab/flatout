@@ -79,11 +79,12 @@ def test_a_rebound_lookup_is_refused(app, monkeypatch, tmp_path):
         jobs._fetch("http://packages.example/bundle.flatpak", tmp_path / "b", [])
 
 
-def _serve(monkeypatch, body: bytes, declared: int | None = None, cut: int | None = None):
+def _serve(monkeypatch, body: bytes, declared: int | None = None, cut: int | None = None, tls=None):
     """A one-shot local HTTP server the fetch reaches by a monkeypatched
     dialer: getaddrinfo answers a public address, the socket dials localhost.
     ``declared`` overrides the Content-Length header; ``cut`` closes the
-    response after that many bytes despite a longer declared length."""
+    response after that many bytes despite a longer declared length; ``tls``
+    is a server SSLContext, for HTTPS."""
     import http.server
     import threading
 
@@ -98,6 +99,8 @@ def _serve(monkeypatch, body: bytes, declared: int | None = None, cut: int | Non
             pass
 
     server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    if tls:
+        server.socket = tls.wrap_socket(server.socket, server_side=True)
     threading.Thread(target=server.handle_request, daemon=True).start()
     port = server.server_address[1]
     real_getaddrinfo, real_connect = socket.getaddrinfo, socket.create_connection
@@ -177,3 +180,64 @@ def test_a_chatty_jobs_log_is_trimmed(app, monkeypatch):
     job = _run_job(app, "summary", chatty, monkeypatch)
     assert job.status == "done"
     assert "earlier lines left out" in job.log and "line 49" in job.log and "line 30" not in job.log
+
+
+@pytest.fixture()
+def certificate(tmp_path):
+    """A self-signed certificate for one host name, from openssl."""
+    import shutil
+    import subprocess
+    if not shutil.which("openssl"):
+        pytest.skip("openssl is needed")
+
+    def make(name):
+        cert, key = tmp_path / f"{name}.crt", tmp_path / f"{name}.key"
+        subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+                        "-keyout", str(key), "-out", str(cert), "-subj", f"/CN={name}",
+                        "-addext", f"subjectAltName=DNS:{name}"], check=True, capture_output=True)
+        return cert, key
+    return make
+
+
+def _trust(monkeypatch, cert):
+    """Make the fetch's default HTTPS context trust ``cert`` and only it."""
+    import ssl
+    monkeypatch.setattr(ssl, "_create_default_https_context",
+                        lambda *a, **kw: ssl.create_default_context(cafile=str(cert)))
+
+
+def _tls_server(cert, key):
+    import ssl
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert, key)
+    return context
+
+
+def test_an_https_download_is_kept(app, monkeypatch, tmp_path, certificate):
+    """HTTPS goes through the pinned dialer too, with the certificate
+    checked against the URL's host name."""
+    from flatout import jobs
+    import hashlib
+    cert, key = certificate("packages.example")
+    _trust(monkeypatch, cert)
+    body = b"z" * 2500
+    _serve(monkeypatch, body, tls=_tls_server(cert, key))
+    dest = tmp_path / "b.flatpak"
+    with app.app_context():
+        size, sha = jobs._fetch("https://packages.example/b.flatpak", dest, [])
+    assert size == 2500 and sha == hashlib.sha256(body).hexdigest() and dest.read_bytes() == body
+
+
+def test_an_https_certificate_for_another_name_is_refused(app, monkeypatch, tmp_path, certificate):
+    """Dialing the checked address must not weaken the name check: the
+    certificate still has to be for the host in the URL."""
+    from flatout import jobs
+    cert, key = certificate("elsewhere.example")
+    _trust(monkeypatch, cert)
+    _serve(monkeypatch, b"z" * 10, tls=_tls_server(cert, key))
+    dest = tmp_path / "b.flatpak"
+    import ssl
+    with app.app_context(), pytest.raises(Exception) as caught:
+        jobs._fetch("https://packages.example/b.flatpak", dest, [])
+    assert isinstance(getattr(caught.value, "reason", caught.value), ssl.SSLCertVerificationError)
+    assert not dest.exists()
