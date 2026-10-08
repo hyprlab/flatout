@@ -168,7 +168,7 @@ def create_app(config_class=Config) -> Flask:
             "default-src 'self'"
             f"; script-src 'self' 'nonce-{csp_nonce()}'{turnstile}"
             "; style-src 'self' 'unsafe-inline'"   # style attributes would need a nonce each
-            "; img-src 'self' data: https:"         # the owner may point images anywhere https
+            "; img-src 'self' data: https: http:"   # the owner may point images anywhere, as the schema allows
             "; font-src 'self' data:"
             f"; connect-src 'self'{turnstile}"
             f"; frame-src 'self'{turnstile}"        # the editor frames its own preview

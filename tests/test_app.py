@@ -151,6 +151,8 @@ def test_html_carries_a_csp_and_the_page_own_scripts_its_nonce(client, admin):
     # Same-origin for the app's own scripts, and for the editor's preview frame.
     assert "frame-src 'self'" in policy
     assert "object-src 'none'" in policy and "frame-ancestors 'self'" in policy
+    # Image fields accept http:// as well as https:// addresses.
+    assert "img-src 'self' data: https: http:" in policy
 
 
 def test_hsts_only_when_cookies_are_secure(app, admin):
