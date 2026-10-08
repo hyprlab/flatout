@@ -179,6 +179,20 @@ def test_the_database_is_readable_only_by_the_app(app, client, csrf, admin, tmp_
             assert stat.S_IMODE(path.stat().st_mode) == 0o600, name
 
 
+def test_a_database_the_app_cant_chmod_still_starts(app, monkeypatch, caplog):
+    """A file owned by another user but writable by the app (a NAS share)
+    refuses chmod; the app logs that and keeps starting."""
+    from pathlib import Path
+    from flatout import _guard_db_permissions
+
+    def refuse(self, mode):
+        raise PermissionError(1, "Operation not permitted", str(self))
+    monkeypatch.setattr(Path, "chmod", refuse)
+    with app.app_context():
+        _guard_db_permissions()
+    assert "couldn't make" in caplog.text
+
+
 def test_changelog_renders_in_the_about_tab(client, csrf, admin):
     from flatout import __version__
     body = client.get("/admin").data.decode()

@@ -292,7 +292,10 @@ def _wants_json() -> bool:
 
 def _guard_db_permissions() -> None:
     """The database holds every password hash and token hash; only the app's
-    own user may read it. SQLite needs the same for its WAL companions."""
+    own user may read it. SQLite needs the same for its WAL companions. A
+    file another user owns (a NAS share, an edit made as root) can't be
+    changed; that is logged rather than stopping the app from starting."""
+    from flask import current_app
     url = db.engine.url
     if url.get_backend_name() != "sqlite" or not url.database:
         return
@@ -300,7 +303,10 @@ def _guard_db_permissions() -> None:
     main = Path(url.database)
     for candidate in (main, *(main.parent / f"{main.name}{s}" for s in ("-wal", "-shm", "-journal"))):
         if candidate.exists():
-            candidate.chmod(0o600)
+            try:
+                candidate.chmod(0o600)
+            except OSError as err:
+                current_app.logger.warning("couldn't make %s private to the app's user: %s", candidate, err)
 
 
 def _migrate(app: Flask) -> None:
