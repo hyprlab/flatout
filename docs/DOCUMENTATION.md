@@ -43,16 +43,19 @@ rather set up their own way; a link under the tiles brings it back.
 Everything on the homepage is set in the admin; there is no template to edit.
 
 - **Content** holds the parts every page shares (the app's name and links,
-  images, the header, the footer, the install dialog, the page title) and the
-  homepage's sections. A section can be shown or hidden, moved, duplicated or
-  deleted, and new ones added: hero, feature cards, screenshots, highlight
-  band, text, install guide, beta channel, what's new, questions, people, and
-  a closing call to action.
+  images, the header, the footer, the install dialog, the page title, the
+  page for an address with nothing at it) and the homepage's sections. A
+  section can be shown or hidden, moved, duplicated or deleted, and new ones
+  added: hero, feature cards, screenshots, highlight band, text, install
+  guide, beta channel, what's new, questions, people, and a closing call to
+  action.
 - **Design** sets every color, for light and dark separately, the icon
   palette, the fonts (Cantarell, Inter, system fonts, or an uploaded font
   file), the base text size, the heading weight, the corner rounding and the
   content width. A site can follow the visitor's light or dark setting, or
-  stay in one mode.
+  stay in one mode. **Custom CSS** is added after the theme, for a touch the
+  settings don't reach; it can use and change the page's variables, such as
+  `--accent`.
 - **Pages** are extra pages at their own address, such as `/privacy`,
   written in Markdown and linked from the header or the footer.
 - **Media** holds uploaded images and fonts. A file the site uses can't be
@@ -66,6 +69,29 @@ published version; restoring one puts it in the draft for review.
 Text can use placeholders, filled in when the page is shown: `{app_name}`,
 `{version}`, `{flatpakref_url}` and others, listed in the editor. Commands on
 the install guide stay right after each release without being edited.
+
+Sections have finer controls where a layout calls for them:
+
+- **Hero**: the screenshot can lean back and straighten as the page scrolls,
+  and the hero's color can fade into the page instead of ending at a straight
+  edge.
+- **Screenshots**: in one row, each picture's width share sets its column;
+  the row can join the section above it.
+- **Text**: a width, the buttons under the introduction or after the text,
+  and whether it fades in as one, heading by heading, or not at all.
+- **Beta channel**: an icon, the version shown or not, the button after the
+  warning or after the text, a note under it, and a command in a copy box.
+- **Install guide**: a distro's command can come right after its text, its
+  steps can have a heading of their own, and a note can close it; closing
+  blocks put text and its buttons in turn after the guide.
+- **Install dialog**: the wording of each way to install, a folded tip under
+  the install file, and an address for the full download elsewhere, such as
+  a GitHub release asset. A package built for some machines only is greyed
+  out, and says so, on the others.
+
+In Markdown, `{: .center}`, `{: .left}` or `{: .note}` on the line after a
+paragraph or list aligns it or sets it in small print, and `{#name}` after a
+heading makes it a link target, `#name`.
 
 Some sections follow the repository on their own: the beta section appears
 only while a beta release is live, and What's new once a release exists.

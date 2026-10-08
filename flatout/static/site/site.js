@@ -1,8 +1,9 @@
 /* The public site. No dependencies, no build step.
  *
  * Sections, in order: the theme switch, the header that trims as the page
- * scrolls, scroll reveals, the screenshot lightbox, the install dialog, copy
- * buttons, and the distro tabs. Each guards on the elements it needs.
+ * scrolls, the hero screenshot's tilt, scroll reveals, the screenshot
+ * lightbox, the install dialog, copy buttons, and the distro tabs. Each
+ * guards on the elements it needs.
  */
 (function () {
   "use strict";
@@ -66,6 +67,61 @@
       ticking = true;
       window.requestAnimationFrame(update);
     }, { passive: true });
+    update();
+  })();
+
+  /* ————— The hero screenshot's tilt (hero "tilt") ————— */
+  // Leans back on arrival, stands upright as it is scrolled up the screen,
+  // and keeps going, tipping gently forward until it leaves the top, so it
+  // is never still while the page moves. Driven by the untransformed stage
+  // box, so the tilt never feeds back into its own measurement.
+  (function () {
+    var stage = document.querySelector(".hero .shot__stage[data-tilt]");
+    var img = stage && stage.querySelector(".shot__img");
+    if (!stage || !img) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    var MAX_TILT = 8;           // degrees, leaning away where the window rests on arrival
+    var FORWARD_TILT = 6;       // degrees, tipped toward the reader as it leaves the top
+    var FLAT_AT = 0.25;         // upright once its top edge has climbed to 25% of the screen
+    var ticking = false;
+
+    function clamp(t) { return t < 0 ? 0 : t > 1 ? 1 : t; }
+    // Slow at the start, so the window holds most of its lean while it
+    // comes into view, where the lean can be seen.
+    function smooth(t) { return t * t * (3 - 2 * t); }
+    function update() {
+      ticking = false;
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      var box = stage.getBoundingClientRect();
+      var top = box.top;
+      // Where the top edge sits before any scrolling: its place in the page,
+      // or the bottom of the screen if the page pushes it below the fold.
+      var rest = Math.min(top + window.scrollY, vh);
+      var flat = vh * FLAT_AT;
+      var gone = -box.height;   // its foot has left the top of the screen
+      var tilt;
+      if (top > flat && rest > flat) {
+        // Leaning back, coming upright. Part of the easing is linear, in the
+        // proportion that makes the turn arrive at flat at the same rate the
+        // forward tip then carries on at: no pause at upright.
+        var t = clamp((rest - top) / (rest - flat));
+        var k = clamp((FORWARD_TILT * (rest - flat)) / (MAX_TILT * (flat - gone)));
+        tilt = MAX_TILT * (1 - ((1 - k) * smooth(t) + k * t));
+      } else {
+        tilt = -FORWARD_TILT * clamp((flat - top) / (flat - gone));
+      }
+      img.style.setProperty("--shot-tilt", tilt.toFixed(2) + "deg");
+      img.style.setProperty("--shot-pivot", tilt > 0 ? "100%" : "0%");
+    }
+    function schedule() {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(update);
+    }
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    if (img.complete) update(); else img.addEventListener("load", update);
     update();
   })();
 
@@ -249,6 +305,17 @@
     }
     function render() {
       var arch = value(archInputs);
+      // A package built for some machines only is greyed out, and says so,
+      // on the others; the first method takes over if it was the one picked.
+      modal.querySelectorAll(".method[data-arches]").forEach(function (card) {
+        var off = card.getAttribute("data-arches").split(" ").indexOf(arch) < 0;
+        var input = card.querySelector("input");
+        var flag = card.querySelector(".method__flag");
+        input.disabled = off;
+        card.classList.toggle("is-off", off);
+        if (flag) flag.hidden = !off;
+        if (off && input.checked && methodInputs[0]) methodInputs[0].checked = true;
+      });
       var method = value(methodInputs);
       if (method) {
         modal.querySelectorAll(".how").forEach(function (sec) {

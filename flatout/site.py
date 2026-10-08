@@ -204,6 +204,7 @@ class Renderer:
             "source_url": app["source_url"],
             "issues_url": app["issues_url"],
             "year": str(datetime.now(timezone.utc).year),
+            "flatpak_setup_url": doc.get("install", {}).get("flatpak_setup_url") or "https://flatpak.org/setup/",
         }
         # Two passes, so a tagline may itself use {app_name}.
         for key in ("app_tagline",):
@@ -223,6 +224,13 @@ class Renderer:
         html = md_lib.markdown(self._fill(text), extensions=["extra", "sane_lists"])
         return Markup(sanitize_html(html, site=True))
 
+    def md_parts(self, text: str) -> list[Markup]:
+        """The Markdown, cut before each top-level heading: each heading with
+        what follows it, for blocks that fade in one by one."""
+        html = str(self.md(text))
+        parts = [p for p in re.split(r"(?=<h[23][ >])", html) if p.strip()]
+        return [Markup(p) for p in parts]
+
     def md_inline(self, text: str) -> Markup:
         """Markdown for a single line: the paragraph wrapper comes off."""
         html = str(self.md(text)).strip()
@@ -241,6 +249,39 @@ class Renderer:
         if value and value.startswith(("/media/", "https://", "http://")):
             return Markup(f'<img class="ico ico--img {escape(css_class)}" src="{escape(value)}" alt="">')
         return Markup(icon_svg(value, css_class))
+
+    def install_text(self, key: str) -> str:
+        """The install dialog's wording for ``key``: the owner's, or the
+        built-in text for a site saved before the field existed."""
+        conf = self.doc.get("install", {})
+        if key in conf:
+            return conf[key]
+        return site_schema.DOCUMENT.fields["install"].fields[key].default
+
+    @staticmethod
+    def arch_spans(html: Markup, arch: str, name: str) -> Markup:
+        """{arch} and {arch_name} in the full download's text, as spans the
+        dialog's script rewrites when the visitor picks another machine."""
+        return Markup(str(html)
+                      .replace("{arch_name}", f'<span class="dl-arch-name">{escape(name)}</span>')
+                      .replace("{arch}", f'<span class="dl-arch">{escape(arch)}</span>'))
+
+    def image_size(self, url: str) -> tuple[int, int] | None:
+        """Width and height of an uploaded image, so a page can keep its room
+        before it loads; None when it isn't known."""
+        from .models import Media
+        if not (url or "").startswith("/media/"):
+            return None
+        item = Media.query.filter_by(filename=url.removeprefix("/media/")).first()
+        if not item or not item.width or not item.height:
+            return None
+        return item.width, item.height
+
+    def image_ratio(self, url: str) -> float | None:
+        """Width over height of an uploaded image, for layouts that size
+        frames by their pictures; None when it isn't known."""
+        size = self.image_size(url)
+        return size[0] / size[1] if size else None
 
     def sections(self) -> list[dict]:
         """The sections to draw, in order. A beta section only appears while a
@@ -337,11 +378,16 @@ def theme_css(theme: dict) -> str:
     light, dark = colors(theme["light"]), colors(theme["dark"])
     # data-theme is always set by the head script; the media query covers a
     # visitor with scripts off, who still gets dark when the system is dark.
+    # The owner's own CSS comes last, so it can override the theme. It sits
+    # inside a <style> element: "</" is written as the CSS escape "<\\/" so
+    # it can never close that element early.
+    custom = (theme.get("custom_css") or "").replace("</", "<\\/")
     return "\n".join(faces + [
         f":root {{ {shared} {light} }}",
         f':root[data-theme="dark"] {{ {dark} }}',
         f'@media (prefers-color-scheme: dark) {{ :root:not([data-theme]) {{ {dark} }} }}'
         if theme["mode"] == "system" else "",
+        custom,
     ])
 
 

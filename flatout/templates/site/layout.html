@@ -76,10 +76,12 @@
     <div class="container footer__inner">
       <div class="footer__brand">
         <a class="brand" href="{{ url_for('public.home') }}" aria-label="{{ app_name }} home">
-          {%- if doc.images.wordmark %}
+          {%- set fw = doc.footer.wordmark or doc.images.wordmark %}
+          {%- set fw_dark = doc.footer.wordmark_dark if doc.footer.wordmark else doc.images.wordmark_dark %}
+          {%- if fw %}
           <picture data-theme-swap>
-            {% if doc.images.wordmark_dark %}<source srcset="{{ doc.images.wordmark_dark }}" media="(prefers-color-scheme: dark)">{% endif %}
-            <img class="brand__wordmark brand__wordmark--footer" src="{{ doc.images.wordmark }}" alt="{{ app_name }}">
+            {% if fw_dark %}<source srcset="{{ fw_dark }}" media="(prefers-color-scheme: dark)">{% endif %}
+            <img class="brand__wordmark brand__wordmark--footer" src="{{ fw }}" alt="{{ app_name }}">
           </picture>
           {%- else %}<span class="brand__name">{{ app_name }}</span>{% endif -%}
         </a>

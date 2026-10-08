@@ -36,6 +36,9 @@
           {{ s.fill(d.status_text) }}</span>
         {%- endif %}
         {%- if d.body %}<div class="ospanel__body">{{ s.md(d.body) }}</div>{% endif %}
+        {%- if d.command and d.command_at == 'body' %}{{ command(s, d.command, sec.id ~ '-cmd-' ~ outer) }}{% endif %}
+        {%- if d.steps_title %}<p class="ospanel__steps-title">{{ s.fill(d.steps_title) }}</p>{% endif %}
+        {%- if d.steps_intro %}<div class="ospanel__body">{{ s.md(d.steps_intro) }}</div>{% endif %}
         {%- if d.steps %}
         <ol class="install-steps">
           {%- for step in d.steps %}
@@ -43,13 +46,18 @@
           {%- endfor %}
         </ol>
         {%- endif %}
-        {%- if d.command %}{{ command(s, d.command, sec.id ~ '-cmd-' ~ outer) }}{% endif %}
+        {%- if d.command and d.command_at != 'body' %}{{ command(s, d.command, sec.id ~ '-cmd-' ~ outer) }}{% endif %}
+        {%- if d.note %}<div class="install-note">{{ s.md(d.note) }}</div>{% endif %}
       </div>
       {%- endfor %}
     </div>
     {%- endif %}
 
     {%- if sec.after %}<div class="cta__note reveal-me">{{ s.md(sec.after) }}</div>{% endif %}
-    {{ buttons(s, sec.buttons) }}
+    {{ buttons(s, sec.buttons, row='reveal-me') }}
+    {%- for block in sec.closing or [] %}
+    {%- if block.text %}<div class="cta__note reveal-me">{{ s.md(block.text) }}</div>{% endif %}
+    {{ buttons(s, block.buttons, row='reveal-me') }}
+    {%- endfor %}
   </div>
 </section>

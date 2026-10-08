@@ -1,16 +1,40 @@
 {% from "site/macros.html" import head, picture %}
-<section id="{{ sec.id }}" class="section" data-section="{{ sec.id }}">
+{#- "row" sets the frames side by side on one line, their captions on the
+    next, the columns in proportion to each screenshot's width share, or to
+    its picture's shape when the share is 0. The frames share the row's
+    height, each picture centered in its own. Pictures of unknown shape
+    without a share fall back to the grid. -#}
+{%- set shown = sec['items']|selectattr('image')|list %}
+{%- set ns = namespace(row=sec.layout == 'row' and shown|length > 1, cols=[]) %}
+{%- if ns.row %}{% for item in shown %}
+  {%- set r = item.share or ((s.image_ratio(item.image) or 0) * 1000) %}
+  {%- if r %}{% set ns.cols = ns.cols + [r] %}{% else %}{% set ns.row = false %}{% endif %}
+{%- endfor %}{% endif %}
+<section id="{{ sec.id }}" class="section{% if sec.joined %} section--joined{% endif %}" data-section="{{ sec.id }}">
   <div class="container">
     {{ head(s, sec) }}
-    <div class="gallery gallery--{{ [sec['items']|selectattr('image')|list|length, 3]|min }}">
-      {%- for item in sec['items'] if item.image %}
+    {%- if ns.row %}
+    <div class="gallery gallery--row" style="grid-template-columns: {% for c in ns.cols %}minmax(0, {{ '%.3f'|format(c / 1000) }}fr){% if not loop.last %} {% endif %}{% endfor %}">
+      {%- for item in shown %}
+      <figure class="gallery__item" style="--col: {{ loop.index }}">
+        <div class="gallery__frame reveal-me">{{ picture(item.image, item.image_dark, s.fill(item.alt), '', 'data-zoom', 'lazy', s.image_size(item.image)) }}</div>
+        {%- if item.title or item.caption %}
+        <figcaption class="reveal-me">{% if item.title %}<strong>{{ s.fill(item.title) }}</strong> {% endif %}{{ s.fill(item.caption) }}</figcaption>
+        {%- endif %}
+      </figure>
+      {%- endfor %}
+    </div>
+    {%- else %}
+    <div class="gallery gallery--{{ [shown|length, 3]|min }}">
+      {%- for item in shown %}
       <figure class="gallery__item reveal-me">
-        <div class="gallery__frame">{{ picture(item.image, item.image_dark, s.fill(item.alt), '', 'data-zoom') }}</div>
+        <div class="gallery__frame">{{ picture(item.image, item.image_dark, s.fill(item.alt), '', 'data-zoom', 'lazy', s.image_size(item.image)) }}</div>
         {%- if item.title or item.caption %}
         <figcaption>{% if item.title %}<strong>{{ s.fill(item.title) }}</strong> {% endif %}{{ s.fill(item.caption) }}</figcaption>
         {%- endif %}
       </figure>
       {%- endfor %}
     </div>
+    {%- endif %}
   </div>
 </section>

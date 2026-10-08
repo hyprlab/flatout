@@ -1,11 +1,21 @@
 {% from "site/macros.html" import buttons %}
+{%- set mode = sec.reveal or 'blocks' %}
+{%- set rv = '' if mode == 'none' else ' reveal-me' %}
 <section id="{{ sec.id }}" class="section{% if sec.tinted %} section--tint{% endif %}" data-section="{{ sec.id }}">
-  <div class="container narrow text-block text-block--{{ sec.align }}">
-    {%- if sec.icon %}<div class="badge-icon reveal-me">{{ s.icon(sec.icon) }}</div>{% endif %}
-    {%- if sec.eyebrow %}<p class="eyebrow reveal-me">{{ s.fill(sec.eyebrow) }}</p>{% endif %}
-    {%- if sec.title %}<h2 class="section__title reveal-me">{{ s.fill(sec.title) }}</h2>{% endif %}
-    {%- if sec.lead %}<p class="section__lead reveal-me">{{ s.fill(sec.lead) }}</p>{% endif %}
-    {%- if sec.body %}<div class="prose reveal-me">{{ s.md(sec.body) }}</div>{% endif %}
-    {{ buttons(s, sec.buttons) }}
+  <div class="container narrow text-block text-block--{{ sec.align }}"
+    {%- if sec.width and sec.width != 712 %} style="max-width: {{ sec.width|int + 48 }}px"{% endif %}>
+    {%- if sec.icon %}<div class="badge-icon{{ rv }}">{{ s.icon(sec.icon) }}</div>{% endif %}
+    {%- if sec.eyebrow %}<p class="eyebrow{{ rv }}">{{ s.fill(sec.eyebrow) }}</p>{% endif %}
+    {%- if sec.title %}<h2 class="section__title{{ rv }}">{{ s.fill(sec.title) }}</h2>{% endif %}
+    {%- if sec.lead %}<p class="section__lead{{ rv }}">{{ s.md_inline(sec.lead) }}</p>{% endif %}
+    {%- if sec.buttons_at == 'lead' %}{{ buttons(s, sec.buttons, row=rv.strip()) }}{% endif %}
+    {%- if sec.body %}
+    {%- if mode == 'headings' %}
+    <div class="prose">{% for part in s.md_parts(sec.body) %}<div class="prose__part reveal-me">{{ part }}</div>{% endfor %}</div>
+    {%- else %}
+    <div class="prose{{ rv }}">{{ s.md(sec.body) }}</div>
+    {%- endif %}
+    {%- endif %}
+    {%- if sec.buttons_at != 'lead' %}{{ buttons(s, sec.buttons, row=rv.strip()) }}{% endif %}
   </div>
 </section>

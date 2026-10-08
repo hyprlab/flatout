@@ -400,6 +400,9 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   perspective: 1000px;
   perspective-origin: 50% 0%;
 }
+/* Without a dark-mode image there is no <picture>: the stage holds the
+   perspective for the image itself. */
+.shot__stage { perspective: 1000px; perspective-origin: 50% 0%; }
 .shot__img {
   display: block;
   width: 100%;
@@ -667,6 +670,8 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   font-size: .88rem;
   color: var(--ink-soft);
 }
+.reqs__note > p { margin: 0; }
+.reqs__note > p + p { margin-top: 8px; }
 
 /* ----------------------------- footer --------------------------- */
 .footer {
@@ -998,7 +1003,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .method__icon--ref    { background: var(--accent-gradient); }
 .method__icon--bundle { background: linear-gradient(160deg, color-mix(in srgb, var(--highlight) 80%, white), var(--highlight)); color: var(--highlight-ink); }
 .method__icon--repo   { background: linear-gradient(160deg, color-mix(in srgb, var(--c-green) 72%, white), var(--c-green)); }
-.method__icon--rpm    { background: linear-gradient(160deg, #6f9bd6, #3c6eb4); }
+.method__icon--rpm    { background: linear-gradient(160deg, #3c6eb4, #294172); }
 .method__icon--deb    { background: linear-gradient(160deg, #e0577f, #a80030); }
 .method__icon--files  { background: linear-gradient(160deg, color-mix(in srgb, var(--ink-soft) 70%, white), var(--ink-soft)); }
 .method__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -1036,7 +1041,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 }
 .how[hidden] { display: none; }
 .how__after strong { color: var(--ink); }
-.how__after code, .term code:not(.code-copy code) {
+.how__after code, .how__lead code, .term code:not(.code-copy code) {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -1383,7 +1388,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   padding-top: 16px;
   border-top: 1px solid var(--line);
 }
-.ospanel__sub {
+.ospanel__sub, .install-steps li > ul {
   margin: 10px 0 0;
   padding-left: 18px;
   display: grid;
@@ -1391,7 +1396,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   font-size: .95rem;
   color: var(--ink-soft);
 }
-.ospanel__sub em { color: var(--ink); font-style: normal; font-weight: 700; }
+.ospanel__sub em, .install-steps li > ul em { color: var(--ink); font-style: normal; font-weight: 700; }
 
 /* =========================== Flatout additions =========================== */
 
@@ -1417,10 +1422,13 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   background: color-mix(in srgb, var(--hero-ink) 16%, transparent);
   color: var(--hero-ink);
 }
-.hero__pill a { color: var(--hero-ink); font-weight: 700; text-decoration: underline; }
+.hero__pill a { color: var(--hero-ink); font-weight: 600; text-decoration: underline; }
 .hero__badges .dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--hero-ink) 20%, transparent); }
 .hero--shot { padding-bottom: 0; }
 .hero--shot .shot { padding-bottom: 56px; }
+/* Fading, the hero ends at the window's foot: the blend has already met the
+   page, which carries the space below. */
+.hero--fade.hero--shot .shot { padding-bottom: 0; }
 
 /* Feature grid columns as chosen in the editor. */
 .grid--2 { grid-template-columns: repeat(2, 1fr); }
@@ -1444,7 +1452,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   box-shadow: var(--shadow-md);
 }
 .text-block--left .badge-icon { margin-left: 0; }
-.badge-icon .ico { width: 40px; height: 40px; }
+.badge-icon .ico { width: 44px; height: 44px; }
 .cta__note > :first-child { margin-top: 0; }
 .cta__note p { margin: 0 0 10px; }
 .band__inner--solo { grid-template-columns: 1fr; max-width: 760px; }
@@ -1514,7 +1522,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 /* A warning box (the beta section). */
 .notice {
   border-radius: 12px;
-  padding: 14px 18px;
+  padding: 16px 18px;
   margin: 0 0 20px;
   text-align: left;
 }
@@ -1527,12 +1535,14 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 
 /* Pages and the not-found page. */
 .page { padding: 56px 0 84px; }
-.page--center { padding: 96px 0; }
+/* A page reads in one centered column. */
+.page:not(.page--center) > .container { max-width: 820px; }
+.page--center, .nav + .page.page--center { padding: 84px 0; }
 .nav + .page { padding-top: 56px; }
 
 /* The install dialog's extra states. */
 .modal__empty { text-align: center; color: var(--ink-soft); margin: 0 0 8px; }
-.how__lead { margin: 0 0 4px; color: var(--ink-soft); font-size: .92rem; }
+.how__lead { margin: 0 0 12px; color: var(--ink-soft); font-size: .92rem; }
 .modal__foot p { margin: 0; }
 
 /* The admin's preview of the draft. */
@@ -1737,3 +1747,71 @@ a.status__powered:hover { color: var(--hero-ink); text-decoration: underline; te
 @media (max-width: 760px) {
   .hero--fade { --fade-len: calc(var(--hero-fade-len, 470px) * .47); }
 }
+
+/* ———————— Markdown alignment and text-section headings ———————— */
+/* {: .center} and its kin on a block of the owner's Markdown. */
+.prose .center { text-align: center; }
+.prose .left { text-align: left; }
+.prose .right { text-align: right; }
+/* {: .note} on a line of the owner's Markdown: small print, such as a page's date. */
+.prose p.note { color: var(--ink-soft); font-size: .92rem; margin-top: -6px; }
+/* A text section's body reads like the paragraphs of a hand-set page rather
+   than an article: plain links and code, paragraphs 12px apart and flush
+   under their heading, the first heading as far from the introduction as a
+   section's head is from its content. */
+.text-block .prose h3 { font-size: 1.15rem; font-weight: var(--heading-weight); margin: 26px 0 8px; }
+.text-block .prose > :is(h2, h3):first-child { margin-top: 52px; }
+.text-block .actions + .prose > :is(h2, h3):first-child { margin-top: 46px; }
+.text-block .prose h3.center { margin-top: 46px; }
+.text-block .prose p + h3.center { margin-top: 34px; }
+.text-block .prose :is(p, ul, ol), .beta__text :is(p, ul, ol) { margin: 12px 0 0; }
+.text-block .prose > :is(p, ul, ol):first-child, .beta__text > :is(p, ul, ol):first-child { margin-top: 0; }
+.text-block .prose :is(h2, h3) + :is(p, ul, ol) { margin-top: 0; }
+.text-block .prose li:last-child { margin-bottom: 0; }
+/* Fading in heading by heading, each part a block of its own: the same gaps. */
+.text-block .prose > .prose__part:first-child > :is(h2, h3):first-child { margin-top: 52px; }
+.text-block .actions + .prose > .prose__part:first-child > :is(h2, h3):first-child { margin-top: 46px; }
+.text-block .prose__part + .prose__part > h3:first-child { margin-top: 46px; }
+.text-block .prose__part:has(> p:last-child) + .prose__part > h3:first-child { margin-top: 34px; }
+.text-block .prose a, .beta__text a { font-weight: inherit; }
+.text-block .prose code, .beta__text code { all: revert; }
+
+/* ———————— Screenshots in one row, and joined sections ———————— */
+/* The frames on one grid line, their captions on the next (gallery.html sets
+   the columns and each figure's --col), so the frames share a height and
+   the captions start level. */
+.gallery--row { display: grid; gap: 14px 20px; }
+.gallery--row .gallery__item { display: contents; }
+.gallery--row .gallery__frame { grid-column: var(--col); grid-row: 1; display: flex; align-items: center; padding: 18px; }
+.gallery--row .gallery__frame img { display: block; border-radius: 0; }
+.gallery--row figcaption { grid-column: var(--col); grid-row: 2; margin: 0 8px; }
+@media (max-width: 760px) {
+  .gallery--row { grid-template-columns: 1fr !important; gap: 12px; }
+  .gallery--row .gallery__frame { grid-column: 1; grid-row: calc(var(--col) * 2 - 1); }
+  .gallery--row figcaption { grid-column: 1; grid-row: calc(var(--col) * 2); }
+  .gallery--row .gallery__item:not(:last-child) figcaption { margin-bottom: 20px; }
+}
+/* No gap of its own: 52px under the section above, whose foot is 84px. */
+.section--joined { padding-top: 0; margin-top: -32px; }
+
+/* ———————— The beta section's optional pieces ———————— */
+.beta__icon { display: block; width: 88px; height: auto; margin: 0 auto 14px; }
+.beta__body { margin-inline: auto; }
+.beta__body--button-text .actions { margin: 18px 0 8px; }
+.beta__note { text-align: center; margin: 0 0 14px; }
+.beta__command-intro { color: var(--ink-soft); margin: 0 0 10px; }
+.beta__after p { margin: 0; }
+
+/* ———————— The install guide's closing notes ———————— */
+/* A note and the buttons it introduces read as one block: the note's own
+   margin is the gap, as on a hand-set page. */
+.cta__note > :last-child { margin-bottom: 0; }
+.cta__note + .actions { margin-top: 0; }
+
+/* ———————— Install dialog: package badges and Markdown blocks ———————— */
+/* The package methods are named, not drawn: "rpm", "deb". */
+.method__icon--rpm span, .method__icon--deb span { font-weight: 800; font-size: .78rem; letter-spacing: .04em; color: #fff; }
+/* The owner's Markdown under a method reads as the single paragraph it
+   replaces. */
+.how__after > p, .how__lead > p { margin: 0; }
+.how__after > p + p, .how__lead > p + p { margin-top: 8px; }

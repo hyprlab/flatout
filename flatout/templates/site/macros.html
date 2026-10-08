@@ -11,10 +11,10 @@
 {%- endif -%}
 {%- endmacro %}
 
-{% macro buttons(s, list, extra='') -%}
+{% macro buttons(s, list, extra='', row='') -%}
 {%- set shown = [] -%}
 {%- for b in list if s.link(b.url) and b.label %}{% set _ = shown.append(b) %}{% endfor -%}
-{%- if shown %}<div class="actions">{% for b in shown %}{{ button(s, b, extra) }}{% endfor %}</div>{% endif -%}
+{%- if shown %}<div class="actions{% if row %} {{ row }}{% endif %}">{% for b in shown %}{{ button(s, b, extra) }}{% endfor %}</div>{% endif -%}
 {%- endmacro %}
 
 {% macro download(s, label) -%}
@@ -41,14 +41,17 @@
 {%- endif %}
 {%- endmacro %}
 
-{% macro picture(light, dark, alt, cls='', attrs='') -%}
+{#- `size` is (width, height) when known, so the page keeps the picture's
+    room before it loads. -#}
+{% macro picture(light, dark, alt, cls='', attrs='', loading='lazy', size=none) -%}
+{%- set dims = (' width="%d" height="%d"'|format(size[0], size[1])) if size else '' %}
 {%- if dark %}
 <picture data-theme-swap>
   <source srcset="{{ dark }}" media="(prefers-color-scheme: dark)">
-  <img class="{{ cls }}" src="{{ light }}" alt="{{ alt }}" loading="lazy" {{ attrs|safe }}>
+  <img class="{{ cls }}" src="{{ light }}" alt="{{ alt }}" loading="{{ loading }}"{{ dims|safe }} {{ attrs|safe }}>
 </picture>
 {%- else %}
-<img class="{{ cls }}" src="{{ light }}" alt="{{ alt }}" loading="lazy" {{ attrs|safe }}>
+<img class="{{ cls }}" src="{{ light }}" alt="{{ alt }}" loading="{{ loading }}"{{ dims|safe }} {{ attrs|safe }}>
 {%- endif %}
 {%- endmacro %}
 

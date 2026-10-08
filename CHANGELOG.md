@@ -6,6 +6,37 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- The hero's screenshot can lean back and straighten as the page scrolls
+- Screenshots can sit in one row, each with a width share, joined to the
+  section above
+- A text section has a width, its buttons under the introduction or after
+  the text, and a choice of how it fades in, including heading by heading;
+  its introduction takes links and bold
+- The beta section can show an icon, hide its version, put its button after
+  the text with a note under it, and offer a command in a copy box
+- An install guide tab can give its command right after its text, a heading
+  for its steps and a closing note; closing blocks pair text with buttons
+- The install dialog's wording is editable, with a folded tip under the
+  install file and the full download from another address, such as a GitHub
+  release asset; a package built for some machines only is greyed out on the
+  others
+- The footer can have a wordmark of its own
+- The page for an address with nothing at it has editable wording
+- Custom CSS under Design, added after the theme
+- Markdown can center, left-align or set a paragraph in small print, and give
+  a heading an anchor to link to
+- Solid icons for feature cards
+
+### Changed
+- Pages read in one centered column
+- Text sections set their paragraphs closer, with plain links and code, as
+  the rest of the homepage does
+- Pictures keep their room on the page before they load
+- Small details follow the site's original design: the announcement's link
+  weight, the install dialog's spacing and its rpm and deb badges, the
+  warning box's padding, the not-found page's spacing
+
 ## [1.4.0] — 2026-10-08
 
 ### Added

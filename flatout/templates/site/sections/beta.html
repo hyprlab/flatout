@@ -1,18 +1,34 @@
 {% from "site/macros.html" import command, versions %}
 {%- set beta = s.repo.beta %}
-<section id="{{ sec.id }}" class="section section--tint" data-section="{{ sec.id }}">
-  <div class="container narrow">
-    <div class="section__head">
-      {%- if sec.title %}<h2 class="section__title">{{ s.fill(sec.title) }}</h2>{% endif %}
-      {%- if sec.lead %}<p class="section__lead">{{ s.fill(sec.lead) }}</p>{% endif %}
-      {%- if beta %}<p class="section__meta">Beta {{ versions(s.repo, beta) }}</p>{% endif %}
-    </div>
-    {%- if sec.warning %}<div class="notice notice--warn reveal-me">{{ s.md(sec.warning) }}</div>{% endif %}
+{#- "parts" fades each piece in on its own; "whole" the heading, then the rest. -#}
+{%- set whole = sec.reveal == 'whole' %}
+{%- set rv = '' if whole else ' reveal-me' %}
+{%- macro beta_button() %}
     {%- if sec.button_label %}
-    <div class="actions reveal-me"><a class="btn btn--primary" href="{{ s.repo.beta_flatpakref_url }}" download>
+    <div class="actions{{ rv }}"><a class="btn btn--primary" href="{{ s.repo.beta_flatpakref_url }}" download>
       <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1a1 1 0 0 1 1-1Z"/></svg>
       {{ s.fill(sec.button_label) }}</a></div>
+    {%- if sec.button_note %}<p class="install-note beta__note{{ rv }}">{{ s.md_inline(sec.button_note) }}</p>{% endif %}
     {%- endif %}
-    {%- if sec.body %}<div class="prose reveal-me">{{ s.md(sec.body) }}</div>{% endif %}
+{%- endmacro %}
+<section id="{{ sec.id }}" class="section{% if sec.tinted is not defined or sec.tinted %} section--tint{% endif %}" data-section="{{ sec.id }}">
+  <div class="container narrow">
+    <div class="section__head{% if whole %} reveal-me{% endif %}">
+      {%- if sec.icon %}<img class="beta__icon" src="{{ sec.icon }}" alt="{{ s.fill(s.doc.app.name) }} beta app icon" width="88" height="88">{% endif %}
+      {%- if sec.title %}<h2 class="section__title">{{ s.fill(sec.title) }}</h2>{% endif %}
+      {%- if sec.lead %}<p class="section__lead">{{ s.fill(sec.lead) }}</p>{% endif %}
+      {%- if beta and (sec.show_version is not defined or sec.show_version) %}<p class="section__meta">Beta {{ versions(s.repo, beta) }}</p>{% endif %}
+    </div>
+    <div class="beta__body{% if whole %} reveal-me{% endif %} beta__body--button-{{ 'text' if sec.button_at == 'text' else 'warning' }}"{% if sec.width and sec.width != 712 %} style="max-width: {{ sec.width|int }}px"{% endif %}>
+    {%- if sec.warning %}<div class="notice notice--warn{{ rv }}">{{ s.md(sec.warning) }}</div>{% endif %}
+    {%- if sec.button_at != 'text' %}{{ beta_button() }}{% endif %}
+    {%- if sec.body %}<div class="prose beta__text{{ rv }}">{{ s.md(sec.body) }}</div>{% endif %}
+    {%- if sec.button_at == 'text' %}{{ beta_button() }}{% endif %}
+    {%- if sec.command %}
+    {%- if sec.command_intro %}<p class="beta__command-intro{{ rv }}">{{ s.md_inline(sec.command_intro) }}</p>{% endif %}
+    <div class="{{ rv.strip() }}">{{ command(s, sec.command, sec.id ~ '-cmd') }}</div>
+    {%- endif %}
+    {%- if sec.after %}<div class="install-note beta__after{{ rv }}">{{ s.md(sec.after) }}</div>{% endif %}
+    </div>
   </div>
 </section>

@@ -201,7 +201,7 @@ SECTION_TYPES: dict[str, SectionType] = {
         "Hero", "The first screen: the icon, the headline, the download button.",
         {
             "announcement": group("Announcement pill", {
-                "text": text("Text", max=160, help="Leave empty to hide the pill."),
+                "text": text("Text", max=160, help="Leave empty to hide the pill. **Bold** works."),
                 "link_label": text("Link label", max=60),
                 "link_url": url("Link"),
             }),
@@ -218,6 +218,9 @@ SECTION_TYPES: dict[str, SectionType] = {
             "screenshot": image("Screenshot", help="Shown under the headline, framed by the hero."),
             "screenshot_dark": image("Screenshot in dark mode", help="Optional. Used when the visitor is in dark mode."),
             "screenshot_alt": text("Screenshot description", max=300, help="Read aloud by screen readers."),
+            "tilt": boolean("Tilt the screenshot as the page scrolls",
+                            help="It leans back as it comes into view, stands upright as it rises, and tips "
+                                 "forward as it leaves. Still for visitors who ask for less motion."),
             "fade": boolean("Fade into the page",
                             help="The hero's color blends into the page below it, behind the screenshot "
                                  "if there is one, instead of ending at a straight edge."),
@@ -246,12 +249,20 @@ SECTION_TYPES: dict[str, SectionType] = {
             "eyebrow": text("Eyebrow", max=60),
             "title": text("Title", max=160),
             "lead": textarea("Introduction", max=600),
+            "layout": select("Layout", [("grid", "Equal columns"),
+                                        ("row", "One row, the pictures all the same height")], "grid",
+                             help="One row suits two or three uploaded pictures of different shapes."),
+            "joined": boolean("Join the section above",
+                              help="No gap of its own: the screenshots sit right under the section before."),
             "items": items("Screenshots", group("Screenshot", {
                 "image": image("Image"),
                 "image_dark": image("Image in dark mode", help="Optional."),
                 "alt": text("Description", max=300, help="Read aloud by screen readers."),
                 "title": text("Caption title", max=120),
                 "caption": textarea("Caption", max=600),
+                "share": integer("Width share", 0, 0, 10000,
+                                 help="In the one-row layout: its width against the others' (1000 and 1325 make "
+                                      "the second 1.325 times as wide). 0 sizes it by its picture's shape."),
             }), max=12, item_label="screenshot", title_field="title"),
         },
     ),
@@ -274,12 +285,21 @@ SECTION_TYPES: dict[str, SectionType] = {
         {
             "eyebrow": text("Eyebrow", max=60),
             "title": text("Title", max=160),
-            "lead": textarea("Introduction", max=600),
-            "body": markdown("Text"),
+            "lead": textarea("Introduction", max=600, help="**Bold** and [links](https://…) work."),
+            "body": markdown("Text", help="Markdown: **bold**, *italic*, [links](https://…), lists, `code`. "
+                                          "{: .center} or {: .left} on the line after a paragraph or list "
+                                          "aligns it on its own; {#name} after a heading makes it #name."),
             "icon": icon("Badge icon", help="Optional, shown above the title."),
             "align": select("Alignment", [("center", "Centered"), ("left", "Left")], "center"),
             "tinted": boolean("Tinted background"),
+            "width": integer("Text width (px)", 712, 400, 1100, help="How wide the title and text may run."),
             "buttons": buttons(),
+            "buttons_at": select("Buttons go", [("end", "After the text"), ("lead", "Under the introduction")],
+                                 "end"),
+            "reveal": select("Fade in as it scrolls into view",
+                             [("blocks", "The title, the introduction and the text, one after another"),
+                              ("headings", "The same, with each heading and what follows it on its own"),
+                              ("none", "No: shown as it is")], "blocks"),
         },
     ),
     "install": SectionType(
@@ -305,20 +325,46 @@ SECTION_TYPES: dict[str, SectionType] = {
                     "text": markdown("Text", max=1200),
                     "command": textarea("Command", max=600, help="Shown in a copyable box."),
                 }), max=10, item_label="step", title_field="text"),
-                "command": textarea("Final command", max=600, help="Shown after the steps, in a copyable box."),
+                "command": textarea("Final command", max=600, help="Shown in a copyable box."),
+                "command_at": select("The command goes", [("end", "After the steps"), ("body", "Right after the text")],
+                                     "end"),
+                "steps_title": text("Steps heading", max=120, help="Optional, above the steps."),
+                "steps_intro": markdown("Before the steps", max=2000),
+                "note": markdown("Note at the end", max=2000),
             }), max=12, item_label="distro", title_field="name"),
             "after": markdown("Text after the guide", max=4000),
             "buttons": buttons(),
+            "closing": items("Closing blocks", group("Block", {
+                "text": markdown("Text", max=2000),
+                "buttons": buttons(),
+            }), max=6, item_label="block", title_field="text",
+                help="Text and buttons in turn, after everything above: a word on bug reports and its "
+                     "button, then one on donations and its button."),
         },
     ),
     "beta": SectionType(
         "Beta channel", "How to install the beta. Shown only while a beta release exists.",
         {
+            "icon": image("Icon", help="Optional, above the title: the beta's own app icon, say."),
             "title": text("Title", "Try the {app_name} beta", max=160),
             "lead": textarea("Introduction", max=600),
+            "show_version": boolean("Show the beta's version", True),
             "warning": markdown("Warning box", max=2000),
             "body": markdown("Text", max=4000),
             "button_label": text("Button label", "Download the beta", max=60),
+            "button_at": select("Button goes", [("warning", "After the warning"), ("text", "After the text")],
+                                "warning"),
+            "button_note": text("Note under the button", max=300),
+            "command_intro": text("Before the command", max=300,
+                                  help="Such as: Prefer the terminal? Install it with:"),
+            "command": textarea("Command", max=600,
+                                help="Shown in a copyable box, such as flatpak install --from {beta_flatpakref_url}"),
+            "after": markdown("Small print after the command", max=2000),
+            "width": integer("Text width (px)", 712, 400, 1100, help="How wide everything under the title may run."),
+            "tinted": boolean("Tinted background", True),
+            "reveal": select("Fade in as it scrolls into view",
+                             [("parts", "Each part under the title, one after another"),
+                              ("whole", "The title, then everything under it as one")], "parts"),
         },
     ),
     "releases": SectionType(
@@ -437,6 +483,10 @@ THEME = group("Design", {
     "heading_weight": select("Heading weight", [("600", "Semibold"), ("700", "Bold"), ("800", "Extra bold"), ("900", "Black")], "800"),
     "radius": integer("Corner rounding (px)", 18, 0, 32),
     "width": integer("Content width (px)", 1120, 880, 1440),
+    "custom_css": textarea("Custom CSS", "", max=20000,
+                           help="Added after the theme's colors, for touches the settings don't reach: "
+                                "a hand-picked shade, a font stack. The page's own variables, such as "
+                                "--accent and --c-blue, can be used and changed."),
 })
 
 
@@ -475,6 +525,9 @@ DOCUMENT = group("Site", {
                           help="Opens the install dialog. Leave empty to hide it."),
     }),
     "footer": group("Footer", {
+        "wordmark": image("Wordmark", help="Optional, the footer's own: shown here even when the header keeps "
+                                           "the name as text. Empty uses the site's wordmark, if any."),
+        "wordmark_dark": image("Wordmark in dark mode", help="Optional."),
         "tagline": text("Tagline", "{app_tagline}", max=200),
         "links": items("Links", link_item(), [], max=12, item_label="link", title_field="label"),
         "show_install_link": boolean("Link to the install dialog", True),
@@ -504,12 +557,73 @@ DOCUMENT = group("Site", {
                                 help="AppImages, tarballs and other files published under Packages."),
         "flatpak_setup_url": url("Flatpak setup guide", "https://flatpak.org/setup/"),
         "footer": markdown("Small print", "Every option installs the same app and keeps it updated.", max=2000),
+        # The wording of each way to install. Every default is the built-in
+        # text; emptying a field leaves that piece out. Markdown fields know
+        # {flatpak_setup_url}, and in the full download's, {arch_name} and
+        # {arch} follow the machine the visitor picks.
+        "show_version": boolean("Show the version under the title", True),
+        "ref_title": text("Install file: name", "Install file", max=80),
+        "ref_desc": text("Install file: description", "A small file your app store opens, and keeps the app updated.",
+                         max=200),
+        "ref_button": text("Install file: button", "Download the install file", max=80),
+        "ref_after": markdown("Install file: under the button",
+                              "**Open the downloaded file** and your app store (GNOME Software, KDE Discover or "
+                              "similar) installs {app_name} and keeps it updated. New to Flatpak? "
+                              "[Set it up for your distro]({flatpak_setup_url}) first.", max=2000),
+        "ref_tip_title": text("Install file: a folded tip's title", "", max=80,
+                              help="Optional, such as: Using Bazaar?"),
+        "ref_tip_text": markdown("Install file: the tip", "", max=2000),
+        "ref_tip_command": textarea("Install file: the tip's command", "", max=600,
+                                    help="Shown in a copyable box under the tip."),
+        "ref_terminal_intro": markdown("Install file: before the terminal command", "", max=1000),
+        "ref_terminal_after": markdown("Install file: after the terminal command",
+                                       "Then start it from the applications menu or with `flatpak run {app_id}`.",
+                                       max=1000),
+        "bundle_title": text("Full download: name", "Full download", max=80),
+        "bundle_desc": text("Full download: description", "The whole app in one .flatpak file.", max=200),
+        "bundle_url": url("Full download: address",
+                          help="Empty serves the bundles uploaded here. Another address, such as a GitHub release "
+                               "asset, offers the download from there; {arch} in it becomes x86_64 or aarch64."),
+        "bundle_button": text("Full download: button", "Download for", max=80,
+                              help="The machine's name follows it: Download for Intel/AMD."),
+        "bundle_after": markdown("Full download: under the button",
+                                 "**Open it like any download** and your app store installs it. Flatpak has to be "
+                                 "[set up]({flatpak_setup_url}) already.", max=2000),
+        "bundle_terminal_intro": markdown("Full download: before the terminal commands", "", max=1000),
+        "bundle_terminal_after": markdown("Full download: after the terminal commands", "", max=1000),
+        "repo_title": text("Repository: name", "Add the repository", max=80),
+        "repo_desc": text("Repository: description", "For app stores that only search repositories they know.",
+                          max=200),
+        "repo_lead": markdown("Repository: before the commands",
+                              "Add the repository once, then find {app_name} in your app store or install it from "
+                              "a terminal:", max=1000),
+        "rpm_title": text("dnf: name", "Fedora and dnf", max=80),
+        "rpm_desc": text("dnf: description",
+                         "A package from this site's dnf repository, updated with the rest of the system.", max=200),
+        "rpm_lead": markdown("dnf: before the commands",
+                             "Add the repository once; {app_name} then updates with the rest of the system.",
+                             max=1000),
+        "rpm_after": markdown("dnf: after the commands",
+                              "GNOME Software and KDE Discover show its updates too. Fedora, RHEL and their "
+                              "relatives.", max=2000),
+        "rpm_files_title": text("dnf: the single file's title", "Prefer a single file?", max=80),
+        "rpm_files_text": markdown("dnf: the single file's text", "", max=1000,
+                                   help="Empty lists each package file with its version."),
+        "rpm_files_button": text("dnf: the single file's button", "Download the RPM", max=80,
+                                 help="Shown under your own text, for each package file."),
+    }),
+    "not_found": group("Page not found", {
+        "title": text("Title", "There is nothing at this address", max=120),
+        "message": textarea("Message", "The page may have moved, or the link may be mistyped.", max=600),
+        "button": text("Button label", "Go to the homepage", max=60),
     }),
     "sections": items("Sections", group("Section", {}), max=60, item_label="section"),
     "pages": items("Pages", group("Page", {
         "slug": text("Address", max=48, help="The page lives at /<address>, such as /privacy."),
         "title": text("Title", max=160),
-        "body": markdown("Text", max=100000),
+        "body": markdown("Text", max=100000,
+                         help="Markdown: **bold**, *italic*, [links](https://…), lists, `code`. {: .note} on the line "
+                              "after a paragraph sets it in small print; {#name} after a heading makes it #name."),
         "published": boolean("Published", True),
         "in_footer": boolean("Linked in the footer", True),
         "in_nav": boolean("Linked in the header", False),
@@ -531,6 +645,13 @@ def _section(sid: str, stype: str, enabled: bool = True, **values) -> dict:
 
 
 def _distros() -> list[dict]:
+    """The install guide's starting distros, each filled out with the distro
+    fields' defaults."""
+    blank = SECTION_TYPES["install"].fields["distros"].item.default_value()
+    return [dict(blank, **d) for d in _distro_text()]
+
+
+def _distro_text() -> list[dict]:
     install = "flatpak install --from {flatpakref_url}"
     return [
         {"name": "Fedora", "status": "ready", "status_text": "Works out of the box",

@@ -29,6 +29,14 @@ DROP_WITH_CONTENT = {"script", "style", "iframe", "object", "embed", "form", "sv
 
 _SAFE_URL = re.compile(r"^(https?:)?//|^https?:|^/|^#|^mailto:", re.I)
 
+# The site's own Markdown may align a block ({: .center}), set a line in
+# small print ({: .note}) and give a heading an anchor ({#install-counts});
+# only these values, nothing that could style or script anything else.
+SITE_ALIGNABLE = {"p", "h2", "h3", "h4", "ul", "ol", "li", "blockquote"}
+SITE_ALIGNMENTS = {"center", "left", "right", "note"}
+SITE_ANCHORED = {"h2", "h3", "h4"}
+_SITE_ID = re.compile(r"^[a-z][a-z0-9-]{0,47}$")
+
 
 def url_is_safe(url: str) -> bool:
     """True for addresses a link or image may point at; javascript: and
@@ -62,6 +70,12 @@ class _Sanitizer(HTMLParser):
                 if name in ("href", "src") and not _SAFE_URL.match(value.strip()):
                     continue
                 parts.append(f' {name}="{escape(value, quote=True)}"')
+            elif self.site and value and name == "class" and tag in SITE_ALIGNABLE:
+                kept = [c for c in value.split() if c in SITE_ALIGNMENTS]
+                if kept:
+                    parts.append(f' class="{" ".join(kept)}"')
+            elif self.site and value and name == "id" and tag in SITE_ANCHORED and _SITE_ID.match(value):
+                parts.append(f' id="{value}"')
         if tag == "a":
             href = dict(attrs).get("href") or ""
             # Foreign HTML opens every link elsewhere; the site's own text only

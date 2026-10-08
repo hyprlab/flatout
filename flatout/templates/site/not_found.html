@@ -1,12 +1,17 @@
 {% extends "site/layout.html" %}
+{#- The wording is the owner's (Content > Page not found); a site saved before
+    those fields existed gets the built-in text. -#}
+{%- set nf = s.doc.get('not_found') or {} %}
+{%- set nf_title = nf.get('title', 'There is nothing at this address') %}
 {% block title %}Page not found · {{ s.fill(s.doc.app.name) }}{% endblock %}
 {% block body %}
 <main id="main" class="page page--center">
   <div class="container cta">
     <img class="cta__icon" src="{{ s.icon_url }}" alt="" width="88" height="88">
-    <h1 class="section__title">There is nothing at this address</h1>
-    <p class="section__lead">The page may have moved, or the link may be mistyped.</p>
-    <div class="actions"><a class="btn btn--primary" href="{{ url_for('public.home') }}">Go to the homepage</a></div>
+    <h1 class="section__title">{{ s.fill(nf_title) }}</h1>
+    {%- set message = nf.get('message', 'The page may have moved, or the link may be mistyped.') %}
+    {%- if message %}<p class="section__lead cta__lead">{{ s.fill(message) }}</p>{% endif %}
+    <div class="cta__actions"><a class="btn btn--primary" href="{{ url_for('public.home') }}">{{ s.fill(nf.get('button', 'Go to the homepage')) }}</a></div>
   </div>
 </main>
 {% endblock %}

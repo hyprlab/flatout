@@ -292,7 +292,8 @@
     ["nav", "Header", "Links and the install button"],
     ["footer", "Footer", "Links, credit, buttons, small print"],
     ["install", "Install dialog", "The ways to install it offered"],
-    ["seo", "Search and sharing", "Page title and description"]
+    ["seo", "Search and sharing", "Page title and description"],
+    ["not_found", "Page not found", "What an address with nothing at it shows"]
   ];
 
   /* ——— Saving ——— */
