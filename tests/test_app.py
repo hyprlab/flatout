@@ -132,6 +132,33 @@ def test_security_headers(client, admin):
     assert client.get("/admin/preview").headers["X-Frame-Options"] == "SAMEORIGIN"
 
 
+def test_html_carries_a_csp_and_the_page_own_scripts_its_nonce(client, admin):
+    import re
+    resp = client.get("/admin")
+    policy = resp.headers["Content-Security-Policy"]
+    nonce = re.search(r"script-src 'nonce-([^']+)'", policy).group(1)
+    assert f'nonce="{nonce}"' in resp.get_data(as_text=True)
+    assert "object-src 'none'" in policy and "frame-ancestors 'self'" in policy
+    # Turnstile's origin only joins the policy while the challenge is on.
+    assert "challenges.cloudflare.com" not in policy
+
+
+def test_hsts_only_when_cookies_are_secure(app, admin):
+    client = app.test_client()
+    assert "Strict-Transport-Security" not in client.get("/login").headers
+    app.config["SESSION_COOKIE_SECURE"] = True
+    assert "max-age" in client.get("/login").headers["Strict-Transport-Security"]
+
+
+def test_cf_connecting_ip_counts_only_behind_a_configured_proxy(app):
+    from flatout import serve
+    with app.test_request_context("/repo/summary", headers={"CF-Connecting-IP": "203.0.113.9"}):
+        assert serve.client_address() != "203.0.113.9"
+    app.config["TRUST_PROXY"] = 2
+    with app.test_request_context("/repo/summary", headers={"CF-Connecting-IP": "203.0.113.9"}):
+        assert serve.client_address() == "203.0.113.9"
+
+
 def test_changelog_renders_in_the_about_tab(client, csrf, admin):
     from flatout import __version__
     body = client.get("/admin").data.decode()

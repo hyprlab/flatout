@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   {%- if doc.theme.mode == 'system' %}
-  <script>
+  <script nonce="{{ csp_nonce() }}">
     // Resolve the theme before first paint: the visitor's saved choice, else
     // the system's, so data-theme always names the mode in use.
     (function () {

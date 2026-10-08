@@ -27,7 +27,7 @@ they always match the current key, address and app.
 """
 from pathlib import Path
 
-from flask import Blueprint, Response, abort, request, send_from_directory
+from flask import Blueprint, Response, abort, current_app, request, send_from_directory
 
 from . import packages, releases, repo, site, stats
 
@@ -35,10 +35,14 @@ bp = Blueprint("serve", __name__)
 
 
 def client_address() -> str:
-    """The visitor's address, for counting only. Behind Cloudflare the
-    CF-Connecting-IP header is the real one; otherwise ProxyFix has already
-    put the right address in remote_addr (TRUST_PROXY)."""
-    return request.headers.get("CF-Connecting-IP", "").strip() or request.remote_addr or ""
+    """The visitor's address, for counting only. CF-Connecting-IP is only read
+    when a trusted proxy is configured (TRUST_PROXY): heard directly, any
+    client could put any address there and bend the install numbers."""
+    if current_app.config["TRUST_PROXY"] > 0:
+        cf = request.headers.get("CF-Connecting-IP", "").strip()
+        if cf:
+            return cf
+    return request.remote_addr or ""
 
 
 @bp.route("/repo/<path:filename>")

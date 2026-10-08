@@ -36,7 +36,7 @@
     </div>
     <p class="status__foot">{{ s.fill(doc.footer.legal) }}</p>
   </main>
-  <script>
+  <script nonce="{{ csp_nonce() }}">
     // The expected time in the visitor's own clock and words: "today at
     // 2:00 PM", "tomorrow at 9:00 AM", or a date further out.
     (function () {

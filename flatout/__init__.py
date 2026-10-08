@@ -11,7 +11,7 @@ import threading
 import time
 from datetime import datetime
 
-from flask import Flask, Response, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, Response, g, jsonify, redirect, render_template, request, session, url_for
 from flask_login import LoginManager, current_user
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -146,12 +146,31 @@ def create_app(config_class=Config) -> Flask:
         # page briefly shows records the user has since changed or deleted.
         if resp.mimetype == "text/html":
             resp.headers["Cache-Control"] = "no-store"
+            resp.headers["Content-Security-Policy"] = _content_security_policy()
+        if app.config["SESSION_COOKIE_SECURE"]:
+            resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
         # The editor shows its preview of the draft in a frame on the same site.
         resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN" if request.path.startswith("/admin/preview") else "DENY")
         resp.headers.setdefault("Referrer-Policy", "same-origin")
         resp.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         return resp
+
+    def _content_security_policy() -> str:
+        """Scripts and styles must carry this request's nonce, so injected
+        markup can no longer run even if a sanitizer miss ever let it in.
+        Turnstile's own origin is allowed only while the challenge is on."""
+        turnstile = " https://challenges.cloudflare.com" if auth.turnstile_config() else ""
+        return (
+            "default-src 'self'"
+            f"; script-src 'nonce-{csp_nonce()}'{turnstile}"
+            "; style-src 'self' 'unsafe-inline'"   # style attributes would need a nonce each
+            "; img-src 'self' data: https:"         # the owner may point images anywhere https
+            "; font-src 'self' data:"
+            f"; connect-src 'self'{turnstile}"
+            f"; frame-src {turnstile.strip() or chr(39) + 'none' + chr(39)}"
+            "; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+        )
 
     # ———— Errors: JSON for the API, a page for people ————
 
@@ -178,6 +197,14 @@ def create_app(config_class=Config) -> Flask:
                                message=_ERROR_TEXT[500]), 500
 
     # ———— Template globals ————
+
+    @app.template_global()
+    def csp_nonce() -> str:
+        """One value per request, stamped on the page's own inline scripts so
+        the content policy can tell them from injected ones."""
+        if "csp_nonce" not in g:
+            g.csp_nonce = secrets.token_urlsafe(16)
+        return g.csp_nonce
 
     @app.template_global()
     def static_url(filename: str) -> str:

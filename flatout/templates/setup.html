@@ -120,7 +120,7 @@
   </div>
 </main>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
   "use strict";
   var CSRF = document.querySelector('meta[name="csrf"]').content;

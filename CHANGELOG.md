@@ -28,6 +28,14 @@ All notable changes to Flatout are documented here. The format follows
   change-password form shares the throttle
 - Two browsers finishing the setup wizard (or registration) at the same
   moment can no longer both become the first admin
+- Pages now carry a Content-Security-Policy whose script nonce changes with
+  every response, so injected markup cannot run even if a sanitizer miss ever
+  let it in; `Strict-Transport-Security` is sent when `SESSION_COOKIE_SECURE=1`
+- The development server listens on localhost again; `DEV_BIND=0.0.0.0`
+  opens it to the local network as before
+- `CF-Connecting-IP` is only believed when a trusted proxy is configured
+  (`TRUST_PROXY`), so a direct visitor can no longer invent the address
+  install counts are keyed by
 
 ### Changed
 - New passwords hash with scrypt at OWASP's current work factor (2^17), and

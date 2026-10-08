@@ -11,7 +11,7 @@
   <link rel="icon" href="{{ static_url('img/icon.png') }}" type="image/png" sizes="256x256">
   <link rel="apple-touch-icon" sizes="180x180" href="{{ static_url('img/apple-touch-icon.png') }}">
   <link rel="stylesheet" href="{{ static_url('css/app.css') }}">
-  <script>
+  <script nonce="{{ csp_nonce() }}">
     // Resolve the theme before first paint, or the page flashes the wrong one.
     (function () {
       var pref = document.documentElement.getAttribute('data-theme-pref') || 'system';
