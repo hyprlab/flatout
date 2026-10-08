@@ -149,6 +149,19 @@ def test_the_whole_life_of_a_release(app, client, csrf, admin, run_jobs, tmp_pat
     assert 'id="beta"' not in client.get("/").data.decode()
 
 
+def test_a_release_from_a_private_url_is_refused(app, client, csrf, admin, run_jobs):
+    h = {"X-CSRF": csrf}
+    assert client.post("/api/v1/repo/key", json={"action": "generate", "name": "Test"}, headers=h).status_code == 202
+    run_jobs()
+    resp = client.post("/api/v1/releases", json={"url": "http://169.254.169.254/x.flatpak", "channel": "beta"},
+                       headers=h)
+    assert resp.status_code == 202
+    run_jobs()
+    rel = release(client, resp.get_json()["release"]["id"])
+    assert rel["status"] == "failed" and "not a public address" in rel["error"]
+    assert "FAILED" in rel["job"]["log"]
+
+
 def test_a_broken_bundle_fails_with_its_reason(app, client, csrf, admin, run_jobs, tmp_path):
     h = {"X-CSRF": csrf}
     client.post("/api/v1/repo/key", json={"action": "generate", "name": "Test"}, headers=h)

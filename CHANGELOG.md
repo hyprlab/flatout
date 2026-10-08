@@ -9,6 +9,8 @@ All notable changes to Flatout are documented here. The format follows
 ### Fixed
 - Only an admin can export or replace the repository's signing key; before,
   any signed-in account could take it or swap it
+- Importing a release or a file from a URL refuses addresses on the internal
+  network, so an account or a token cannot read it through Flatout
 
 ## [1.2.0] — 2026-10-08
 

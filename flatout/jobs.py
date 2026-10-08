@@ -12,12 +12,16 @@ started it should look before trying again.
 """
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import shutil
+import socket
 import threading
 import time
 import traceback
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 from flask import Flask
@@ -178,17 +182,44 @@ def _prune_bundles(rel: Release) -> None:
         old.bundle_file = None
 
 
+def _assert_public(url: str) -> None:
+    """A fetched URL must name a public address: a private, loopback or
+    link-local one would let whoever asked for the file read the internal
+    network through Flatout itself."""
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise repo.RepoError("url must be an http(s) address.")
+    try:
+        infos = socket.getaddrinfo(parts.hostname, parts.port or (443 if parts.scheme == "https" else 80),
+                                    proto=socket.IPPROTO_TCP)
+    except socket.gaierror as err:
+        raise repo.RepoError(f"{parts.hostname} does not resolve: {err}")
+    for info in infos:
+        if not ipaddress.ip_address(info[4][0].split("%", 1)[0]).is_global:
+            raise repo.RepoError(f"{parts.hostname} is not a public address, so it can't be fetched.")
+
+
+class _PublicRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Checks every hop too: a public address may redirect to a private one."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _assert_public(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def _fetch(url: str, dest: Path, lines: list) -> tuple[int, str]:
-    """Download a bundle from a URL (a CI artifact, a GitHub release asset)."""
+    """Download a bundle from a URL (a CI artifact, a GitHub release asset).
+    Only a public address is fetched, on every redirect hop."""
     import hashlib
-    import urllib.request
     from flask import current_app
     limit = current_app.config["MAX_CONTENT_LENGTH"]
+    _assert_public(url)
     end_worker_transaction()
     lines.append(f"Downloading {url}")
     digest, size = hashlib.sha256(), 0
     req = urllib.request.Request(url, headers={"User-Agent": "Flatout"})
-    with urllib.request.urlopen(req, timeout=60) as resp, open(dest, "wb") as out:
+    opener = urllib.request.build_opener(_PublicRedirectHandler)
+    with opener.open(req, timeout=60) as resp, open(dest, "wb") as out:
         while True:
             chunk = resp.read(1024 * 1024)
             if not chunk:

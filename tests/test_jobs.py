@@ -7,6 +7,8 @@ job thread must not keep its transaction open across that.
 """
 import sys
 
+import pytest
+
 from flatout import repo
 from flatout.models import db, get_setting, set_setting, worker
 
@@ -27,3 +29,19 @@ def test_a_job_writes_after_others_wrote_during_its_command(app, tmp_path):
             worker.active = False
             db.session.remove()
         assert get_setting("other") == "wrote" and get_setting("job") == "after"
+
+
+def test_only_public_addresses_are_fetched(app):
+    """A URL import must not reach the internal network through Flatout."""
+    from flatout import jobs
+    private = [
+        "http://127.0.0.1/x.flatpak", "http://localhost/x.flatpak",
+        "http://169.254.169.254/latest/meta-data/", "http://10.1.2.3/x",
+        "http://192.168.1.4/x", "https://172.16.0.9/x",
+        "http://[::1]/x", "http://[fe80::1]/x", "http://[fc00::1]/x",
+        "ftp://example.org/x",
+    ]
+    for url in private:
+        with pytest.raises(repo.RepoError):
+            jobs._assert_public(url)
+    jobs._assert_public("https://1.1.1.1/x.flatpak")   # an IP literal, no DNS needed
