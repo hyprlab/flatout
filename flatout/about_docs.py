@@ -12,6 +12,8 @@ from pathlib import Path
 
 import markdown as md_lib
 
+from .sanitize import sanitize_html
+
 _ROOT = Path(__file__).resolve().parent.parent
 _CHANGELOG = _ROOT / "CHANGELOG.md"
 
@@ -64,7 +66,7 @@ def _parse(path: Path) -> list[Entry]:
             date_label=current["date_label"],
             title=current["title"],
             is_latest=current["latest"],
-            body_html=md_lib.markdown(raw, extensions=_MD_EXT),
+            body_html=sanitize_html(md_lib.markdown(raw, extensions=_MD_EXT)),
         ))
 
     for line in path.read_text(encoding="utf-8").splitlines():
