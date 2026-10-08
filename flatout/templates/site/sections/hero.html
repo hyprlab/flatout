@@ -1,5 +1,6 @@
 {% from "site/macros.html" import button, download, picture %}
-<section id="{{ sec.id }}" class="hero{% if sec.screenshot %} hero--shot{% endif %}" data-section="{{ sec.id }}">
+<section id="{{ sec.id }}" class="hero{% if sec.screenshot %} hero--shot{% endif %}{% if sec.fade %} hero--fade{% endif %}" data-section="{{ sec.id }}"
+  {%- if sec.fade %} style="--hero-fade-len: {{ sec.fade_length|int }}px"{% endif %}>
   <div class="container hero__inner">
     {%- if sec.show_icon %}
     <div class="hero__art"><img class="hero__icon" src="{{ s.icon_url }}" alt="{{ s.fill(s.doc.app.name) }} icon" width="260" height="260"></div>

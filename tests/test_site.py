@@ -213,3 +213,20 @@ def test_schema_endpoint_describes_every_section_type(client, admin):
     schema = client.get("/api/v1/site/schema").get_json()
     assert set(schema["section_types"]) == set(site_schema.SECTION_TYPES)
     json.dumps(schema)
+
+
+def test_the_hero_can_fade_into_the_page(client, csrf, admin):
+    """Off by default, so a site keeps its straight edge until the owner
+    turns the fade on; its length is the owner's too."""
+    hero = site_schema.default_document()["sections"][0]
+    assert hero["fade"] is False and hero["fade_length"] == 470
+    assert "hero--fade" not in client.get("/admin/preview").data.decode()
+
+    resp = client.patch("/api/v1/site/sections/top", json={"fade": True, "fade_length": 300}, headers=h(csrf))
+    assert resp.status_code == 200, resp.get_json()
+    page = client.get("/admin/preview").data.decode()
+    assert 'class="hero hero--fade"' in page and 'style="--hero-fade-len: 300px"' in page
+
+    too_long = client.patch("/api/v1/site/sections/top", json={"fade_length": 5000}, headers=h(csrf))
+    assert too_long.status_code == 422
+    assert too_long.get_json()["errors"][0]["path"].endswith("fade_length")

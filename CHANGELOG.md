@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- The hero can fade into the page below it instead of ending at a straight
+  edge: Content > the hero > Fade into the page, with the fade's length
+
 ### Changed
 - The current page in the sidebar and in Settings is marked by a short bar
   beside its highlight instead of along its edge

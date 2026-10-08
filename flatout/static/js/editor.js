@@ -782,6 +782,9 @@
 
   function field(f, path, depth) {
     var value = getAt(E.doc, path);
+    // A field newer than the saved draft shows its default, the value the
+    // next save fills in; showing it doesn't count as a change.
+    if (value === undefined && f.type !== "group" && f.type !== "list") value = defaultFor(f);
     var set = function (v) { setAt(E.doc, path, v); changed(); };
     switch (f.type) {
       case "text":

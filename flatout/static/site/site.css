@@ -1710,3 +1710,30 @@ a.status__powered:hover { color: var(--hero-ink); text-decoration: underline; te
   .status__glow, .status__ring, .status__pulse, .status__dots span { animation: none; }
   .status__ring { opacity: .35; }
 }
+
+/* ———————— Hero: fading into the page (hero "fade") ———————— */
+/* The hero's color holds, then blends into the page's background over
+   --fade-len, the stops easing out so the blend shows no band. */
+.hero--fade {
+  --fade-len: var(--hero-fade-len, 470px);
+  --fade-start: calc(100% - var(--fade-len));
+  background:
+    linear-gradient(180deg,
+      var(--hero-bg) 0,
+      var(--hero-bg) var(--fade-start),
+      color-mix(in srgb, var(--hero-bg) 86%, var(--bg)) calc(var(--fade-start) + var(--fade-len) * .15),
+      color-mix(in srgb, var(--hero-bg) 55%, var(--bg)) calc(var(--fade-start) + var(--fade-len) * .36),
+      color-mix(in srgb, var(--hero-bg) 24%, var(--bg)) calc(var(--fade-start) + var(--fade-len) * .62),
+      color-mix(in srgb, var(--hero-bg) 6%, var(--bg)) calc(var(--fade-start) + var(--fade-len) * .83),
+      var(--bg) calc(var(--fade-start) + var(--fade-len))),
+    var(--bg);
+}
+/* With a screenshot the blend runs behind it, starting just below the first
+   screen, but never so late that it can't finish 40px above the hero's foot:
+   on a tall screen the window ends soon after the fold. */
+.hero--fade.hero--shot { --fade-start: min(calc(100svh + var(--nav-h)), calc(100% - var(--fade-len) - 40px)); }
+/* Without one, the blend gets room of its own below the copy. */
+.hero--fade:not(.hero--shot) { padding-bottom: calc(var(--hero-pad) + var(--fade-len)); }
+@media (max-width: 760px) {
+  .hero--fade { --fade-len: calc(var(--hero-fade-len, 470px) * .47); }
+}

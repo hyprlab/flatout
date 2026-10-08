@@ -218,6 +218,11 @@ SECTION_TYPES: dict[str, SectionType] = {
             "screenshot": image("Screenshot", help="Shown under the headline, framed by the hero."),
             "screenshot_dark": image("Screenshot in dark mode", help="Optional. Used when the visitor is in dark mode."),
             "screenshot_alt": text("Screenshot description", max=300, help="Read aloud by screen readers."),
+            "fade": boolean("Fade into the page",
+                            help="The hero's color blends into the page below it, behind the screenshot "
+                                 "if there is one, instead of ending at a straight edge."),
+            "fade_length": integer("Fade length (px)", 470, 80, 1200,
+                                   help="How far the blend runs on a wide screen. Phones use about half."),
         },
     ),
     "features": SectionType(
