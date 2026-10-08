@@ -40,19 +40,24 @@ def chunk_size(request_limit: int | None) -> int:
     return min(CHUNK_BYTES, max(1024 * 1024, request_limit - 1024 * 1024))
 
 
-def planned_total(base: Path) -> int:
-    """Bytes every upload in progress under ``base`` says it will take, so a
-    new one is refused when the pieces still to come wouldn't fit."""
+def planned_total(base: Path, stalled_after_hours: int = 1) -> int:
+    """Bytes the uploads in progress under ``base`` have still to receive, so
+    a new one is refused when the pieces still to come wouldn't fit. What has
+    arrived already takes its room on disk; an upload nothing has touched for
+    an hour has stalled and isn't counted (prune removes it after a day)."""
     total = 0
     if not base.is_dir():
         return 0
+    cutoff = time.time() - stalled_after_hours * 3600
     for path in base.iterdir():
-        size = path / "size"
-        if path.is_dir() and ID_RE.match(path.name) and size.exists():
-            try:
-                total += int(size.read_text())
-            except (OSError, ValueError):
-                pass
+        if not (path.is_dir() and ID_RE.match(path.name)):
+            continue
+        try:
+            part = (path / "part").stat()
+            if part.st_mtime >= cutoff:
+                total += max(0, int((path / "size").read_text()) - part.st_size)
+        except (OSError, ValueError):
+            pass
     return total
 
 

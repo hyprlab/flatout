@@ -103,5 +103,25 @@ def test_uploads_in_flight_count_against_free_space(app, client, csrf, ready):
         assert c.planned_total(api_module._uploads_dir()) == big
     # A second hundred megabytes still fits this disk.
     assert client.post("/api/v1/uploads", json={"size": big}, headers=h(csrf)).status_code == 201
+    with app.app_context():
+        assert c.planned_total(api_module._uploads_dir()) == 2 * big
     client.delete(f"/api/v1/uploads/{first.get_json()['id']}", headers=h(csrf))
     assert client.delete(f"/api/v1/uploads/{'0' * 24}", headers=h(csrf)).status_code == 404
+
+
+def test_arrived_and_stalled_uploads_dont_count_twice(tmp_path):
+    """Bytes already on disk have taken their room, so only what is still to
+    come counts; an upload untouched for an hour (a closed tab, a retry that
+    started over) no longer holds the disk until the day's prune."""
+    import io
+    import os
+    import time
+    from flatout import chunks as c
+    arriving = c.start(tmp_path, 1000)
+    c.add(tmp_path, arriving, 0, io.BytesIO(b"x" * 400), 400)
+    assert c.planned_total(tmp_path) == 600
+    stalled = c.start(tmp_path, 5000)
+    assert c.planned_total(tmp_path) == 5600
+    two_hours_ago = time.time() - 7200
+    os.utime(tmp_path / stalled / "part", (two_hours_ago, two_hours_ago))
+    assert c.planned_total(tmp_path) == 600

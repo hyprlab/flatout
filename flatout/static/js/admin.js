@@ -236,7 +236,11 @@
         };
         return attempt().then(from);
       };
-      return from(0).then(function () { return up.id; });
+      return from(0).then(function () { return up.id; }, function (err) {
+        // A failed upload is started afresh next time; free its disk now.
+        call("DELETE", "/api/v1/uploads/" + up.id).catch(function () {});
+        throw err;
+      });
     });
   }
 

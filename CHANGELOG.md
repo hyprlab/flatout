@@ -39,8 +39,8 @@ All notable changes to Flatout are documented here. The format follows
   (`TRUST_PROXY`), so a direct visitor can no longer invent the address
   install counts are keyed by
 - A media upload larger than the limit is refused before its body is read,
-  and bundle uploads arriving at the same time now count each other's
-  announced size against the free disk
+  and bundle uploads arriving at the same time now count what each still has
+  to receive against the free disk; a failed upload frees its space at once
 - Importing from a URL checks the announced size and the free disk before
   downloading, refuses a download that stops short of what was announced,
   and never leaves a partial file behind
