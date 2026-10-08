@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.2.0] — 2026-10-08
+
 ### Added
 - Packages: RPMs, Debian packages and other files, on the stable and beta
   channels. An RPM is signed and published in a dnf repository at `/rpm/`,
