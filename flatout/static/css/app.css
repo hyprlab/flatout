@@ -213,7 +213,7 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 /* The active item's marker, in the sidebar and the settings window alike: a
    short rounded bar just outside the item, apart from it. */
 .navitem.is-active::before, .settings-navitem.is-active::before {
-  content: ""; position: absolute; left: -7px; top: 50%;
+  content: ""; position: absolute; left: -4px; top: 50%;
   width: 3px; height: 56%; translate: 0 -50%;
   border-radius: 3px; background: var(--accent);
 }
