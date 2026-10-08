@@ -23,7 +23,8 @@ Only the latest stable release receives security fixes.
 | Cross-site scripting | Jinja autoescaping; user text rendered with `textContent` in JavaScript; the site's Markdown through an allowlist sanitizer; uploaded SVGs with script refused, and every SVG served with a sandboxing policy |
 | Clickjacking | `X-Frame-Options: DENY`, except the admin's preview of the draft, which only the admin itself may frame (`SAMEORIGIN`) |
 | Tampered updates | Every commit and the repository summary are signed with the repository's GPG key; Flatpak refuses anything else, and anything older than what is installed |
-| API tokens | Stored as SHA-256 hashes, shown once; each has scopes, optionally an expiry, and can be revoked. A token can't make tokens or export the signing key |
+| API tokens | Stored as SHA-256 hashes, shown once; each has scopes, optionally an expiry, and can be revoked. A token can't make tokens, and only an admin can mint one that can change the site or the repository. A token acts within its owner's account, so one owned by a plain account can't create or replace the signing key |
+| Server-side fetches | A release or package imported from a URL must be http(s) and must resolve to public addresses only, checked again on every redirect hop. The fetch connects to the address the check approved, so a DNS answer switched after the check can't redirect the download to the internal network |
 | DNS rebinding against `/mcp` | Requests whose `Origin` isn't this site are refused |
 | Password guessing | Salted hashes (Werkzeug's scrypt/pbkdf2); a throttle of eight failures per account and address per fifteen minutes; optional Cloudflare Turnstile, turned on in Settings > Security only after a challenge passes with the new keys |
 | Open redirects | The post-sign-in `next` must be a same-site path |

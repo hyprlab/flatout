@@ -14,6 +14,9 @@ All notable changes to Flatout are documented here. The format follows
   account sees and revokes only its own tokens
 - Importing a release or a file from a URL refuses addresses on the internal
   network, so an account or a token cannot read it through Flatout
+- An import now connects to the very address the check approved, so a DNS
+  answer switched between the check and the download cannot target the
+  internal network
 
 ## [1.2.0] — 2026-10-08
 

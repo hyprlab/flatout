@@ -5,6 +5,7 @@ connection has written since, and SQLite refuses at once. A job runs flatpak
 for minutes between reading and writing, and requests write meanwhile; the
 job thread must not keep its transaction open across that.
 """
+import socket
 import sys
 
 import pytest
@@ -45,3 +46,34 @@ def test_only_public_addresses_are_fetched(app):
         with pytest.raises(repo.RepoError):
             jobs._assert_public(url)
     jobs._assert_public("https://1.1.1.1/x.flatpak")   # an IP literal, no DNS needed
+
+
+def _answers(*ips):
+    """getaddrinfo results for the given addresses, port filled in."""
+    return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0)) for ip in ips]
+
+
+def test_the_fetched_address_is_the_checked_one(app, monkeypatch, tmp_path):
+    """The download dials the address the check approved: it never resolves
+    the host name a second time, so DNS rebinding can't move the target."""
+    from flatout import jobs
+    dialed = []
+    monkeypatch.setattr(socket, "getaddrinfo",
+                        lambda host, port, **kw: _answers("93.184.216.34"))
+    def fake_connect(address, timeout=None, source_address=None):
+        dialed.append(address)
+        raise OSError("stop here")
+    monkeypatch.setattr(socket, "create_connection", fake_connect)
+    with app.app_context(), pytest.raises(Exception, match="stop here"):
+        jobs._fetch("http://packages.example/bundle.flatpak", tmp_path / "b", [])
+    assert dialed == [("93.184.216.34", 80)]
+
+
+def test_a_rebound_lookup_is_refused(app, monkeypatch, tmp_path):
+    """If the answer at connect time differs from the checked one, the
+    private address is refused again."""
+    from flatout import jobs
+    lookups = iter([_answers("93.184.216.34"), _answers("10.0.0.8")])
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **kw: next(lookups))
+    with app.app_context(), pytest.raises(repo.RepoError, match="not a public address"):
+        jobs._fetch("http://packages.example/bundle.flatpak", tmp_path / "b", [])

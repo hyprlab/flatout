@@ -12,6 +12,7 @@ started it should look before trying again.
 """
 from __future__ import annotations
 
+import http.client
 import ipaddress
 import json
 import logging
@@ -207,6 +208,60 @@ class _PublicRedirectHandler(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+def _public_ips(host: str, port: int) -> list[str]:
+    """Resolve a name to global addresses only. The connection below dials
+    these, so a DNS answer can't be flipped to a private address between the
+    check and the fetch (rebinding)."""
+    try:
+        infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as err:
+        raise repo.RepoError(f"{host} does not resolve: {err}")
+    ips = []
+    for info in infos:
+        ip = info[4][0].split("%", 1)[0]
+        if not ipaddress.ip_address(ip).is_global:
+            raise repo.RepoError(f"{host} is not a public address, so it can't be fetched.")
+        ips.append(ip)
+    return ips
+
+
+def _connect_to(ips: list[str]):
+    """A _create_connection substitute for http.client that dials the
+    already-checked addresses instead of resolving the host name again."""
+    def connect(address, timeout=None, source_address=None):
+        err = None
+        for ip in ips:
+            try:
+                return socket.create_connection((ip, address[1]), timeout, source_address)
+            except OSError as exc:
+                err = exc
+        raise err or OSError(f"could not reach any address for {address[0]}")
+    return connect
+
+
+class _PublicHTTPConnection(http.client.HTTPConnection):
+    """Connects to validated addresses; Host and SNI still use the hostname."""
+
+    def __init__(self, host, *args, **kwargs):
+        super().__init__(host, *args, **kwargs)
+        self._create_connection = _connect_to(_public_ips(self.host, self.port))
+
+
+class _PublicHTTPSConnection(_PublicHTTPConnection, http.client.HTTPSConnection):
+    pass
+
+
+class _PublicHTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_PublicHTTPConnection, req)
+
+
+class _PublicHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_PublicHTTPSConnection, req, context=self._context,
+                            check_hostname=self._check_hostname)
+
+
 def _fetch(url: str, dest: Path, lines: list) -> tuple[int, str]:
     """Download a bundle from a URL (a CI artifact, a GitHub release asset).
     Only a public address is fetched, on every redirect hop."""
@@ -218,7 +273,7 @@ def _fetch(url: str, dest: Path, lines: list) -> tuple[int, str]:
     lines.append(f"Downloading {url}")
     digest, size = hashlib.sha256(), 0
     req = urllib.request.Request(url, headers={"User-Agent": "Flatout"})
-    opener = urllib.request.build_opener(_PublicRedirectHandler)
+    opener = urllib.request.build_opener(_PublicHTTPHandler, _PublicHTTPSHandler, _PublicRedirectHandler)
     with opener.open(req, timeout=60) as resp, open(dest, "wb") as out:
         while True:
             chunk = resp.read(1024 * 1024)
