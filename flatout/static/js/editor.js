@@ -1027,7 +1027,8 @@
         F.toast("Published. Visitors see the new version now.");
       } else {
         // Publishing doesn't change who sees the site.
-        F.toast("Published. Visitors still see the " + (data.site_status === "maintenance" ? "maintenance" : "coming-soon") + " page.",
+        F.toast(data.site_status === "off" ? "Published. The site is off, so visitors don't see it."
+                : "Published. Visitors still see the " + (data.site_status === "maintenance" ? "maintenance" : "coming-soon") + " page.",
                 "Change", function () { F.openDialog("site-status-modal"); });
       }
       if (window.flatoutSetStatusChip) window.flatoutSetStatusChip(data.site_status);

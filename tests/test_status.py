@@ -84,3 +84,78 @@ def test_tokens_and_agents_can_switch_it(app, client, csrf, admin):
         headers={"Authorization": f"Bearer {writer}"}).get_json()
     assert call["result"]["isError"] is False
     assert robot.get("/").status_code == 503
+
+
+def test_off_leaves_only_the_repository(app, client, csrf, admin):
+    """A repository-only install: the site's address shows a short page about
+    the repository, unlisted, and the repository goes on serving."""
+    pages = client.get("/api/v1/site").get_json()["document"]["pages"]
+    pages[0]["published"] = True   # privacy
+    assert client.patch("/api/v1/site", json={"pages": pages}, headers=h(csrf)).status_code == 200
+    client.post("/api/v1/site/publish", json={}, headers=h(csrf))
+    resp = set_status(client, csrf, status="off")
+    assert resp.status_code == 200 and resp.get_json()["pages"]["off"]["redirect"] == ""
+
+    visitor = app.test_client()
+    page = visitor.get("/")
+    assert page.status_code == 200 and page.headers["X-Robots-Tag"] == "noindex"
+    text = page.data.decode()
+    assert "Flatpak repository" in text and "This address hosts the Flatpak repository for Gnomish." in text
+    assert visitor.get("/privacy").status_code == 200
+    missing = visitor.get("/no-such-page")
+    assert missing.status_code == 404 and b"Flatpak repository" in missing.data
+    assert "Disallow: /\n" in visitor.get("/robots.txt").data.decode()
+    assert b"<url>" not in visitor.get("/sitemap.xml").data
+    assert b"Flatpak repository" not in visitor.get("/repo/summary").data
+    # The owner still sees the site, told what visitors get.
+    assert "Visitors see the repository page; you see the site" in client.get("/").data.decode()
+
+
+def test_off_can_send_visitors_elsewhere(app, client, csrf, admin):
+    set_status(client, csrf, status="off", pages={"off": {"redirect": "https://github.com/example/gnomish"}})
+    visitor = app.test_client()
+    for path in ("/", "/privacy", "/no-such-page"):
+        resp = visitor.get(path)
+        assert resp.status_code == 302, path
+        assert resp.headers["Location"] == "https://github.com/example/gnomish"
+    # The admin can still look at the page the redirect replaces.
+    assert client.get("/admin/preview/status/off").status_code == 200
+    assert "visitors are sent to https://github.com/example/gnomish" in client.get("/").data.decode()
+
+
+def test_off_page_fields_are_checked(client, csrf, admin):
+    resp = set_status(client, csrf, pages={"off": {"redirect": "javascript:alert(1)", "install_note": "yes"}})
+    assert resp.status_code == 422
+    assert {e["path"] for e in resp.get_json()["errors"]} == {"$.pages.off.redirect", "$.pages.off.install_note"}
+    assert set_status(client, csrf, pages={"off": {"redirect": "ftp://example.com"}}).status_code == 422
+
+
+def test_off_page_says_how_to_install_once_a_release_is_live(app, client, csrf, admin, monkeypatch):
+    from flatout import releases
+    real = releases.public_info
+
+    def with_stable(doc, base):
+        info = real(doc, base)
+        info["stable"] = {"version": "1.0"}
+        return info
+    set_status(client, csrf, status="off")
+    visitor = app.test_client()
+    assert b"flatpak install --from" not in visitor.get("/").data      # nothing to install yet
+    monkeypatch.setattr(releases, "public_info", with_stable)
+    page = visitor.get("/").data.decode()
+    assert "Install Gnomish" in page and "flatpak install --from http://localhost/flatpak/" in page
+    set_status(client, csrf, pages={"off": {"install_note": False}})
+    assert b"flatpak install --from" not in visitor.get("/").data
+
+
+def test_off_folds_the_website_away_in_the_admin(client, csrf, admin):
+    def checklist_steps():
+        return [s["id"] for s in client.get("/api/v1/setup-checklist").get_json()["steps"]]
+    assert "publish" in checklist_steps()
+    assert b"nav-site-off" not in client.get("/admin").data
+    set_status(client, csrf, status="off")
+    assert checklist_steps() == ["name", "key", "release"]
+    home = client.get("/admin").data.decode()
+    assert "nav-site-off" in home and "Repository only" in home
+    # On one of the site's own pages the fold is open.
+    assert '<details class="nav-site-off" open>' in client.get("/admin/design").data.decode()

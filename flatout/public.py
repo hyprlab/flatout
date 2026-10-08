@@ -6,7 +6,7 @@ uses the same templates with the draft (admin.preview).
 from datetime import datetime, timezone
 from xml.sax.saxutils import escape as _xml_escape
 
-from flask import (Blueprint, Response, abort, current_app, make_response, render_template, request,
+from flask import (Blueprint, Response, abort, current_app, make_response, redirect, render_template, request,
                    send_from_directory)
 from flask_login import current_user
 
@@ -21,6 +21,7 @@ def _renderer(doc: dict, preview: bool = False) -> "site.Renderer":
     # what visitors get instead.
     state = site.status()
     s.visitor_status = state if state != "published" and not preview else None
+    s.visitor_redirect = site.status_pages()["off"]["redirect"] if s.visitor_status == "off" else ""
     return s
 
 
@@ -36,19 +37,28 @@ def render_page(doc: dict, slug: str, preview: bool = False):
 
 
 def visitor_status() -> str | None:
-    """maintenance or unpublished when this request should get the status
-    page instead of the site; None when it gets the site."""
+    """maintenance, unpublished or off when this request should get the
+    status page instead of the site; None when it gets the site."""
     state = site.status()
     if state == "published" or current_user.is_authenticated:
         return None
     return state
 
 
-def render_status(state: str):
-    """The maintenance or coming-soon page, in the site's own theme."""
-    s = site.Renderer(site.get("live"))
+def render_status(state: str, follow_redirect: bool = True):
+    """The maintenance, coming-soon or repository page, in the site's own
+    theme. With the site off and an address to send visitors to, a redirect
+    there instead (but not for the admin's preview of the page)."""
+    from . import releases
     page = site.status_pages()[state]
-    resp = make_response(render_template("site/status.html", s=s, state=state, page=page))
+    if state == "off" and page["redirect"] and follow_redirect:
+        resp = redirect(page["redirect"], 302)
+        resp.headers["Cache-Control"] = "no-store"   # the address may change, or the site come back
+        return resp
+    doc = site.get("live")
+    s = site.Renderer(doc)
+    repo = releases.public_info(doc, site.base_url()) if state == "off" and page["install_note"] else None
+    resp = make_response(render_template("site/status.html", s=s, state=state, page=page, repo=repo))
     if state == "maintenance":
         # 503 with Retry-After: search engines keep the site's pages rather
         # than indexing "back soon" or dropping them.
@@ -75,6 +85,10 @@ def _gate():
     their own."""
     if request.endpoint in ("public.home", "public.page"):
         state = visitor_status()
+        if state == "off" and request.endpoint == "public.page":
+            slug = (request.view_args or {}).get("slug")
+            if not any(p["slug"] == slug and p["published"] for p in site.get("live")["pages"]):
+                return None   # nothing here: the 404 handler answers with the page, as a 404
         if state:
             return render_status(state)
     return None
@@ -141,6 +155,11 @@ def not_found_page():
     page) if the site itself can't render."""
     try:
         state = visitor_status()
+        if state == "off":
+            resp = render_status(state)
+            if resp.status_code == 200:
+                resp.status_code = 404   # the repository page, but nothing is at this address
+            return resp
         if state:
             return render_status(state)
         return render_template("site/not_found.html", s=_renderer(site.get("live")))

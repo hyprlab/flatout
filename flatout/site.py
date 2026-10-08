@@ -178,6 +178,7 @@ class Renderer:
         self.doc = doc
         self.preview = preview
         self.visitor_status = None   # set by public._renderer for signed-in people
+        self.visitor_redirect = ""
         self.base = base_url()
         self.repo = releases.public_info(doc, self.base)
         app = doc["app"]
@@ -350,7 +351,8 @@ def theme_css(theme: dict) -> str:
 # applies at once, and the repository keeps serving whatever it is, so
 # installed copies go on updating during maintenance.
 
-STATUSES = ("published", "maintenance", "unpublished")
+STATUSES = ("published", "maintenance", "unpublished", "off")
+STATUS_LABELS = {"published": "Live", "maintenance": "Maintenance", "unpublished": "Unpublished", "off": "Off"}
 
 STATUS_PAGE_DEFAULTS = {
     "maintenance": {
@@ -364,8 +366,16 @@ STATUS_PAGE_DEFAULTS = {
         "message": "{app_name} is getting ready. Check back soon.",
         "updates_note": False,
     },
+    # No website at all, for a repository-only install: a short page saying
+    # what this address is, or a redirect to the project's own page.
+    "off": {
+        "title": "{app_name}",
+        "message": "This address hosts the Flatpak repository for {app_name}.",
+        "redirect": "",
+        "install_note": True,
+    },
 }
-STATUS_LIMITS = {"title": 80, "message": 600}
+STATUS_LIMITS = {"title": 80, "message": 600, "redirect": 500}
 
 
 def status() -> str:
@@ -396,7 +406,7 @@ def status_json() -> dict:
 
 
 def set_status(new_status: str | None = None, pages: dict | None = None) -> dict:
-    """Change the status, the text of the two status pages, or both.
+    """Change the status, the status pages' text, or both.
     Raises site_schema.Invalid with every problem; nothing is saved then."""
     from .models import set_setting
     errors = []
@@ -405,13 +415,13 @@ def set_status(new_status: str | None = None, pages: dict | None = None) -> dict
     current = status_pages()
     for name, values in (pages or {}).items():
         if name not in current or not isinstance(values, dict):
-            errors.append({"path": f"$.pages.{name}", "message": "maintenance or unpublished"})
+            errors.append({"path": f"$.pages.{name}", "message": "maintenance, unpublished or off"})
             continue
         for key, value in values.items():
             path = f"$.pages.{name}.{key}"
             if key not in current[name]:
                 errors.append({"path": path, "message": "not a field here"})
-            elif key == "updates_note":
+            elif key in ("updates_note", "install_note"):
                 if not isinstance(value, bool):
                     errors.append({"path": path, "message": "expected true or false"})
                 else:
@@ -420,6 +430,14 @@ def set_status(new_status: str | None = None, pages: dict | None = None) -> dict
                 value = str(value or "").strip()
                 if value and not re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})$", value):
                     errors.append({"path": path, "message": "a date and time like 2026-10-08T14:00Z, or empty"})
+                else:
+                    current[name][key] = value
+            elif key == "redirect":
+                value = str(value or "").strip()
+                if value and not re.match(r"^https?://[^\s<>\"]+$", value):
+                    errors.append({"path": path, "message": "an address starting with https:// or http://, or empty"})
+                elif len(value) > STATUS_LIMITS[key]:
+                    errors.append({"path": path, "message": f"at most {STATUS_LIMITS[key]} characters"})
                 else:
                     current[name][key] = value
             else:

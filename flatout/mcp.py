@@ -17,7 +17,7 @@ import re
 
 from flask import Blueprint, Response, current_app, jsonify, request
 
-from . import __version__
+from . import __version__, site
 from .api import resolve_token, token_from_header
 from .sanitize import strip_tags
 
@@ -30,8 +30,9 @@ a dnf repository for RPMs, an apt repository for Debian packages, and other down
 
 The site is one JSON document with a draft and a live copy. Every change goes to
 the draft; nothing is public until publish_site. Separately, set_site_status says
-who sees the site at all: published, maintenance, or unpublished (a new install
-starts unpublished). Before editing, call
+who sees the site at all: published, maintenance, unpublished (a new install
+starts unpublished), or off, for an install that only wants the repository.
+Before editing, call
 get_site_schema to learn the fields and section types, then get_site or
 list_sections. Prefer update_section and update_site (JSON merge patches) over
 replace_site. Text may use placeholders such as {app_name} and {version}.
@@ -93,13 +94,16 @@ TOOLS = {
                          _obj({"ids": {"type": "array", "items": S}}, ["ids"]), "POST", "/site/sections/order", "*", False, False),
     "preview_site": ("The draft homepage as visitors would read it, as plain text.",
                      _obj({}), "GET", "/site/preview", None, True, False),
-    "get_site_status": ("Who sees the site (published, maintenance or unpublished) and the text of the maintenance "
-                        "and coming-soon pages.", _obj({}), "GET", "/site/status", None, True, False),
-    "set_site_status": ("Put the site in maintenance, unpublish it, or publish it again, and change the text visitors "
-                        "see meanwhile. The repository keeps serving updates whatever the status.",
-                        _obj({"status": {"type": "string", "enum": ["published", "maintenance", "unpublished"]},
+    "get_site_status": ("Who sees the site (published, maintenance, unpublished or off) and the text of the "
+                        "maintenance, coming-soon and off pages.", _obj({}), "GET", "/site/status", None, True, False),
+    "set_site_status": ("Put the site in maintenance, unpublish it, turn it off (no website, only the repository), "
+                        "or publish it again, and change the text visitors see meanwhile. The repository keeps "
+                        "serving updates whatever the status.",
+                        _obj({"status": {"type": "string", "enum": list(site.STATUSES)},
                               "pages": {"type": "object", "description": "{\"maintenance\": {\"title\", \"message\", "
-                                        "\"until\" (ISO 8601), \"updates_note\"}, \"unpublished\": {\"title\", \"message\"}}"}}),
+                                        "\"until\" (ISO 8601), \"updates_note\"}, \"unpublished\": {\"title\", \"message\"}, "
+                                        "\"off\": {\"title\", \"message\", \"redirect\" (https address or empty), "
+                                        "\"install_note\"}}"}}),
                         "PATCH", "/site/status", "*", False, False),
     "publish_site": ("Make the draft live.", _obj({"note": {"type": "string", "description": "What changed, for the history"}}),
                      "POST", "/site/publish", "*", False, False),

@@ -625,15 +625,20 @@
   }
 
   /* ————— Site status ————— */
-  // Live, maintenance or unpublished, and the text of the two pages visitors
+  // Live, maintenance, unpublished or off, and the text of the pages visitors
   // get meanwhile. The dialog is on every admin page.
   var statusForm = document.getElementById("site-status-form");
-  var STATUS_LABELS = { published: "Live", maintenance: "Maintenance", unpublished: "Unpublished" };
+  var STATUS_LABELS = { published: "Live", maintenance: "Maintenance", unpublished: "Unpublished", off: "Off" };
   var STATUS_TOASTS = {
     published: "The site is live",
     maintenance: "Maintenance is on: visitors see the back-soon page",
-    unpublished: "The site is unpublished: visitors see the coming-soon page"
+    unpublished: "The site is unpublished: visitors see the coming-soon page",
+    off: "The site is off: visitors see the repository page"
   };
+  function statusToast(data) {
+    var redirect = data.status === "off" && data.pages.off.redirect;
+    return redirect ? "The site is off: visitors go to " + redirect : STATUS_TOASTS[data.status];
+  }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
   function chosenStatus() {
     var r = document.querySelector('input[name="site-status"]:checked');
@@ -689,15 +694,23 @@
               title: document.getElementById("un-title").value,
               message: document.getElementById("un-message").value,
               updates_note: document.getElementById("un-note").checked
+            },
+            off: {
+              title: document.getElementById("off-title").value,
+              message: document.getElementById("off-message").value,
+              redirect: document.getElementById("off-redirect").value,
+              install_note: document.getElementById("off-install").checked
             }
           }
         })
       }).then(function (data) {
+        var wasOff = document.querySelector(".nav-site-off") !== null;
         setStatusChip(data.status);
         closeDialog(document.getElementById("site-status-modal"));
-        // The Overview says the status in its own words; show it fresh.
-        if (location.pathname === "/admin") reloadWith(STATUS_TOASTS[data.status]);
-        else toast(STATUS_TOASTS[data.status]);
+        // The Overview says the status in its own words, and turning the site
+        // off or on reshapes the sidebar; show either fresh.
+        if (location.pathname === "/admin" || wasOff !== (data.status === "off")) reloadWith(statusToast(data));
+        else toast(statusToast(data));
       }).catch(function (err) {
         errEl.textContent = err.message;
         errEl.hidden = false;

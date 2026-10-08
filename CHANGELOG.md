@@ -65,6 +65,10 @@ All notable changes to Flatout are documented here. The format follows
   sitemap escapes its URLs
 
 ### Added
+- The site can be turned off, for an install that only wants the
+  repository: Site status > Off shows a short page about the repository at
+  the site's address, or sends visitors to another address, while installs
+  and updates go on as usual
 - CI checks dependencies against the published vulnerability databases
   (pip-audit)
 

@@ -81,10 +81,16 @@ in the sidebar, decides whether visitors get the site at all:
   search engines keep the site's pages instead of indexing the notice.
 - **Unpublished**: visitors see a "coming soon" page, and search engines are
   asked not to list the site.
+- **Off**: no website, for an install that only wants the repository.
+  Visitors to the site's address see a short page about the repository, with
+  how to install the app once a stable release is live, or are sent to
+  another address you give (the project's GitHub page, say). Search engines
+  are asked not to list it. The site's editors fold away in the sidebar, and
+  the getting-started list drops its website steps.
 
 A new install is unpublished until its first publish, and then goes live on
 its own; once a status has been chosen, publishing doesn't change it. The text
-of both pages can be edited in the same dialog. Anyone signed in still sees the
+of each page can be edited in the same dialog. Anyone signed in still sees the
 site, with a note on what visitors get. The repository, the install files and
 the downloads keep working whatever the status, so installed copies go on
 updating during maintenance. Scripts and agents switch it with

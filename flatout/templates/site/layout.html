@@ -25,7 +25,11 @@
   {%- endif %}
   {%- if s.visitor_status %}
   <div class="preview-flag preview-flag--status" role="note">
-    Visitors see the {{ 'maintenance' if s.visitor_status == 'maintenance' else 'coming-soon' }} page; you see the site
+    {%- if s.visitor_redirect %}
+    The site is off and visitors are sent to {{ s.visitor_redirect }}; you see the site
+    {%- else %}
+    Visitors see the {{ {'maintenance': 'maintenance', 'unpublished': 'coming-soon', 'off': 'repository'}[s.visitor_status] }} page; you see the site
+    {%- endif %}
     because you're signed in. <a href="{{ url_for('admin.home') }}#site-status">Change</a>
   </div>
   {%- endif %}

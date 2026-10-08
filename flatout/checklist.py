@@ -16,6 +16,9 @@ from . import repo, site, site_schema
 from .models import Release, get_setting, set_setting
 
 STEPS = ("name", "theme", "homepage", "key", "release", "publish")
+# With the site off (a repository-only install) these don't apply. The name
+# and icon still do: the page at the site's address shows them.
+WEBSITE_STEPS = ("theme", "homepage", "publish")
 
 
 def _stored() -> dict:
@@ -66,8 +69,11 @@ def _text() -> dict:
 
 def state() -> dict:
     stored, auto, text = _stored(), _detected(), _text()
+    off = site.status() == "off"
     steps = []
     for key in STEPS:
+        if off and key in WEBSITE_STEPS:
+            continue
         override = stored["overrides"].get(key)
         title, url, hint, rule = text[key]
         steps.append({

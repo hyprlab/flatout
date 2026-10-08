@@ -210,18 +210,21 @@ def site_publish():
 @needs("read")
 def site_status_get():
     """Who sees the site: published, maintenance (a "back soon" page,
-    answered 503) or unpublished (a "coming soon" page), and the text of
-    those two pages. The repository keeps serving whatever the status."""
+    answered 503), unpublished (a "coming soon" page) or off (no website: a
+    short page about the repository, or a redirect to another address), and
+    the text of those pages. The repository keeps serving whatever the status."""
     return jsonify(site.status_json())
 
 
 @bp.route("/site/status", methods=["PATCH"])
 @needs("site")
 def site_status_set():
-    """{"status": "maintenance"} switches at once. "pages" changes the two
+    """{"status": "maintenance"} switches at once. "pages" changes the status
     pages' text: {"maintenance": {"title", "message", "until" (ISO 8601 or
     empty), "updates_note"}, "unpublished": {"title", "message",
-    "updates_note"}}. Text may use placeholders such as {app_name}."""
+    "updates_note"}, "off": {"title", "message", "redirect" (an http(s)
+    address visitors are sent to, or empty), "install_note"}}. Text may use
+    placeholders such as {app_name}."""
     data = body()
     unknown = set(data) - {"status", "pages"}
     if unknown:

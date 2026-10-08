@@ -22,7 +22,8 @@ and an MCP server.
 - **A homepage you edit in the browser.** Every section's text, which
   sections show and in what order, every color in light and dark, the fonts,
   the type size and the images, with a live preview and a draft that goes
-  live only when you publish
+  live only when you publish. Or turn the site off and keep only the
+  repository
 - **A signed Flatpak repository.** Bundles are imported, signed and published
   with static deltas, by Flatpak's own tools; installs update through GNOME
   Software, KDE Discover or `flatpak update`

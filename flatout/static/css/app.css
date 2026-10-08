@@ -213,6 +213,13 @@ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width:
 .navitem.is-active .unpublished { color: var(--ink); }
 /* Site status in the sidebar: a row that opens its dialog. */
 .navitem--button { width: 100%; text-align: left; }
+/* The site's editors, folded away while the site is off (shell.html). */
+.nav-site-off > summary { cursor: pointer; list-style: none; }
+.nav-site-off > summary::-webkit-details-marker { display: none; }
+.nav-site-off > summary svg { transition: transform .15s; }
+.nav-site-off[open] > summary svg { transform: rotate(90deg); }
+.nav-site-off > .nav-primary { margin-top: 2px; padding-left: 12px; }
+.status-chip--off { background: transparent; color: var(--faint); border-style: dashed; }
 .status-chip {
   margin-left: auto; padding: 1px 8px; border-radius: 999px;
   font-size: 11px; font-weight: 700; letter-spacing: .02em; white-space: nowrap;

@@ -47,7 +47,16 @@
   <div class="tiles">
     <section class="panel tile">
       {%- set st = site_status.status %}
-      <p class="tile-label">Site <span class="status-chip status-chip--{{ st }}">{{ {'published': 'Live', 'maintenance': 'Maintenance', 'unpublished': 'Unpublished'}[st] }}</span></p>
+      <p class="tile-label">Site <span class="status-chip status-chip--{{ st }}">{{ status_labels[st] }}</span></p>
+      {%- if st == 'off' %}
+      {%- set redirect = site_status.pages.off.redirect %}
+      <p class="tile-big">Repository only</p>
+      <p class="hint">{% if redirect %}Visitors to the site's address go to {{ redirect }}.{% else %}Visitors see a short page about the repository.{% endif %} Installs and updates work as usual.</p>
+      <div class="tile-actions">
+        <button class="btn btn--primary btn--xs" type="button" data-open="site-status-modal">Status</button>
+        <a class="btn btn--ghost btn--xs" href="{{ url_for('admin.preview_status', state='off') }}" target="_blank" rel="noopener">See the page</a>
+      </div>
+      {%- else %}
       {%- if site_has_changes %}
       <p class="tile-big">Unpublished changes</p>
       <p class="hint">Draft saved by {{ draft_meta.updated_by }}. Visitors see the last published version.</p>
@@ -60,6 +69,7 @@
         <a class="btn btn--ghost btn--xs" href="{{ url_for('public.home') }}" target="_blank" rel="noopener">View it</a>
         <button class="btn btn--ghost btn--xs" type="button" data-open="site-status-modal">Status</button>
       </div>
+      {%- endif %}
     </section>
     <section class="panel tile">
       <p class="tile-label">Stable</p>

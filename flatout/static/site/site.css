@@ -1554,7 +1554,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .preview-flag--status { pointer-events: auto; max-width: calc(100% - 28px); text-align: center; line-height: 1.45; }
 .preview-flag--status a { color: #fff; text-decoration: underline; margin-left: 4px; }
 
-/* ———————— Maintenance and coming soon (status.html) ———————— */
+/* ———————— Maintenance, coming soon and off (status.html) ———————— */
 .status-body { margin: 0; background: var(--hero-bg); }
 .status {
   position: relative;
@@ -1628,6 +1628,9 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   animation: status-pulse 1.8s ease-out infinite;
 }
 .status--unpublished .status__pulse { background: var(--highlight); }
+/* Off is settled, not waiting: nothing pulses. */
+.status--off .status__pulse, .status--off .status__ring { animation: none; }
+.status--off .status__ring { opacity: .35; }
 @keyframes status-pulse {
   to { box-shadow: 0 0 0 10px transparent; }
 }
@@ -1668,6 +1671,18 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   font-size: .92rem;
   background: color-mix(in srgb, var(--hero-ink) 10%, transparent);
   color: color-mix(in srgb, var(--hero-ink) 90%, transparent);
+}
+.status__install { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 30px 0 0; }
+.status__how { margin: 4px 0 0; font-size: .92rem; color: color-mix(in srgb, var(--hero-ink) 80%, transparent); }
+.status__cmd {
+  max-width: 100%;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: .86rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+  background: color-mix(in srgb, var(--hero-ink) 10%, transparent);
+  color: var(--hero-ink);
 }
 .status__foot {
   position: absolute;

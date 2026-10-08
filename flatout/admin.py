@@ -27,7 +27,8 @@ def _signed_in():
 
 @bp.context_processor
 def _admin_context():
-    ctx = {"site_has_changes": site.has_changes(), "site_status": site.status_json()}
+    ctx = {"site_has_changes": site.has_changes(), "site_status": site.status_json(),
+           "status_labels": site.STATUS_LABELS}
     if current_user.is_authenticated and current_user.is_admin:
         from .main import _turnstile_status
         ctx["admin_users"] = User.query.order_by(User.created_at).all()
@@ -92,11 +93,11 @@ def preview():
 
 @bp.route("/preview/status/<state>")
 def preview_status(state):
-    """The maintenance or coming-soon page as visitors see it, with the text
-    saved now."""
-    if state not in ("maintenance", "unpublished"):
+    """A status page as visitors see it, with the text saved now. The off
+    page shows even when visitors are sent elsewhere."""
+    if state not in ("maintenance", "unpublished", "off"):
         abort(404)
-    resp = public.render_status(state)
+    resp = public.render_status(state, follow_redirect=False)
     resp.status_code = 200
     return resp
 

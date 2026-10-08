@@ -1,6 +1,7 @@
-{#- Who sees the site: published, maintenance or unpublished, and the text of
-    the two pages visitors get meanwhile. Saved through /api/v1/site/status by
-    app.js. Opened from the sidebar, the Overview, and /admin#site-status. -#}
+{#- Who sees the site: published, maintenance, unpublished or off, and the
+    text of the pages visitors get meanwhile. Saved through
+    /api/v1/site/status by app.js. Opened from the sidebar, the Overview, and
+    /admin#site-status. -#}
 {%- set pages = site_status.pages %}
 <dialog class="modal modal--wide" id="site-status-modal" data-restore="off" aria-labelledby="site-status-title">
   <div class="modal-head">
@@ -13,6 +14,7 @@
         ('published', 'Live', 'Everyone sees the site.'),
         ('maintenance', 'Maintenance', 'Visitors see a "back soon" page. Search engines are told it is temporary.'),
         ('unpublished', 'Unpublished', 'Visitors see a "coming soon" page, and search engines are asked not to list it.'),
+        ('off', 'Off', 'No website, only the repository. Visitors see a short page about it, or go to another address.'),
       ] %}
       <label class="status-option">
         <input type="radio" name="site-status" value="{{ value }}"{% if site_status.status == value %} checked{% endif %}>
@@ -47,6 +49,20 @@
       <label class="check"><input type="checkbox" id="un-note"{% if pages.unpublished.updates_note %} checked{% endif %}>
         <span>Tell visitors that installed copies keep updating</span></label>
       <a class="link hint" href="{{ url_for('admin.preview_status', state='unpublished') }}" target="_blank" rel="noopener">See the saved page</a>
+    </fieldset>
+
+    <fieldset class="status-page-fields" data-for="off">
+      <legend class="setting-label">The repository page</legend>
+      <label class="field"><span class="field-label">Send visitors to (optional)</span>
+        <input id="off-redirect" type="url" maxlength="500" placeholder="https://github.com/you/your-app" value="{{ pages.off.redirect }}"></label>
+      <p class="hint">Visitors to the site's address go straight there. Leave it empty to show the page below instead.</p>
+      <label class="field"><span class="field-label">Title</span>
+        <input id="off-title" maxlength="80" value="{{ pages.off.title }}"></label>
+      <label class="field"><span class="field-label">Message</span>
+        <textarea id="off-message" rows="3" maxlength="600">{{ pages.off.message }}</textarea></label>
+      <label class="check"><input type="checkbox" id="off-install"{% if pages.off.install_note %} checked{% endif %}>
+        <span>Show how to install the app, once a stable release is live</span></label>
+      <a class="link hint" href="{{ url_for('admin.preview_status', state='off') }}" target="_blank" rel="noopener">See the saved page</a>
     </fieldset>
 
     <p class="hint">Text can use placeholders such as <code>{app_name}</code>.</p>
