@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.5.0] — 2026-10-08
+
 ### Added
 - The hero's screenshot can lean back and straighten as the page scrolls
 - Screenshots can sit in one row, each with a width share, joined to the
