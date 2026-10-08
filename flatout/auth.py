@@ -24,10 +24,14 @@ TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverif
 
 # Failed sign-ins per (address, account) in a sliding window, plus a per-address
 # aggregate so an attacker can't multiply attempts by spraying many accounts.
+# Past the aggregate an account still gets a few tries of its own: behind a
+# proxy that isn't declared (TRUST_PROXY) every visitor shares one address, and
+# made-up emails must not lock real people out.
 # In memory is enough: there is one process (see the Dockerfile), and a restart
 # forgetting the count costs an attacker a restart they cannot trigger.
 MAX_FAILURES = 8
 MAX_FAILURES_PER_ADDRESS = 40
+MAX_FAILURES_PAST_ADDRESS_LIMIT = 3
 FAILURE_WINDOW = 15 * 60
 _MAX_TRACKED = 10000    # keys kept before a sweep; a flood of fresh account names can't grow it forever
 _failures: dict[tuple[str, str], list[float]] = {}
@@ -55,7 +59,9 @@ def too_many(username: str) -> bool:
         stamps = _fresh(_failures.get(key, []), now)
         per_addr = _fresh(_per_address.get(key[0], []), now)
         _failures[key], _per_address[key[0]] = stamps, per_addr
-        return len(stamps) >= MAX_FAILURES or len(per_addr) >= MAX_FAILURES_PER_ADDRESS
+        if len(per_addr) >= MAX_FAILURES_PER_ADDRESS:
+            return len(stamps) >= MAX_FAILURES_PAST_ADDRESS_LIMIT
+        return len(stamps) >= MAX_FAILURES
 
 
 def record_failure(username: str) -> None:

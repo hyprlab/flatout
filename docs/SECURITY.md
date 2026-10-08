@@ -30,7 +30,7 @@ Only the latest stable release receives security fixes.
 | Job logs | A failed job's log shows the failing line, not a traceback; a chatty job's log is trimmed to its last 400 lines |
 | The database on disk | The SQLite file and its WAL companions are `0600`, readable only by the app's own user in the container |
 | DNS rebinding against `/mcp` | Requests whose `Origin` isn't this site are refused |
-| Password guessing | Salted hashes (scrypt at OWASP's work factor); a throttle of eight failures per account and forty per address per fifteen minutes, shared with the change-password form; a wrong answer takes the same time whether the account exists; optional Cloudflare Turnstile, turned on in Settings > Security only after a challenge passes with the new keys |
+| Password guessing | Salted hashes (scrypt at OWASP's work factor); a throttle of eight failures per account per fifteen minutes, three once an address has forty, shared with the change-password form; a wrong answer takes the same time whether the account exists; optional Cloudflare Turnstile, turned on in Settings > Security only after a challenge passes with the new keys |
 | Open redirects | The post-sign-in `next` must be a same-site path |
 | Session theft | `HttpOnly` and `SameSite=Lax` cookies; `Secure` with `SESSION_COOKIE_SECURE=1`, which also adds `Strict-Transport-Security`; remember-me lasts 30 days; sign-in ids carry a stamp of the password, so changing or resetting it ends every other session and remember-me cookie of the account |
 | A default password | There is none: the first account is created in the setup wizard |

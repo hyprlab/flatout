@@ -49,13 +49,24 @@ def test_wrong_current_passwords_hit_the_signin_throttle(client, csrf, admin):
 
 
 def test_spraying_accounts_hits_the_per_address_limit(app, admin):
-    """Eight tries per account, but never unlimited accounts per address."""
+    """Eight tries per account, but past forty failures from one address an
+    account gets only three; someone who hasn't failed yet still signs in,
+    since behind an undeclared proxy everyone shares that address."""
     stranger = app.test_client()
     csrf = token_for(stranger)
-    for i in range(41):
-        resp = stranger.post("/login", data={"_csrf": csrf, "username": f"nobody{i}@example.com",
-                                             "password": "wrong-password"})
-        assert resp.status_code == (429 if i == 40 else 401)
+
+    def attempt(username, password="wrong-password"):
+        return stranger.post("/login", data={"_csrf": csrf, "username": username, "password": password})
+    for i in range(40):
+        assert attempt(f"nobody{i}@example.com").status_code == 401
+    assert attempt("nobody0@example.com").status_code == 401        # its second failure
+    assert attempt("nobody0@example.com").status_code == 401        # its third
+    assert attempt("nobody0@example.com").status_code == 429
+    assert attempt("someone-new@example.com").status_code == 401   # a first try still runs
+    neighbor = app.test_client()                                    # same address, the real admin
+    resp = neighbor.post("/login", data={"_csrf": token_for(neighbor), "username": "admin@example.com",
+                                         "password": "password1"})
+    assert resp.status_code == 302
 
 
 def test_a_missing_account_costs_a_password_check(app, admin):

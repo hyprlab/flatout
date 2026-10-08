@@ -25,9 +25,10 @@ All notable changes to Flatout are documented here. The format follows
   against the versions before them
 - Sign-in answers in the same time whether the account exists or not, so the
   response time no longer says which emails have accounts
-- The sign-in throttle now also caps attempts per address across accounts,
-  the remembered failures are swept instead of growing forever, and the
-  change-password form shares the throttle
+- The sign-in throttle now also caps attempts per address across accounts
+  (past forty failures, each account gets three), the remembered failures are
+  swept instead of growing forever, and the change-password form shares the
+  throttle
 - Two browsers finishing the setup wizard (or registration) at the same
   moment can no longer both become the first admin
 - Pages now carry a Content-Security-Policy whose script nonce changes with
