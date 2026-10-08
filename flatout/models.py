@@ -36,6 +36,12 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+# scrypt with OWASP's current work factor; the library default (2^15) is sound
+# but soft. Hashes made earlier still verify: the parameters are stored in the
+# hash.
+PASSWORD_METHOD = "scrypt:131072:8:1"
+
+
 class User(UserMixin, db.Model):
     __tablename__ = "users"
 
@@ -64,10 +70,7 @@ class User(UserMixin, db.Model):
         return hashlib.sha256(self.password_hash.encode()).hexdigest()[:12]
 
     def set_password(self, password: str) -> None:
-        # scrypt with OWASP's current work factor; the library default (2^15)
-        # is sound but soft. Hashes made earlier still verify: the parameters
-        # are stored in the hash.
-        self.password_hash = generate_password_hash(password, method="scrypt:131072:8:1")
+        self.password_hash = generate_password_hash(password, method=PASSWORD_METHOD)
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)

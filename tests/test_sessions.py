@@ -76,3 +76,9 @@ def test_a_missing_account_costs_a_password_check(app, admin):
     resp = stranger.post("/login", data={"_csrf": csrf, "username": "ghost@example.com",
                                          "password": "wrong-password"})
     assert resp.status_code == 401 and b"Wrong email or password." in resp.data
+    # The pad is hashed with the same work factor as a real password.
+    from flatout import auth
+    from flatout.models import User
+    with app.app_context():
+        real = User.query.filter_by(username="admin@example.com").one().password_hash
+    assert auth._DUMMY_HASH.split("$")[0] == real.split("$")[0]

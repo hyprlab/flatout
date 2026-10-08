@@ -14,7 +14,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .models import User, db, get_setting
+from .models import PASSWORD_METHOD, User, db, get_setting
 
 bp = Blueprint("auth", __name__)
 
@@ -44,7 +44,8 @@ first_account_lock = threading.Lock()
 
 # Compared against when the account doesn't exist, so a missing account takes
 # the same time as a wrong password on a real one and login timing says nothing.
-_DUMMY_HASH = generate_password_hash("flatout-timing-pad")
+# Same work factor as a real hash, or the difference would still show.
+_DUMMY_HASH = generate_password_hash("flatout-timing-pad", method=PASSWORD_METHOD)
 
 
 def _fresh(stamps: list[float], now: float) -> list[float]:
