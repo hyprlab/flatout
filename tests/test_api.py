@@ -55,6 +55,45 @@ def test_only_an_admin_can_take_or_replace_the_signing_key(app, client, csrf, se
     assert client.get("/api/v1/repo/key/secret").status_code == 404
 
 
+def test_a_plain_user_mints_only_read_tokens(app, client, csrf, second_user):
+    other, other_csrf = second_user
+    ok = other.post("/api/v1/tokens", json={"name": "mine", "scopes": ["read"]},
+                    headers={"X-CSRF": other_csrf})
+    assert ok.status_code == 201
+    assert ok.get_json()["details"]["scopes"] == ["read"]
+    writing = other.post("/api/v1/tokens", json={"name": "escalated", "scopes": ["site", "releases"]},
+                         headers={"X-CSRF": other_csrf})
+    assert writing.status_code == 403
+
+
+def test_a_plain_user_sees_and_revokes_only_their_own_tokens(app, client, csrf, make_token, second_user):
+    other, other_csrf = second_user
+    admin_token = client.post("/api/v1/tokens", json={"name": "ci", "scopes": ["releases"]},
+                              headers={"X-CSRF": csrf}).get_json()["details"]["id"]
+    mine = other.post("/api/v1/tokens", json={"name": "mine"}, headers={"X-CSRF": other_csrf})
+    visible = other.get("/api/v1/tokens").get_json()["tokens"]
+    assert [t["name"] for t in visible] == ["mine"]
+    assert other.delete(f"/api/v1/tokens/{admin_token}", headers={"X-CSRF": other_csrf}).status_code == 404
+    assert other.delete(f"/api/v1/tokens/{mine.get_json()['details']['id']}",
+                        headers={"X-CSRF": other_csrf}).status_code == 200
+
+
+def test_a_non_admins_token_cant_replace_the_signing_key(app, second_user):
+    """Even if an admin once handed a writing token to a plain account, that
+    token can't move the trust anchor; only an admin's own token may."""
+    from flatout.api import hash_token
+    from flatout.models import ApiToken, User, db
+    with app.app_context():
+        other_row = User.query.filter_by(username="other@example.com").first()
+        raw = "fo_" + "x" * 43
+        db.session.add(ApiToken(user_id=other_row.id, name="handed", prefix=raw[:10],
+                                token_hash=hash_token(raw), scopes="releases"))
+        db.session.commit()
+    robot = app.test_client()
+    assert robot.post("/api/v1/repo/key", json={"action": "generate"},
+                      headers=bearer(raw)).status_code == 403
+
+
 def test_revoked_and_expired_tokens_stop_working(app, client, csrf, make_token):
     token = make_token()
     robot = app.test_client()

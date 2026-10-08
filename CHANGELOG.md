@@ -9,6 +9,9 @@ All notable changes to Flatout are documented here. The format follows
 ### Fixed
 - Only an admin can export or replace the repository's signing key; before,
   any signed-in account could take it or swap it
+- A token owned by a plain account can no longer replace the signing key, and
+  only an admin can mint a token with the site or releases scopes; a plain
+  account sees and revokes only its own tokens
 - Importing a release or a file from a URL refuses addresses on the internal
   network, so an account or a token cannot read it through Flatout
 

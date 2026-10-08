@@ -475,6 +475,8 @@ def _session_only():
 def tokens_list():
     _session_only()
     rows = ApiToken.query.order_by(ApiToken.created_at.desc()).all()
+    if not g.api_user.is_admin:
+        rows = [t for t in rows if t.user_id == g.api_user.id]
     return jsonify(tokens=[_token_json(t) for t in rows], scopes=SCOPES)
 
 
@@ -486,6 +488,9 @@ def tokens_create():
     if not name:
         raise ApiError(400, "Give the token a name, such as the script or agent that will use it.")
     scopes = {"read"} | {s for s in (data.get("scopes") or []) if s in SCOPES}
+    if scopes - {"read"} and not g.api_user.is_admin:
+        # A writing token is as powerful as an admin's session; only admins mint one.
+        raise ApiError(403, "Only an admin can mint a token that can change the site or the repository.")
     days = data.get("expires_in_days")
     expires = None
     if days not in (None, "", 0):
@@ -509,6 +514,8 @@ def tokens_create():
 def tokens_revoke(token_id):
     _session_only()
     row = db.session.get(ApiToken, token_id) or _missing("token")
+    if not g.api_user.is_admin and row.user_id != g.api_user.id:
+        _missing("token")   # don't confirm another user's token exists
     db.session.delete(row)
     db.session.commit()
     return jsonify(revoked=token_id)
@@ -1232,10 +1239,10 @@ def repo_key():
     Replacing a key that has signed releases needs "replace": true, and every
     install will have to add the repository again."""
     from . import jobs, repo
-    # A key decides what every install trusts, so a signed-in account must be
-    # an admin to touch it. A token with the releases scope still may: the MCP
-    # server's create_signing_key uses one.
-    if token_from_header() is None and not g.api_user.is_admin:
+    # A key decides what every install trusts: only an admin touches it, by
+    # session or by a token the admin minted. The MCP server's
+    # create_signing_key works through an admin's token.
+    if not g.api_user.is_admin:
         raise ApiError(403, "Only an admin can create or replace the signing key.")
     data = body()
     if not repo.tools()["gpg"]:
