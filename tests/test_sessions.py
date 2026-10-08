@@ -39,3 +39,29 @@ def test_a_new_password_ends_the_other_sessions(app, client, csrf, admin):
     # CSRF survives the fresh sign-in.
     assert client.post("/account/password", json={"current": "password2", "new": "password3"},
                        headers={"X-CSRF": csrf}).status_code == 200
+
+
+def test_wrong_current_passwords_hit_the_signin_throttle(client, csrf, admin):
+    body = {"current": "nope-nope", "new": "newpassword1"}
+    for _ in range(8):
+        assert client.post("/account/password", json=body, headers={"X-CSRF": csrf}).status_code == 403
+    assert client.post("/account/password", json=body, headers={"X-CSRF": csrf}).status_code == 429
+
+
+def test_spraying_accounts_hits_the_per_address_limit(app, admin):
+    """Eight tries per account, but never unlimited accounts per address."""
+    stranger = app.test_client()
+    csrf = token_for(stranger)
+    for i in range(41):
+        resp = stranger.post("/login", data={"_csrf": csrf, "username": f"nobody{i}@example.com",
+                                             "password": "wrong-password"})
+        assert resp.status_code == (429 if i == 40 else 401)
+
+
+def test_a_missing_account_costs_a_password_check(app, admin):
+    """Same answer, same work: nothing to learn from how fast "no" arrives."""
+    stranger = app.test_client()
+    csrf = token_for(stranger)
+    resp = stranger.post("/login", data={"_csrf": csrf, "username": "ghost@example.com",
+                                         "password": "wrong-password"})
+    assert resp.status_code == 401 and b"Wrong email or password." in resp.data

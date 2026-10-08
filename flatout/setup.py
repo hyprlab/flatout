@@ -17,7 +17,7 @@ import shutil
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
 from flask_login import login_user
 
-from .auth import EMAIL_RE, MIN_PASSWORD
+from .auth import EMAIL_RE, MIN_PASSWORD, first_account_lock
 from . import backup, chunks, site_schema
 from .models import SiteDocument, User, db, set_setting
 
@@ -46,8 +46,6 @@ def wizard():
 
 @bp.route("/setup", methods=["POST"])
 def submit():
-    if not needs_setup():
-        return jsonify(error="This instance is already set up."), 409
     data = request.get_json(silent=True) or {}
 
     username = (data.get("username") or "").strip().lower()
@@ -63,20 +61,25 @@ def submit():
     if public_url and not re.match(r"^https?://[^\s/]+(/\S*)?$", public_url):
         return jsonify(error="The public address must start with https:// (or http://)."), 400
 
-    admin = User(username=username, is_admin=True,
-                 name=(data.get("name") or "").strip()[:120] or None)
-    admin.set_password(password)
-    db.session.add(admin)
-    db.session.commit()
+    # The zero-user check and the insert must be one act, or two concurrent
+    # wizards would each make an admin.
+    with first_account_lock:
+        if not needs_setup():
+            return jsonify(error="This instance is already set up."), 409
+        admin = User(username=username, is_admin=True,
+                     name=(data.get("name") or "").strip()[:120] or None)
+        admin.set_password(password)
+        db.session.add(admin)
+        db.session.commit()
+        _completed["done"] = True
 
     set_setting("registration_open", "1" if data.get("registration_open", False) else "0")
     if public_url:
         set_setting("public_url", public_url)
     _seed_site(app_name, tagline, admin.display_name)
 
-    _completed["done"] = True
     shutil.rmtree(backup.restore_dir(), ignore_errors=True)   # a restore begun, then abandoned
-    login_user(admin, remember=True)
+    login_user(admin)
     return jsonify(ok=True)
 
 

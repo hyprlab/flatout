@@ -8,6 +8,7 @@ defaults for those.
 """
 import os
 import secrets
+from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -65,6 +66,9 @@ class Config:
     REMEMBER_COOKIE_HTTPONLY = True
     REMEMBER_COOKIE_SAMESITE = "Lax"
     REMEMBER_COOKIE_SECURE = SESSION_COOKIE_SECURE
+    # A month, not Flask-Login's default year: a stolen remember-me cookie
+    # should age out on its own.
+    REMEMBER_COOKIE_DURATION = timedelta(days=30)
 
     # How many reverse proxies sit in front of the app (Cloudflare Tunnel,
     # Caddy, Traefik...). 0 trusts no X-Forwarded-* header at all. Setting it

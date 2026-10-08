@@ -27,6 +27,7 @@ def app(tmp_path, monkeypatch):
     # Process-wide caches that assume one database for the life of the process.
     flatout.setup._completed["done"] = False
     flatout.auth._failures.clear()
+    flatout.auth._per_address.clear()
 
     class TestConfig(flatout.config.Config):
         TESTING = True

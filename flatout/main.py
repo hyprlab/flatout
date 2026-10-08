@@ -11,7 +11,7 @@ from flask_login import current_user, login_required, login_user
 from sqlalchemy import func
 
 from . import __version__
-from .auth import EMAIL_RE, MIN_PASSWORD, siteverify, turnstile_config
+from .auth import EMAIL_RE, MIN_PASSWORD, clear_failures, record_failure, siteverify, too_many, turnstile_config
 from .models import User, db, get_setting, set_setting
 
 bp = Blueprint("main", __name__)
@@ -52,8 +52,15 @@ def settings():
 @login_required
 def change_password():
     data = request.get_json(silent=True) or {}
+    # The current-password check gets the sign-in throttle too, or this form
+    # would be an unthrottled offline-guessing oracle for a session that was
+    # left signed in.
+    if too_many(current_user.username):
+        return jsonify(error="Too many attempts. Wait a few minutes and try again."), 429
     if not current_user.check_password(data.get("current", "")):
+        record_failure(current_user.username)
         return jsonify(error="Current password is wrong."), 403
+    clear_failures(current_user.username)
     new = data.get("new", "")
     if len(new) < MIN_PASSWORD:
         return jsonify(error=f"New passwords need at least {MIN_PASSWORD} characters."), 400

@@ -12,6 +12,7 @@ import requests
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy import func
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from .models import User, db, get_setting
 
@@ -21,35 +22,57 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MIN_PASSWORD = 8
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
-# Failed sign-ins per (address, account) in a sliding window. In memory is
-# enough: there is one process (see the Dockerfile), and a restart forgetting
-# the count costs an attacker a restart they cannot trigger.
+# Failed sign-ins per (address, account) in a sliding window, plus a per-address
+# aggregate so an attacker can't multiply attempts by spraying many accounts.
+# In memory is enough: there is one process (see the Dockerfile), and a restart
+# forgetting the count costs an attacker a restart they cannot trigger.
 MAX_FAILURES = 8
+MAX_FAILURES_PER_ADDRESS = 40
 FAILURE_WINDOW = 15 * 60
+_MAX_TRACKED = 10000    # keys kept before a sweep; a flood of fresh account names can't grow it forever
 _failures: dict[tuple[str, str], list[float]] = {}
+_per_address: dict[str, list[float]] = {}
 _failures_lock = threading.Lock()
 
+# Creating the first (admin) account, from the wizard or from registration, is
+# a check-then-insert across the worker's threads; the lock makes it one act.
+first_account_lock = threading.Lock()
 
-def _throttle_key(username: str) -> tuple[str, str]:
-    return (request.remote_addr or "?", username.lower())
+# Compared against when the account doesn't exist, so a missing account takes
+# the same time as a wrong password on a real one and login timing says nothing.
+_DUMMY_HASH = generate_password_hash("flatout-timing-pad")
 
 
-def _too_many(username: str) -> bool:
+def _fresh(stamps: list[float], now: float) -> list[float]:
+    return [t for t in stamps if now - t < FAILURE_WINDOW]
+
+
+def too_many(username: str) -> bool:
+    """At or past the limit, by account or by address?"""
     now = time.monotonic()
+    key = (request.remote_addr or "?", username.lower())
     with _failures_lock:
-        stamps = [t for t in _failures.get(_throttle_key(username), []) if now - t < FAILURE_WINDOW]
-        _failures[_throttle_key(username)] = stamps
-        return len(stamps) >= MAX_FAILURES
+        stamps = _fresh(_failures.get(key, []), now)
+        per_addr = _fresh(_per_address.get(key[0], []), now)
+        _failures[key], _per_address[key[0]] = stamps, per_addr
+        return len(stamps) >= MAX_FAILURES or len(per_addr) >= MAX_FAILURES_PER_ADDRESS
 
 
-def _record_failure(username: str) -> None:
+def record_failure(username: str) -> None:
+    now = time.monotonic()
+    key = (request.remote_addr or "?", username.lower())
     with _failures_lock:
-        _failures.setdefault(_throttle_key(username), []).append(time.monotonic())
+        if len(_failures) + len(_per_address) > _MAX_TRACKED:
+            for table in (_failures, _per_address):
+                for stale in [k for k, v in table.items() if not v or now - v[-1] >= FAILURE_WINDOW]:
+                    del table[stale]
+        _failures.setdefault(key, []).append(now)
+        _per_address.setdefault(key[0], []).append(now)
 
 
-def _clear_failures(username: str) -> None:
+def clear_failures(username: str) -> None:
     with _failures_lock:
-        _failures.pop(_throttle_key(username), None)
+        _failures.pop((request.remote_addr or "?", username.lower()), None)
 
 
 def registration_open() -> bool:
@@ -143,7 +166,7 @@ def login():
         return redirect(url_for("admin.home"))
     if request.method == "POST":
         username = request.form.get("username", "").strip()
-        if _too_many(username):
+        if too_many(username):
             flash("Too many attempts. Wait a few minutes and try again.", "error")
             return render_template("auth/login.html"), 429
         if not verify_turnstile():
@@ -151,11 +174,18 @@ def login():
             return render_template("auth/login.html"), 400
         password = request.form.get("password", "")
         user = User.query.filter(func.lower(User.username) == username.lower()).first()
-        if user and user.check_password(password):
-            _clear_failures(username)
+        if user is None:
+            # A missing account must cost what a wrong password on a real one
+            # does, or the difference in answer time enumerates accounts.
+            check_password_hash(_DUMMY_HASH, password)
+            ok = False
+        else:
+            ok = user.check_password(password)
+        if ok:
+            clear_failures(username)
             login_user(user, remember=request.form.get("remember") == "on")
             return redirect(safe_next(request.args.get("next")))
-        _record_failure(username)
+        record_failure(username)
         flash("Wrong email or password.", "error")
         return render_template("auth/login.html"), 401
     return render_template("auth/login.html")
@@ -184,12 +214,14 @@ def register():
         elif User.query.filter(func.lower(User.username) == username).first():
             flash("An account with that email already exists.", "error")
         else:
-            # The first account on a fresh instance becomes the admin.
-            user = User(username=username, is_admin=User.query.count() == 0,
-                        name=request.form.get("name", "").strip()[:120] or None)
-            user.set_password(password)
-            db.session.add(user)
-            db.session.commit()
+            # The first account on a fresh instance becomes the admin. The
+            # lock keeps two concurrent registrations from both seeing zero.
+            with first_account_lock:
+                user = User(username=username, is_admin=db.session.query(User.id).first() is None,
+                            name=request.form.get("name", "").strip()[:120] or None)
+                user.set_password(password)
+                db.session.add(user)
+                db.session.commit()
             login_user(user)
             return redirect(url_for("admin.home"))
         return render_template("auth/register.html"), 400

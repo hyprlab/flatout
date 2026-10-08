@@ -64,7 +64,10 @@ class User(UserMixin, db.Model):
         return hashlib.sha256(self.password_hash.encode()).hexdigest()[:12]
 
     def set_password(self, password: str) -> None:
-        self.password_hash = generate_password_hash(password)
+        # scrypt with OWASP's current work factor; the library default (2^15)
+        # is sound but soft. Hashes made earlier still verify: the parameters
+        # are stored in the hash.
+        self.password_hash = generate_password_hash(password, method="scrypt:131072:8:1")
 
     def check_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)

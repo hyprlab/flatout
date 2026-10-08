@@ -21,6 +21,18 @@ All notable changes to Flatout are documented here. The format follows
 ### Security
 - Markdown 3.8.1: a malformed document could abort a request with an
   unhandled exception (CVE-2025-69534)
+- Sign-in answers in the same time whether the account exists or not, so the
+  response time no longer says which emails have accounts
+- The sign-in throttle now also caps attempts per address across accounts,
+  the remembered failures are swept instead of growing forever, and the
+  change-password form shares the throttle
+- Two browsers finishing the setup wizard (or registration) at the same
+  moment can no longer both become the first admin
+
+### Changed
+- New passwords hash with scrypt at OWASP's current work factor (2^17), and
+  "Keep me signed in" lasts 30 days instead of a year and is off unless
+  ticked
 
 ### Added
 - CI checks dependencies against the published vulnerability databases
