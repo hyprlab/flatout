@@ -42,7 +42,19 @@
       </div>
       {%- endif %}
     </div>
-    <p class="status__foot">{{ s.fill(doc.footer.legal) }}</p>
+    <footer class="status__foot">
+      <p>{{ s.fill(doc.footer.legal) }}</p>
+      {%- if state == 'off' %}
+      {#- The one place Flatout's own icon is on the public side: credit on the
+          page that stands in for a site, linking to Flatout's source. -#}
+      {%- set powered %}<img src="{{ static_url('img/icon.png') }}" alt="" width="18" height="18">Powered by Flatout{% endset %}
+      {%- if source_url %}
+      <a class="status__powered" href="{{ source_url }}" target="_blank" rel="noopener">{{ powered }}</a>
+      {%- else %}
+      <span class="status__powered">{{ powered }}</span>
+      {%- endif %}
+      {%- endif %}
+    </footer>
   </main>
   <script nonce="{{ csp_nonce() }}">
     // The expected time in the visitor's own clock and words: "today at

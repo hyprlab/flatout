@@ -83,7 +83,8 @@ in the sidebar, decides whether visitors get the site at all:
   asked not to list the site.
 - **Off**: no website, for an install that only wants the repository.
   Visitors to the site's address see a short page about the repository, with
-  how to install the app once a stable release is live, or are sent to
+  how to install the app once a stable release is live and a "Powered by
+  Flatout" link to Flatout's source, or are sent to
   another address you give (the project's GitHub page, say). Search engines
   are asked not to list it. The site's editors fold away in the sidebar, and
   the getting-started list drops its website steps.

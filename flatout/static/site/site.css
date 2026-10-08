@@ -1688,9 +1688,24 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   position: absolute;
   left: 0; right: 0; bottom: 22px;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   font-size: .82rem;
   color: color-mix(in srgb, var(--hero-ink) 70%, transparent);
 }
+.status__foot p { margin: 0; }
+.status__powered {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+.status__powered img { width: 18px; height: 18px; }
+a.status__powered:hover { color: var(--hero-ink); text-decoration: underline; text-underline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
   .status__glow, .status__ring, .status__pulse, .status__dots span { animation: none; }
   .status__ring { opacity: .35; }

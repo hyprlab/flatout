@@ -14,6 +14,7 @@ def test_a_new_install_is_unpublished_until_its_first_publish(app, client, csrf,
     visitor = app.test_client()
     page = visitor.get("/")
     assert page.status_code == 200 and b"Coming soon" in page.data
+    assert b"Powered by Flatout" not in page.data   # the credit is the off page's alone
     assert page.headers["X-Robots-Tag"] == "noindex"
     assert "Disallow: /\n" in visitor.get("/robots.txt").data.decode()
     # The owner sees the site, with a word on what visitors get.
@@ -101,6 +102,7 @@ def test_off_leaves_only_the_repository(app, client, csrf, admin):
     assert page.status_code == 200 and page.headers["X-Robots-Tag"] == "noindex"
     text = page.data.decode()
     assert "Flatpak repository" in text and "This address hosts the Flatpak repository for Gnomish." in text
+    assert 'href="https://github.com/hyprlab/flatout"' in text and "Powered by Flatout" in text
     assert visitor.get("/privacy").status_code == 200
     missing = visitor.get("/no-such-page")
     assert missing.status_code == 404 and b"Flatpak repository" in missing.data
