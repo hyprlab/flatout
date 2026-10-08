@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.5.1] — 2026-10-08
+
 ### Fixed
 - The editor's preview shows the site's scroll fade-ins: what you scroll to
   fades in as on the live site, and a saved change doesn't replay them
