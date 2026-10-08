@@ -160,8 +160,10 @@ def create_app(config_class=Config) -> Flask:
         """Inline scripts must carry this request's nonce, so injected markup
         can no longer run even if a sanitizer miss ever let it in; the site's
         own scripts come from the same origin. Turnstile's origin is allowed
-        only while the challenge is on."""
-        turnstile = " https://challenges.cloudflare.com" if auth.turnstile_config() else ""
+        while the challenge is on, and for admins, whose Settings run a real
+        challenge before turning it on."""
+        admin = current_user.is_authenticated and current_user.is_admin
+        turnstile = " https://challenges.cloudflare.com" if admin or auth.turnstile_config() else ""
         return (
             "default-src 'self'"
             f"; script-src 'self' 'nonce-{csp_nonce()}'{turnstile}"

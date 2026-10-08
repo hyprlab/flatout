@@ -132,6 +132,16 @@ def test_security_headers(client, admin):
     assert client.get("/admin/preview").headers["X-Frame-Options"] == "SAMEORIGIN"
 
 
+def test_turnstile_can_load_where_it_is_turned_on(app, client, admin, second_user):
+    """Settings runs a real challenge before saving the keys, so an admin's
+    pages allow Cloudflare's origin while Turnstile is still off; nobody
+    else's do until it is on."""
+    assert "challenges.cloudflare.com" in client.get("/admin").headers["Content-Security-Policy"]
+    other, _ = second_user
+    assert "challenges.cloudflare.com" not in other.get("/admin").headers["Content-Security-Policy"]
+    assert "challenges.cloudflare.com" not in app.test_client().get("/login").headers["Content-Security-Policy"]
+
+
 def test_html_carries_a_csp_and_the_page_own_scripts_its_nonce(client, admin):
     import re
     resp = client.get("/admin")
@@ -141,8 +151,6 @@ def test_html_carries_a_csp_and_the_page_own_scripts_its_nonce(client, admin):
     # Same-origin for the app's own scripts, and for the editor's preview frame.
     assert "frame-src 'self'" in policy
     assert "object-src 'none'" in policy and "frame-ancestors 'self'" in policy
-    # Turnstile's origin only joins the policy while the challenge is on.
-    assert "challenges.cloudflare.com" not in policy
 
 
 def test_hsts_only_when_cookies_are_secure(app, admin):
