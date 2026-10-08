@@ -18,6 +18,14 @@ All notable changes to Flatout are documented here. The format follows
   answer switched between the check and the download cannot target the
   internal network
 
+### Security
+- Markdown 3.8.1: a malformed document could abort a request with an
+  unhandled exception (CVE-2025-69534)
+
+### Added
+- CI checks dependencies against the published vulnerability databases
+  (pip-audit)
+
 ## [1.2.0] — 2026-10-08
 
 ### Added
