@@ -998,6 +998,9 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .method__icon--ref    { background: var(--accent-gradient); }
 .method__icon--bundle { background: linear-gradient(160deg, color-mix(in srgb, var(--highlight) 80%, white), var(--highlight)); color: var(--highlight-ink); }
 .method__icon--repo   { background: linear-gradient(160deg, color-mix(in srgb, var(--c-green) 72%, white), var(--c-green)); }
+.method__icon--rpm    { background: linear-gradient(160deg, #6f9bd6, #3c6eb4); }
+.method__icon--deb    { background: linear-gradient(160deg, #e0577f, #a80030); }
+.method__icon--files  { background: linear-gradient(160deg, color-mix(in srgb, var(--ink-soft) 70%, white), var(--ink-soft)); }
 .method__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .method__title {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
@@ -1042,6 +1045,13 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 }
 .how__btn { width: 100%; justify-content: center; }
 .how__after { margin: 14px 0 0; font-size: .88rem; color: var(--ink-soft); }
+
+/* Other downloads: one button per file, what it is beside it. */
+.dl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.dl-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.dl-list__btn { max-width: 100%; }
+.dl-list__btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-list__meta { font-size: .86rem; color: var(--ink-soft); }
 
 /* Folded terminal alternative. */
 .term { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }

@@ -1009,11 +1009,17 @@ input.switch:checked::after { transform: translateX(14px); }
 .release-row .form-error { grid-column: 1 / -1; font-size: 13px; }
 .release-actions { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; align-items: center; }
 .release-row.is-superseded .release-version, .release-row.is-ended .release-version { color: var(--muted); font-weight: 650; }
+.release-row.is-withdrawn .release-version, .release-row.is-pruned .release-version { color: var(--faint); font-weight: 650; text-decoration: line-through; }
 .status { font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--field); color: var(--muted); border: 1px solid var(--line); }
 .status--live { background: rgb(46 194 126 / .14); color: #1a7f52; border-color: transparent; }
 .status--failed { background: rgb(220 70 60 / .12); color: var(--danger); border-color: transparent; }
 .status--queued, .status--processing { background: var(--wash); color: var(--ink); border-color: transparent; }
 :root[data-theme="dark"] .status--live { color: #7fe0b2; }
+/* Commands to copy, on the Packages page: one block per way of installing. */
+.pkg-command { margin: 0 0 14px; }
+.pkg-command .setting-label { margin: 0 0 6px; }
+.pkg-command-box { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.pkg-command pre { margin: 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .joblog { max-height: 340px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; white-space: pre-wrap; word-break: break-all; }
 .field-input { width: 100%; }
 

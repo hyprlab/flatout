@@ -38,6 +38,16 @@
     <div class="table-scroll"><table class="data-table" id="arch-stats"></table></div>
   </section>
 
+  <section class="panel" id="pkg-stats" hidden>
+    <h3 class="panel-title">Packages</h3>
+    <p class="hint">Installs with the dnf or apt repository added fetch its index when they look for updates, which
+      dnf does daily with this site's repository file and apt does daily on most systems. Counted like the
+      Flatpak installs above, once a day each.</p>
+    <div class="table-scroll"><table class="data-table" id="pkg-repo-stats"></table></div>
+    <p class="hint">Downloads of each package and file: by dnf and apt, and from the site.</p>
+    <div class="table-scroll"><table class="data-table" id="pkg-download-stats"></table></div>
+  </section>
+
   <section class="panel">
     <h3 class="panel-title">Each build</h3>
     <p class="hint">Every signed commit installs have downloaded: uploads, promotions and rollbacks each make one.</p>

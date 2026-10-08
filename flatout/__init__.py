@@ -303,6 +303,14 @@ def _migrate(app: Flask) -> None:
         db.session.commit()
         app.logger.info("migrated: the %s site's %s became repository settings", name, ", ".join(moved))
 
+    # Packages (RPM, Debian, other files) have jobs of their own. The table
+    # itself comes from create_all; the jobs table only needs the link.
+    if "package_id" not in columns("jobs"):
+        db.session.execute(text("ALTER TABLE jobs ADD COLUMN package_id INTEGER "
+                                "REFERENCES packages(id) ON DELETE SET NULL"))
+        db.session.commit()
+        app.logger.info("migrated: added jobs.package_id")
+
 
 def _start_worker(app: Flask) -> None:
     """Background thread for periodic work (worker.py).

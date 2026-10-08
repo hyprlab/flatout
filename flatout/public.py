@@ -153,7 +153,7 @@ def not_found_page():
 # never the site's page or a maintenance 503: clients probe for optional
 # files, and a 503 would fail their update.
 NOT_THE_SITE = ("/admin", "/api/", "/mcp", "/setup", "/login", "/register", "/logout",
-                "/repo/", "/flatpak/", "/download/", "/media/", "/static/")
+                "/repo/", "/flatpak/", "/rpm/", "/deb/", "/download/", "/media/", "/static/")
 
 
 def is_public_path() -> bool:

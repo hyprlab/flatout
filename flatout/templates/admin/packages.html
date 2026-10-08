@@ -1,0 +1,93 @@
+{% extends "admin/shell.html" %}
+{% block bodyextra %} admin--packages{% endblock %}
+{% block content %}
+<div class="page-body" id="packages-page">
+  <div class="banner banner--warn" id="packages-blocker" hidden></div>
+
+  <section class="panel">
+    <h3 class="panel-title">Upload packages</h3>
+    <form id="pkg-form" class="upload" autocomplete="off">
+      <div class="upload-pick">
+        <label class="dropzone" id="pkg-drop" data-dropzone>
+          <input type="file" id="pkg-file" multiple hidden>
+          <svg viewBox="0 0 24 24"><path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5v-9ZM4 7.5l8 3.5 8-3.5M12 11v9M8 5.8l8 3.5"/></svg>
+          <span class="dropzone-text" id="pkg-name"><strong>Choose packages or files</strong> or drop them here</span>
+          <span class="hint">An <code>.rpm</code> goes into the dnf repository and a <code>.deb</code> into the apt
+            repository, both signed. Anything else, an AppImage or a tarball, is offered as a download.</span>
+        </label>
+        <ul class="upload-files" id="pkg-list" aria-live="polite" hidden></ul>
+      </div>
+      <div class="upload-fields">
+        <div class="field">
+          <span class="field-label">Channel</span>
+          <div class="seg" role="radiogroup" aria-label="Channel">
+            <label><input type="radio" name="pkg-channel" value="stable" checked><span>Stable</span></label>
+            <label><input type="radio" name="pkg-channel" value="beta"><span>Beta</span></label>
+          </div>
+        </div>
+        <label class="field"><span class="field-label">Release notes (Markdown)</span>
+          <textarea id="pkg-notes" rows="3" placeholder="What changed, from the user's side."></textarea></label>
+        <details class="term-like">
+          <summary>Other files: a version and a fixed name</summary>
+          <label class="field"><span class="field-label">Version</span>
+            <input id="pkg-version" maxlength="120" placeholder="Read from the file's name if left empty"></label>
+          <label class="field"><span class="field-label">Download name</span>
+            <input id="pkg-filename" maxlength="200" spellcheck="false" placeholder="App-x86_64.AppImage"></label>
+          <p class="hint">With a fixed name, each upload replaces the last at the same address. Packages take their
+            name and version from inside the file.</p>
+        </details>
+        <details class="term-like">
+          <summary>Or fetch the file from an address</summary>
+          <label class="field"><span class="field-label">File address</span>
+            <input id="pkg-url" type="url" placeholder="https://github.com/…/releases/download/v1.2.0/app-1.2.0-1.x86_64.rpm"></label>
+        </details>
+        <p class="form-error" id="pkg-error" hidden></p>
+        <div class="upload-actions">
+          <button class="btn btn--primary" type="submit" id="pkg-btn"><span class="btn-label">Upload and publish</span><span class="btn-busy" hidden>Uploading…</span></button>
+          <progress id="pkg-progress" max="100" value="0" hidden></progress>
+        </div>
+      </div>
+    </form>
+  </section>
+
+  <div class="tiles" id="pkg-tiles"></div>
+
+  <section class="panel" id="pkg-repos" hidden>
+    <h3 class="panel-title">Adding the repositories</h3>
+    <p class="hint">What people run once; their system's own updates bring every version after. The install
+      dialog on the site shows the same commands.</p>
+    <div id="pkg-commands"></div>
+    <dl class="addresses" id="pkg-addresses"></dl>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h3 class="panel-title">History</h3>
+      <span class="hint" id="pkg-state" role="status" aria-live="polite"></span>
+    </div>
+    <ul class="release-rows" id="pkg-rows"><li class="hint">Loading…</li></ul>
+  </section>
+
+  <section class="panel">
+    <h3 class="panel-title">Versions kept</h3>
+    <form id="pkg-kept-form" class="stack" autocomplete="off">
+      <label class="field field--narrow"><span class="field-label">Versions of each package kept, per channel</span>
+        <input id="pkg-kept" type="number" min="1" max="50"></label>
+      <p class="hint">The newest is the one dnf and apt install; the ones before it stay for a downgrade. Older
+        versions are deleted.</p>
+      <p class="form-error" id="pkg-kept-error" hidden></p>
+      <div><button class="btn btn--primary" type="submit">Save</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block dialogs %}
+<dialog class="modal modal--wide" id="pkg-modal" data-restore="off" aria-labelledby="pkg-modal-title">
+  <div class="modal-head">
+    <h3 id="pkg-modal-title">Package</h3>
+    <button class="iconbtn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div class="modal-body" id="pkg-modal-body"></div>
+</dialog>
+{% endblock %}
+{% block scripts %}<script src="{{ static_url('js/admin.js') }}" defer></script>{% endblock %}

@@ -6,10 +6,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     FLASK_APP=flatout
 
 # flatpak and ostree import, sign and serve the repository; gpg holds the
-# signing key. No recommended packages: the repository tools need none of the
-# desktop integration that would come with them.
+# signing key. rpm (rpmsign) and createrepo-c make the dnf repository;
+# dpkg-deb, already in the base image, reads Debian packages for the apt one.
+# No recommended packages: the repository tools need none of the desktop
+# integration that would come with them.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends flatpak ostree gnupg \
+    && apt-get install -y --no-install-recommends flatpak ostree gnupg rpm createrepo-c \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

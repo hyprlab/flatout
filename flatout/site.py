@@ -181,11 +181,14 @@ class Renderer:
         self.base = base_url()
         self.repo = releases.public_info(doc, self.base)
         app = doc["app"]
+        pk = self.repo["packages"]
+        newest_package = pk["rpm"]["stable"] or pk["deb"]["stable"] or {}
         self.values = {
             "app_name": app["name"],
             "app_tagline": app["tagline"],
             "app_id": self.repo["app_id"],
-            "version": (self.repo["stable"] or {}).get("version", ""),
+            # An app published only as packages still has a version to show.
+            "version": (self.repo["stable"] or newest_package).get("version", ""),
             "beta_version": (self.repo["beta"] or {}).get("version", ""),
             "site_url": self.base,
             "site_host": re.sub(r"^https?://", "", self.base),
@@ -194,6 +197,9 @@ class Renderer:
             "flatpakref_url": self.repo["flatpakref_url"],
             "beta_flatpakref_url": self.repo["beta_flatpakref_url"],
             "flatpakrepo_url": self.repo["flatpakrepo_url"],
+            "package_name": newest_package.get("name", ""),
+            "rpm_repo_file_url": pk["rpm"]["repo_file_url"],
+            "deb_sources_url": pk["deb"]["sources_url"],
             "source_url": app["source_url"],
             "issues_url": app["issues_url"],
             "year": str(datetime.now(timezone.utc).year),

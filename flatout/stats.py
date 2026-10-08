@@ -10,6 +10,10 @@ reports anything:
   commit, by delta or not, so distinct fetchers of a release's commit estimate
   how many installs took that release.
 
+The dnf and apt repositories count the same way: every install with the
+repository added fetches its index (repomd.xml, InRelease) when it checks for
+updates, and each package download counts once per requester and day.
+
 No address is stored. Uniqueness uses SHA-256 of a secret salt, the day and
 the address, so the hash changes daily and can't be linked across days or
 back to anyone.
@@ -26,7 +30,7 @@ from flask import current_app
 from sqlalchemy import func
 from sqlalchemy.dialects.sqlite import insert
 
-from .models import Release, StatDay, StatSeen, db
+from .models import Package, Release, StatDay, StatSeen, db
 
 SEEN_DAYS = 60
 _salt_lock = threading.Lock()
@@ -68,9 +72,16 @@ def record(filename: str, address: str) -> None:
     """Count one repository request. Never raises: a counting problem must
     not break a download."""
     hit = classify(filename)
-    if hit is None or not address:
+    if hit is not None:
+        count(*hit, address)
+
+
+def count(metric: str, target: str, address: str) -> None:
+    """Count one request for a target, once per requester per day. Never
+    raises. The dnf and apt repositories count here directly (serve.py):
+    their index as ``pkgcheck``, a package's download as ``pkgpull``."""
+    if not address:
         return
-    metric, target = hit
     day = _today()
     try:
         visitor = hashlib.sha256(_salt_bytes() + day.encode() + address.encode()).hexdigest()[:16]
@@ -215,6 +226,7 @@ def snapshot(days: int = 30) -> dict:
         Release.status.in_(("live", "superseded", "ended")))}
 
     return {
+        "packages": _packages(today.isoformat(), week_start),
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "counting_since": counting_since,
         "days": series,
@@ -235,3 +247,36 @@ def snapshot(days: int = 30) -> dict:
         "builds": builds,
         "pulls_without_release": unmatched,
     }
+
+
+def _packages(today: str, week_start: str) -> dict:
+    """The dnf and apt repositories: installs checking each one (distinct
+    requesters of its index per day, today and at the busiest this week),
+    and each package's downloads."""
+    repositories: dict[str, dict] = {}
+    for row in StatDay.query.filter(StatDay.metric == "pkgcheck", StatDay.day >= week_start):
+        fmt, _, channel = row.target.partition("-")
+        entry = repositories.setdefault(row.target, {"format": fmt, "channel": channel, "today": 0, "peak_7_days": 0})
+        entry["peak_7_days"] = max(entry["peak_7_days"], row.uniques)
+        if row.day == today:
+            entry["today"] = row.uniques
+    pulls = (db.session.query(StatDay.target, func.sum(StatDay.uniques), func.sum(StatDay.hits),
+                              func.min(StatDay.day), func.max(StatDay.day))
+             .filter(StatDay.metric == "pkgpull").group_by(StatDay.target).all())
+    ids = [int(t) for t, *_ in pulls if t.isdigit()]
+    rows = {str(p.id): p for p in Package.query.filter(Package.id.in_(ids))} if ids else {}
+    downloads = []
+    for target, uniques, hits, first, last in pulls:
+        pkg = rows.get(target)
+        if pkg is None:
+            continue
+        downloads.append({
+            "id": pkg.id, "name": pkg.name, "version": pkg.version, "format": pkg.format, "channel": pkg.channel,
+            "arch": pkg.arch, "status": pkg.status, "installs": uniques or 0, "downloads": hits or 0,
+            "first_seen": first, "last_seen": last,
+            "published_at": (pkg.published_at or pkg.created_at).isoformat() + "Z",
+        })
+    downloads.sort(key=lambda d: (d["published_at"], d["installs"]), reverse=True)
+    order = {"rpm-stable": 0, "rpm-beta": 1, "deb-stable": 2, "deb-beta": 3}
+    return {"repositories": sorted(repositories.values(), key=lambda r: order.get(f"{r['format']}-{r['channel']}", 9)),
+            "downloads": downloads}

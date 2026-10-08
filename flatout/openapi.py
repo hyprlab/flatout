@@ -109,12 +109,27 @@ def spec() -> dict:
                         "url": {"type": "string", "description": "An https address to download the bundle from"},
                         "channel": {"type": "string", "enum": ["stable", "beta"]},
                         "version": {"type": "string"}, "notes": {"type": "string"}}, "required": ["url"]}}}}
+            if rule.endpoint == "api.packages_create" and method == "POST":
+                fields = {"channel": {"type": "string", "enum": ["stable", "beta"]},
+                          "name": {"type": "string", "description": "For a file that isn't a package: its download name"},
+                          "version": {"type": "string"}, "arch": {"type": "string"},
+                          "notes": {"type": "string", "format": "markdown"}}
+                op["requestBody"] = {"content": {
+                    "multipart/form-data": {"schema": {"type": "object", "properties": {
+                        "file": {"type": "string", "format": "binary", "description": "An .rpm, a .deb, or any other file"},
+                        **fields}, "required": ["file"]}},
+                    "application/json": {"schema": {"type": "object", "properties": {
+                        "url": {"type": "string", "description": "An https address to download the file from"},
+                        "upload": {"type": "string", "description": "An upload sent in pieces (POST /uploads)"},
+                        "filename": {"type": "string", "description": "The uploaded file's name, with upload"},
+                        **fields}}}}}
             paths.setdefault(path, {})[method.lower()] = op
     return {
         "openapi": "3.1.0",
         "info": {
             "title": "Flatout API", "version": __version__,
             "description": ("Edit and publish the site, manage media, upload and promote Flatpak releases, "
+                            "publish RPM and Debian packages and other downloads, "
                             "and read install numbers. Send `Authorization: Bearer <token>`; tokens are made "
                             "in the admin under API and agents. Changes to the site go to a draft; "
                             "POST /site/publish makes them live. Scopes: "

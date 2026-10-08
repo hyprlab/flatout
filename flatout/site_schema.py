@@ -27,7 +27,7 @@ SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 # Page slugs live at the site root (/privacy), so they can't shadow a route.
 RESERVED_SLUGS = {
     "admin", "api", "login", "logout", "register", "setup", "healthz", "media",
-    "flatpak", "repo", "static", "mcp", "preview", "download", "account",
+    "flatpak", "repo", "rpm", "deb", "static", "mcp", "preview", "download", "account",
     "settings", "search", "robots.txt", "sitemap.xml", "favicon.ico", "items",
 }
 
@@ -491,6 +491,12 @@ DOCUMENT = group("Site", {
         "ref_method": boolean("Offer the install file (.flatpakref)", True),
         "bundle_method": boolean("Offer the full .flatpak download", True),
         "repo_method": boolean("Offer adding the repository", True),
+        "rpm_method": boolean("Offer the dnf repository", True,
+                              help="Shown once an RPM is published under Packages."),
+        "deb_method": boolean("Offer the apt repository", True,
+                              help="Shown once a Debian package is published under Packages."),
+        "files_method": boolean("Offer other downloads", True,
+                                help="AppImages, tarballs and other files published under Packages."),
         "flatpak_setup_url": url("Flatpak setup guide", "https://flatpak.org/setup/"),
         "footer": markdown("Small print", "Every option installs the same app and keeps it updated.", max=2000),
     }),
@@ -804,6 +810,9 @@ PLACEHOLDER_HELP = {
     "{flatpakref_url}": "The stable install file",
     "{beta_flatpakref_url}": "The beta install file",
     "{flatpakrepo_url}": "The repository file",
+    "{package_name}": "The package dnf and apt install",
+    "{rpm_repo_file_url}": "The .repo file that adds the dnf repository",
+    "{deb_sources_url}": "The .sources file that adds the apt repository",
     "{source_url}": "The source code link",
     "{issues_url}": "The bug report link",
     "{year}": "The current year",

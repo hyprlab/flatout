@@ -74,9 +74,12 @@ def tools() -> dict:
     return {name: shutil.which(name) is not None for name in ("flatpak", "ostree", "gpg")}
 
 
-def run(args: list[str], log: list[str] | None = None, timeout: int = 1800, stdin: bytes | None = None) -> str:
+def run(args: list[str], log: list[str] | None = None, timeout: int = 1800, stdin: bytes | None = None,
+        stdout_only: bool = False) -> str:
     """Run a command; return its output. A failure raises RepoError with the
-    tool's own last lines, which usually say what was wrong."""
+    tool's own last lines, which usually say what was wrong. ``stdout_only``
+    is for output that gets parsed, where a warning on stderr would not
+    belong."""
     env = dict(os.environ, GNUPGHOME=str(gnupg_dir()), LC_ALL="C.UTF-8")
     end_worker_transaction()   # flatpak can take minutes; don't hold the database meanwhile
     if log is not None:
@@ -95,7 +98,7 @@ def run(args: list[str], log: list[str] | None = None, timeout: int = 1800, stdi
     if proc.returncode != 0:
         tail = " ".join((err or out).strip().splitlines()[-3:]) or f"exit status {proc.returncode}"
         raise RepoError(f"{args[0]} failed: {tail}")
-    return out + err
+    return out if stdout_only else out + err
 
 
 # ———————————————————————————— The signing key ————————————————————————————

@@ -19,6 +19,8 @@ flatout/
   icons.py         the icon set the editor offers
   releases.py      what the site reads about releases
   repo.py          the repository on disk and the flatpak/ostree/gpg commands
+  packages.py      the dnf and apt repositories and other downloads: on disk,
+                   rpm/createrepo_c/dpkg-deb, and which version is live
   jobs.py          the thread that runs repository work, one job at a time
   backup.py        encrypted backups of everything, and restoring one
   chunks.py        large files sent in pieces, for proxies that cap bodies
@@ -87,6 +89,22 @@ signs the summary, writes static deltas and prunes. Promotion and rollback are
 `build-commit-from` again from a different source. Every commit is stamped
 with the current time, because Flatpak refuses an update older than what is
 installed, which a rollback would otherwise be.
+
+**Packages are what dnf and apt say they are.** An RPM or a Debian package
+carries its own name, version and architecture, and the package manager
+installs the highest version by its own rules, whatever order they were
+uploaded in. So the live package is computed with rpm's and dpkg's version
+comparisons (ported to Python, packages.py), not taken from the latest
+upload, and the site never names a version the repository wouldn't install.
+Since neither dnf nor apt downgrades on its own, there is no rollback for
+packages; withdrawing is the only way back, and the admin says what it
+does and doesn't do. dnf's index comes from `createrepo_c`, which knows the
+format's details; apt's `Packages` and `Release` are plain text, written
+from the control paragraph stored at upload, so indexing needs no tool and
+the index is served by hash, which keeps a client between two updates
+consistent. Every RPM is signed with the repository's key on the way in, so
+one key in the `.repo` file covers packages and index alike. Package jobs go
+through the same job thread as Flatpak ones: one writer, one log.
 
 **One gunicorn worker, eight threads.** The job thread and the housekeeping
 thread must each exist exactly once, and SQLite is happiest with one writing
@@ -161,12 +179,13 @@ answer 503.
 
 | | |
 | --- | --- |
-| `DATA_DIR/flatout.db` | Accounts, settings, the site document and its revisions, media and release records, jobs, tokens, install counts |
+| `DATA_DIR/flatout.db` | Accounts, settings, the site document and its revisions, media, release and package records, jobs, tokens, install counts |
 | `DATA_DIR/media/` | Uploaded images and fonts |
 | `DATA_DIR/repo/` | The OSTree repository clients pull from |
 | `DATA_DIR/staging/` | Scratch space for unpacking bundles |
 | `DATA_DIR/gnupg/` | The signing key |
 | `DATA_DIR/bundles/` | Uploaded bundles, for the download button |
+| `DATA_DIR/packages/` | The dnf repository (`rpm/`), the apt archive (`deb/`), other downloads (`files/`), and uploads waiting for their job (`incoming/`) |
 | `DATA_DIR/.secret_key`, `.stats_salt` | Generated secrets |
 | `DATA_DIR/backups/` | The newest backup made in Settings, waiting to be downloaded |
 | `DATA_DIR/uploads/` | Bundles arriving in pieces, until their release is made |

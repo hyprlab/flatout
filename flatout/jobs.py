@@ -23,7 +23,7 @@ from pathlib import Path
 from flask import Flask
 
 from . import repo
-from .models import Job, Release, db, end_worker_transaction, get_setting, utcnow, worker
+from .models import Job, Package, Release, db, end_worker_transaction, get_setting, utcnow, worker
 
 log = logging.getLogger(__name__)
 
@@ -35,10 +35,11 @@ BUNDLES_KEPT = 3     # per channel and architecture, for the download button
 
 
 def enqueue(kind: str, release_id: int | None = None, payload: dict | None = None, who: str = "",
-            secret: str | None = None) -> Job:
+            secret: str | None = None, package_id: int | None = None) -> Job:
     """Queue a job. ``secret`` (a backup's passphrase) is never stored: it
     waits in memory for its job, and a restart loses it with the job."""
-    job = Job(kind=kind, release_id=release_id, payload=json.dumps(payload or {}), created_by=who)
+    job = Job(kind=kind, release_id=release_id, package_id=package_id, payload=json.dumps(payload or {}),
+              created_by=who)
     db.session.add(job)
     db.session.flush()
     if secret is not None:
@@ -64,6 +65,8 @@ def start(app: Flask) -> None:
                 if rel and rel.status == "processing":
                     rel.status = "failed"
                     rel.error = "Interrupted by a restart."
+            if job.package_id:
+                _package_failed(db.session.get(Package, job.package_id), "Interrupted by a restart.")
         db.session.commit()
     threading.Thread(target=_loop, args=(app,), daemon=True, name="flatout-jobs").start()
 
@@ -115,11 +118,27 @@ def run_job(job: Job) -> None:
             if rel and rel.status in ("queued", "processing"):
                 rel.status = "failed"
                 rel.error = message
+        if job.package_id:
+            _package_failed(db.session.get(Package, job.package_id), message)
         log.warning("job %s (%s) failed: %s", job.id, job.kind, message)
     lines.append(f"Finished in {time.monotonic() - started:.1f}s.")
     job.log = (job.log + "\n" if job.log else "") + "\n".join(lines)
     job.finished_at = utcnow()
     db.session.commit()
+
+
+def _package_failed(pkg: Package | None, message: str) -> None:
+    """An upload that never made it into its repository: say why, and drop
+    the file it left in incoming/. A package already published keeps its
+    status (a withdrawal that failed leaves it where it was)."""
+    if pkg is None or pkg.status not in ("queued", "processing"):
+        return
+    from . import packages
+    if pkg.path and pkg.path.startswith("incoming/"):
+        (packages.root() / pkg.path).unlink(missing_ok=True)
+        pkg.path = None
+    pkg.status = "failed"
+    pkg.error = message
 
 
 # ———————————————————————————— Handlers ————————————————————————————
@@ -257,7 +276,43 @@ def handle_end(job: Job, payload: dict, lines: list) -> None:
 
 
 def handle_summary(job: Job, payload: dict, lines: list) -> None:
+    from . import packages
     _summary(lines)
+    if packages.any_published():
+        packages.index_all(lines, resign=bool(payload.get("resign")))
+
+
+def handle_package(job: Job, payload: dict, lines: list) -> None:
+    """An uploaded package or file: into its channel's repository, or its
+    downloads."""
+    from . import packages
+    pkg = db.session.get(Package, job.package_id)
+    pkg.status = "processing"
+    db.session.commit()
+    if not pkg.path and payload.get("url"):
+        pkg.path = f"incoming/incoming-{pkg.id}"
+        db.session.commit()
+        _fetch(payload["url"], packages.incoming_dir() / f"incoming-{pkg.id}", lines)
+    src = packages.root() / (pkg.path or "")
+    if not pkg.path or not src.exists():
+        raise repo.RepoError("The uploaded file is missing.")
+    packages.publish_upload(pkg, src, payload.get("filename") or "", lines)
+    db.session.commit()
+
+
+def handle_package_promote(job: Job, payload: dict, lines: list) -> None:
+    from . import packages
+    pkg = db.session.get(Package, job.package_id)
+    pkg.status = "processing"
+    db.session.commit()
+    packages.publish_copy(pkg, lines)
+    db.session.commit()
+
+
+def handle_package_withdraw(job: Job, payload: dict, lines: list) -> None:
+    from . import packages
+    packages.withdraw(db.session.get(Package, job.package_id), lines)
+    db.session.commit()
 
 
 def handle_backup(job: Job, payload: dict, lines: list) -> None:
@@ -274,6 +329,10 @@ def handle_keygen(job: Job, payload: dict, lines: list) -> None:
     if repo.refs():
         lines.append("Re-signing the repository summary with the new key.")
         _summary(lines)
+    from . import packages
+    if packages.any_published():
+        lines.append("Re-signing the packages and their indexes with the new key.")
+        packages.index_all(lines, resign=True)
 
 
 HANDLERS = {
@@ -284,4 +343,7 @@ HANDLERS = {
     "summary": handle_summary,
     "keygen": handle_keygen,
     "backup": handle_backup,
+    "package": handle_package,
+    "package-promote": handle_package_promote,
+    "package-withdraw": handle_package_withdraw,
 }

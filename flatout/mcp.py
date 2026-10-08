@@ -25,7 +25,8 @@ bp = Blueprint("mcp", __name__)
 
 PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 
-INSTRUCTIONS = """Flatout runs a Flatpak app's homepage and its Flatpak repository.
+INSTRUCTIONS = """Flatout runs a Flatpak app's homepage and its Flatpak repository, and beside it
+a dnf repository for RPMs, an apt repository for Debian packages, and other downloads.
 
 The site is one JSON document with a draft and a live copy. Every change goes to
 the draft; nothing is public until publish_site. Separately, set_site_status says
@@ -40,7 +41,12 @@ address it returns. preview_site shows the draft's text before publishing.
 Releases: upload_release_from_url imports a .flatpak bundle into a channel
 (stable or beta) as a background job; poll get_release or get_job until its
 status is live or failed. promote_release copies the live beta to stable.
-rollback_release makes an earlier build live again."""
+rollback_release makes an earlier build live again.
+
+Packages: upload_package_from_url publishes an .rpm in the dnf repository or a .deb in
+the apt repository, signed, or any other file as a download, on a channel; poll
+get_package. The newest version is what dnf and apt install. withdraw_package takes
+one out (installed copies stay on it); promote_packages copies beta to stable."""
 
 
 # ———————————————————————————— Tools ————————————————————————————
@@ -127,14 +133,36 @@ TOOLS = {
                          "POST", "/releases/{id}/rollback", "*", False, True),
     "end_channel": ("Retire a channel: installed copies are told no more updates will come.",
                     _obj({"channel": CHANNEL, "message": S}, ["channel"]), "POST", "/channels/{channel}/end", "*", False, True),
+    "list_packages": ("RPM and Debian packages and other files, newest first.",
+                      _obj({"format": {"type": "string", "enum": ["rpm", "deb", "file"]}, "channel": CHANNEL, "limit": I}),
+                      "GET", "/packages?format={format}&channel={channel}&limit={limit}", None, True, False),
+    "get_package": ("One package or file, with the log of its newest job.", _obj({"id": I}, ["id"]),
+                    "GET", "/packages/{id}", None, True, False),
+    "upload_package_from_url": ("Have Flatout download an .rpm, a .deb or another file and publish it on a channel: "
+                                "an RPM in the dnf repository and a Debian package in the apt repository, signed; "
+                                "anything else as a download, under \"name\" if given. Answers at once; the job "
+                                "runs in the background (see get_package).",
+                                _obj({"url": S, "channel": CHANNEL, "name": S, "version": S, "arch": S,
+                                      "notes": {"type": "string", "description": "Markdown"}}, ["url"]),
+                                "POST", "/packages", "*", False, False),
+    "update_package": ("Change a package's notes or the version label shown on the site.",
+                       _obj({"id": I, "notes": S, "version": S}, ["id"]), "PATCH", "/packages/{id}", "*", False, False),
+    "withdraw_package": ("Take a package out of its repository, or a file off the site, and delete it. Installed "
+                         "copies keep it; new installs get the version before.",
+                         _obj({"id": I}, ["id"]), "POST", "/packages/{id}/withdraw", "*", False, True),
+    "promote_packages": ("Copy the newest packages and files of one channel to another, usually beta to stable.",
+                         _obj({"from": CHANNEL, "to": CHANNEL, "format": {"type": "string", "enum": ["rpm", "deb", "file"]},
+                               "notes": S}), "POST", "/packages/promote", "*", False, False),
     "get_job": ("A repository job's status and log.", _obj({"id": I}, ["id"]), "GET", "/jobs/{id}", None, True, False),
     "get_repository": ("The repository: the app ID, install addresses, signing key and settings, and live releases "
                        "for another app ID than the site's (unmatched_app_ids).",
                        _obj({}), "GET", "/repo", None, True, False),
     "update_repository_settings": ("Set the Flatpak app ID the site installs, the beta's app ID when the beta is a "
                                    "separate app, the remote name, the public address, "
-                                   "the runtime repository or how many builds to keep. An empty string restores a default.",
-                                   _obj({"app_id": S, "beta_app_id": S, "remote_name": S, "public_url": S, "runtime_repo": S, "prune_depth": I}),
+                                   "the runtime repository, how many builds to keep, or how many versions of each "
+                                   "package. An empty string restores a default.",
+                                   _obj({"app_id": S, "beta_app_id": S, "remote_name": S, "public_url": S, "runtime_repo": S,
+                                         "prune_depth": I, "packages_kept": I}),
                                    "PATCH", "/repo/settings", "*", False, False),
     "create_signing_key": ("Create the repository's signing key, if it has none yet.", _obj({"name": S, "email": S}),
                            "POST", "/repo/key", "generate", False, False),

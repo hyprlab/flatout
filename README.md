@@ -26,6 +26,10 @@ and an MCP server.
 - **A signed Flatpak repository.** Bundles are imported, signed and published
   with static deltas, by Flatpak's own tools; installs update through GNOME
   Software, KDE Discover or `flatpak update`
+- **dnf and apt repositories too.** Upload an `.rpm` or a `.deb` and it is
+  signed into this site's dnf or apt repository, so installs update with the
+  rest of the system; any other file, an AppImage or a tarball, becomes a
+  download
 - **Stable and beta channels.** Promote a beta to stable without uploading it
   again, bring back an earlier build, end a channel with a message to its users
 - **Install files that write themselves.** The `.flatpakref`, the

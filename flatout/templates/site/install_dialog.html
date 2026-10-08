@@ -1,6 +1,8 @@
 {#- The install dialog: pick the machine (only when ARM builds exist), pick
     a method, see only that method. Every address comes from the repository
-    (releases.public_info), so it follows the uploads. -#}
+    (releases.public_info), so it follows the uploads. The dnf and apt
+    repositories and other downloads (packages.public_info) are methods too,
+    each shown once something is published there. -#}
 {% from "site/macros.html" import versions %}
 {%- set repo = s.repo %}
 {%- set conf = doc.install %}
@@ -9,10 +11,16 @@
 {%- set arches = (repo.stable or {}).get('arches', []) %}
 {%- set bundle_arches = [] %}
 {%- for a, has in ((repo.stable or {}).get('bundles', {})).items() if has %}{% set _ = bundle_arches.append(a) %}{% endfor %}
+{%- set pk = repo.packages %}
 {%- set methods = [] %}
-{%- if conf.ref_method %}{% set _ = methods.append('ref') %}{% endif %}
-{%- if conf.bundle_method and bundle_arches %}{% set _ = methods.append('bundle') %}{% endif %}
-{%- if conf.repo_method %}{% set _ = methods.append('repo') %}{% endif %}
+{%- if repo.stable and conf.ref_method %}{% set _ = methods.append('ref') %}{% endif %}
+{%- if repo.stable and conf.bundle_method and bundle_arches %}{% set _ = methods.append('bundle') %}{% endif %}
+{%- if repo.stable and conf.repo_method %}{% set _ = methods.append('repo') %}{% endif %}
+{#- Switches added after a site was first saved aren't in its document: on. #}
+{%- if pk.rpm.stable and conf.get('rpm_method', true) %}{% set _ = methods.append('rpm') %}{% endif %}
+{%- if pk.deb.stable and conf.get('deb_method', true) %}{% set _ = methods.append('deb') %}{% endif %}
+{%- if pk.files.stable and conf.get('files_method', true) %}{% set _ = methods.append('files') %}{% endif %}
+{%- set pkg_version = (pk.rpm.stable or pk.deb.stable or {}).get('version') %}
 <div class="modal" id="install-modal" hidden>
   <div class="modal__backdrop" data-install-close></div>
   <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="install-title">
@@ -23,14 +31,15 @@
     <div class="modal__head">
       <img class="modal__icon" src="{{ s.icon_url }}" alt="" width="64" height="64">
       <h2 class="modal__title" id="install-title">{{ s.fill(conf.title) }}</h2>
-      {%- if repo.stable %}<p class="modal__sub" data-install-version>Version {{ versions(repo, repo.stable) }}</p>{% endif %}
+      {%- if repo.stable %}<p class="modal__sub" data-install-version>Version {{ versions(repo, repo.stable) }}</p>
+      {%- elif pkg_version %}<p class="modal__sub">Version {{ pkg_version }}</p>{% endif %}
     </div>
 
-    {%- if not repo.stable %}
+    {%- if not methods %}
     <p class="modal__empty">{{ app_name }} has no release yet. Check back soon.</p>
     {%- else %}
 
-    {%- if conf.show_arch_picker and arches|length > 1 %}
+    {%- if repo.stable and conf.show_arch_picker and arches|length > 1 %}
     <div class="pick">
       <div class="pick__label"><span class="pick__num">1</span> Your computer</div>
       <div class="seg" role="radiogroup" aria-label="Processor type">
@@ -52,7 +61,7 @@
 
     {%- if methods|length > 1 %}
     <div class="pick">
-      <div class="pick__label">{% if conf.show_arch_picker and arches|length > 1 %}<span class="pick__num">2</span> {% endif %}How to install</div>
+      <div class="pick__label">{% if repo.stable and conf.show_arch_picker and arches|length > 1 %}<span class="pick__num">2</span> {% endif %}How to install</div>
       <div class="methods" role="radiogroup" aria-label="Install method">
         {%- for m in methods %}
         <label class="method">
@@ -66,10 +75,22 @@
             <span class="method__icon method__icon--bundle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 6.5v11L12 22l9-4.5v-11L12 2Zm0 2.2 6.4 3.2L12 10.6 5.6 7.4 12 4.2ZM5 9.1l6 3v7.3l-6-3V9.1Zm14 0v7.3l-6 3v-7.3l6-3Z"/></svg></span>
             <span class="method__text"><span class="method__title">Full download</span>
               <span class="method__desc">The whole app in one .flatpak file.</span></span>
-            {%- else %}
+            {%- elif m == 'repo' %}
             <span class="method__icon method__icon--repo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm1 2v3h12V6H6Zm0 5v3h12v-3H6Zm0 5v2h12v-2H6Z"/></svg></span>
             <span class="method__text"><span class="method__title">Add the repository</span>
               <span class="method__desc">For app stores that only search repositories they know.</span></span>
+            {%- elif m == 'rpm' %}
+            <span class="method__icon method__icon--rpm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5v-9Zm2 1.6v6.1l5 2.2v-6.1L6 9.1Zm12 0-5 2.2v6.1l5-2.2V9.1ZM12 6.2 7.4 8.2 12 10.2l4.6-2Z"/></svg></span>
+            <span class="method__text"><span class="method__title">Fedora and dnf</span>
+              <span class="method__desc">A package from this site's dnf repository, updated with the rest of the system.</span></span>
+            {%- elif m == 'deb' %}
+            <span class="method__icon method__icon--deb"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5 12 4l8 3.5v9L12 20l-8-3.5v-9Zm2 1.6v6.1l5 2.2v-6.1L6 9.1Zm12 0-5 2.2v6.1l5-2.2V9.1ZM12 6.2 7.4 8.2 12 10.2l4.6-2Z"/></svg></span>
+            <span class="method__text"><span class="method__title">Debian, Ubuntu and apt</span>
+              <span class="method__desc">A package from this site's apt repository, updated with the rest of the system.</span></span>
+            {%- else %}
+            <span class="method__icon method__icon--files"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm6 1.5V9h4.5L13 4.5ZM11.3 11v4.2l-1.6-1.6-1.1 1.1 3.4 3.4 3.4-3.4-1.1-1.1-1.5 1.5V11h-1.5Z"/></svg></span>
+            <span class="method__text"><span class="method__title">Other downloads</span>
+              <span class="method__desc">Files to download and run, which don't update themselves.</span></span>
             {%- endif %}
           </span>
         </label>
@@ -113,6 +134,48 @@ flatpak install ./{{ repo.bundle_url.rsplit('/', 1)[-1]|replace('{arch}', bundle
       <div class="code-copy code-copy--multi"><code id="install-cmd-repo">flatpak remote-add --if-not-exists {{ repo.remote_name }} {{ repo.flatpakrepo_url }}
 flatpak install {{ repo.remote_name }} {{ repo.app_id }}</code>
         <button class="code-copy__btn" type="button" data-copy="#install-cmd-repo">{{ copy_icon }}<span class="code-copy__label">Copy</span></button></div>
+    </section>
+    {%- endif %}
+
+    {%- macro single_files(info) %}
+      <details class="term">
+        <summary>Prefer a single file?</summary>
+        <p>{% for arch, url in info.downloads.items() %}<a href="{{ url }}">{{ info.name }} {{ info.version }} for {{ repo.arch_names.get(arch, arch) }}</a>{% if not loop.last %} · {% endif %}{% endfor %}.
+          Installed from a file, it gets no updates until the repository is added too.</p>
+      </details>
+    {%- endmacro %}
+
+    {%- if 'rpm' in methods %}
+    <section class="how" data-method="rpm"{% if methods|first != 'rpm' %} hidden{% endif %}>
+      <p class="how__lead">Add the repository once; {{ app_name }} then updates with the rest of the system.</p>
+      <div class="code-copy code-copy--multi"><code id="install-cmd-rpm">sudo curl -fsSLo /etc/yum.repos.d/{{ repo.remote_name }}.repo {{ pk.rpm.repo_file_url }}
+sudo dnf install {{ pk.rpm.stable.name }}</code>
+        <button class="code-copy__btn" type="button" data-copy="#install-cmd-rpm">{{ copy_icon }}<span class="code-copy__label">Copy</span></button></div>
+      <p class="how__after">GNOME Software and KDE Discover show its updates too. Fedora, RHEL and their relatives.</p>
+      {{ single_files(pk.rpm.stable) }}
+    </section>
+    {%- endif %}
+
+    {%- if 'deb' in methods %}
+    <section class="how" data-method="deb"{% if methods|first != 'deb' %} hidden{% endif %}>
+      <p class="how__lead">Add the repository once; {{ app_name }} then updates with the rest of the system.</p>
+      <div class="code-copy code-copy--multi"><code id="install-cmd-deb">sudo curl -fsSLo /etc/apt/sources.list.d/{{ repo.remote_name }}.sources {{ pk.deb.sources_url }}
+sudo apt update && sudo apt install {{ pk.deb.stable.name }}</code>
+        <button class="code-copy__btn" type="button" data-copy="#install-cmd-deb">{{ copy_icon }}<span class="code-copy__label">Copy</span></button></div>
+      <p class="how__after">The file carries the repository's signing key. Debian 12, Ubuntu 22.04 and newer.</p>
+      {{ single_files(pk.deb.stable) }}
+    </section>
+    {%- endif %}
+
+    {%- if 'files' in methods %}
+    <section class="how" data-method="files"{% if methods|first != 'files' %} hidden{% endif %}>
+      <ul class="dl-list">
+        {%- for f in pk.files.stable %}
+        <li><a class="btn btn--ghost dl-list__btn" href="{{ f.url }}">{{ dl_icon }}<span>{{ f.name }}</span></a>
+          <span class="dl-list__meta">{{ f.version }}{% if f.arch %} · {{ repo.arch_names.get(f.arch, f.arch) }}{% endif %}{% if f.size %} · {{ f.size|filesizeformat }}{% endif %}</span></li>
+        {%- endfor %}
+      </ul>
+      <p class="how__after">Downloaded files don't update themselves: come back here for a new version.</p>
     </section>
     {%- endif %}
     {%- endif %}

@@ -172,6 +172,84 @@ Install files and commands use the site's public address. Set it under
 Signing and addresses (or in the setup wizard) once the site has its real
 domain; until then Flatout uses the address each request arrives on.
 
+## Packages
+
+Beside the Flatpak repository, Flatout keeps a dnf repository for RPMs, an apt
+repository for Debian packages, and a place for any other file people
+download, such as an AppImage or a tarball. Each has a stable and a beta
+channel, like releases. Installs that add the dnf or apt repository get every
+later version through their system's own updates: `dnf upgrade`, `apt
+upgrade`, GNOME Software or KDE Discover.
+
+Upload under Packages, or from CI (below). What a file is comes from its
+first bytes:
+
+- **An RPM** is read with `rpm`, signed with the repository's key
+  (`rpmsign`, replacing any signature it came with) and indexed with
+  `createrepo_c`. The index is signed too, so the `.repo` file turns on
+  both `gpgcheck` and `repo_gpgcheck`. Source RPMs are refused.
+- **A Debian package** is read with `dpkg-deb`. Flatout writes the archive's
+  `Packages` and `Release` itself and signs them (`InRelease` and
+  `Release.gpg`). Each channel is a suite: `stable` and `beta`, with one
+  component, `main`.
+- **Anything else** is offered as a download, under its own name or a
+  download name you give it. Its version comes from that name (or type one).
+  A later upload under the same name replaces it at the same address.
+
+| Address | What it is |
+| --- | --- |
+| `/rpm/<remote>.repo` | Adds the stable dnf repository (`/rpm/<remote>-beta.repo` for the beta) |
+| `/rpm/<channel>/` | The dnf repository itself, the `.repo` file's `baseurl` |
+| `/rpm/<remote>.asc` | The signing key, armored, which dnf imports |
+| `/deb/<remote>.sources` | Adds the stable apt repository, key included (`-beta.sources` for the beta) |
+| `/deb/` | The apt archive: `dists/<channel>/` and `pool/<channel>/` |
+| `/deb/<remote>.gpg` | The signing key, for a `Signed-By` of your own |
+| `/download/<name>-<arch>.rpm`, `.deb` | The newest package (`<name>-beta-<arch>` for the beta) |
+| `/download/<file>`, `/download/beta/<file>` | The newest of another file |
+
+`<remote>` is the remote name under Repository > App. Adding the repository is
+one command, then the package installs by name:
+
+```sh
+sudo curl -fsSLo /etc/yum.repos.d/myapp.repo https://app.example.org/rpm/myapp.repo
+sudo dnf install myapp
+```
+
+```sh
+sudo curl -fsSLo /etc/apt/sources.list.d/myapp.sources https://app.example.org/deb/myapp.sources
+sudo apt update && sudo apt install myapp
+```
+
+The `.sources` file carries the key inside it, which apt reads from version
+2.4 on (Debian 12, Ubuntu 22.04). The site's install dialog shows these
+commands once a package is published, and links each package for those who
+want a single file; switch any of them off under Content > Install dialog.
+The placeholders `{package_name}`, `{rpm_repo_file_url}` and
+`{deb_sources_url}` put them in the site's own text.
+
+**Versions.** The live version of a package is the newest by the rules dnf
+and apt use (`1.10` after `1.9`, `1.0~rc1` before `1.0`, epochs first), not
+the newest upload, because that is what they install. An older version
+uploaded later stays behind it, available to anyone who asks for it by
+version. Each channel keeps the three newest versions of every package and
+architecture, for a downgrade (Packages > Versions kept); older ones are
+deleted. A version already in the channel is refused: build it again with a
+new version or release number.
+
+**Withdraw** takes a version out of its repository and deletes it. New
+installs then get the version before it, but dnf and apt never move an
+installed copy to an older version on their own, so installs that already
+have the withdrawn one keep it until a newer one is published (or someone
+runs `dnf downgrade`). There is no rollback like a Flatpak's: publish a
+fixed version instead.
+
+**Promote to stable** copies the newest beta of every package and file to
+stable, the same file, without uploading it again.
+
+Changing the signing key signs every RPM and every index again with the new
+one. Installs that added the repository have to fetch the new key, as with
+Flatpak.
+
 ## Publishing from CI or an agent
 
 Make a token under API and agents with the scopes it needs: **site** to change
@@ -219,6 +297,19 @@ Unfinished uploads are removed after a day.
 Each way answers at once with the release and its job;
 `GET /api/v1/releases/<id>` shows when it is live.
 
+Packages and other files go to `/api/v1/packages` the same three ways, with
+`channel` and `notes`, and for a file that isn't a package an optional
+`name`, `version` and `arch`. A finished upload in pieces also sends its
+`filename`.
+
+```sh
+curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
+  -F file=@myapp-1.2.0-1.fc44.x86_64.rpm -F channel=stable \
+  https://app.example.org/api/v1/packages
+```
+
+`GET /api/v1/packages/<id>` shows when it is live and its job's log.
+
 The whole API is described in OpenAPI at `/api/v1/openapi.json`, and listed
 in the admin under API and agents > Reference. Errors are
 `{"error": "a sentence"}`; a site change that doesn't validate also lists
@@ -229,8 +320,8 @@ each problem with its path, such as `$.sections[2].title`.
 AI agents that speak the Model Context Protocol can connect to `/mcp` with a
 token in the `Authorization` header. The server's tools cover the same ground
 as the API: reading and changing the site, sections one at a time, media,
-previewing the draft as text, publishing, releases, promotion, rollback, and
-install numbers. With Claude Code:
+previewing the draft as text, publishing, releases, promotion, rollback,
+packages, and install numbers. With Claude Code:
 
 ```sh
 claude mcp add --transport http flatout https://app.example.org/mcp \
@@ -263,6 +354,14 @@ From those two signals the page shows:
 - Installs and downloads **by release**, **by architecture** (the last 30
   days and all time), and for **each build**: every signed commit, uploaded,
   promoted or brought back, with when it was first and last downloaded
+
+Packages are counted the same way. An install with the dnf or apt
+repository added fetches its index (`repomd.xml`, `InRelease`) when it
+checks for updates, which dnf does daily with the `.repo` file Flatout
+writes and apt does daily on most systems, so the Packages part of the page
+shows the installs checking each repository today and on the busiest day of
+the week. Each package and file also counts its downloads, by dnf and apt or
+from the site.
 
 `GET /api/v1/stats` returns the same, for scripts and agents.
 

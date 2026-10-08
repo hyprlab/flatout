@@ -3,7 +3,8 @@
 The repository work (importing, signing, promoting) is in repo.py and jobs.py.
 This module answers the read-only questions the site and the API ask: which
 version is current on each channel, which architectures it was built for, and
-where the install files are.
+where the install files are. What the dnf and apt repositories hold comes
+from packages.public_info, under "packages".
 """
 from __future__ import annotations
 
@@ -13,7 +14,9 @@ from collections import OrderedDict
 from .models import Release, get_setting
 
 CHANNELS = ("stable", "beta")
-ARCH_NAMES = {"x86_64": "Intel/AMD", "aarch64": "ARM"}
+# Debian and RPM name some architectures their own way.
+ARCH_NAMES = {"x86_64": "Intel/AMD", "aarch64": "ARM", "amd64": "Intel/AMD", "arm64": "ARM",
+              "noarch": "any computer", "all": "any computer"}
 
 
 def arch_order(arches) -> list[str]:
@@ -124,6 +127,7 @@ def remote_name(doc: dict) -> str:
 
 
 def public_info(doc: dict, base: str) -> dict:
+    from . import packages
     app_id = app_id_for()
     beta_id = beta_app_id_for(app_id)
     remote = remote_name(doc)
@@ -153,4 +157,6 @@ def public_info(doc: dict, base: str) -> dict:
         "beta_bundle_url": f"{base}/download/{file_id}-beta-{{arch}}.flatpak",
         "unmatched_app_ids": sorted(stable_off | beta_off),
         "unmatched_beta_app_ids": sorted(beta_off - stable_off),
+        # The dnf and apt repositories and other downloads (packages.py).
+        "packages": packages.public_info(base, remote),
     }

@@ -190,6 +190,43 @@ class Release(db.Model):
     published_at = db.Column(db.DateTime)
 
 
+class Package(db.Model):
+    """One uploaded package or file, on one channel (packages.py).
+
+    An RPM goes into the channel's dnf repository and a Debian package into
+    its apt repository; any other file (an AppImage, a tarball) is offered as
+    a download. A package is ``queued``, then ``processing`` while the job
+    reads, signs and indexes it, then ``live`` if it is the newest version of
+    its name and architecture on the channel, or ``superseded`` if a newer
+    one is there: still in the repository, for a downgrade. Past the number
+    kept it is ``pruned``; taken out by hand it is ``withdrawn``. Both delete
+    the file.
+    """
+    __tablename__ = "packages"
+    __table_args__ = (db.Index("ix_packages_head", "format", "channel", "status"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    format = db.Column(db.String(8), default="", nullable=False)       # rpm | deb | file
+    channel = db.Column(db.String(20), nullable=False)                  # stable | beta
+    name = db.Column(db.String(255), default="", nullable=False)        # the package's name, or a file's download name
+    version = db.Column(db.String(120), default="", nullable=False)     # shown on the site: 1.4.0
+    evr = db.Column(db.String(255), default="", nullable=False)         # compared: [epoch:]version-release
+    arch = db.Column(db.String(20), default="", nullable=False)         # x86_64, noarch, amd64, all; may be empty for a file
+    summary = db.Column(db.String(500), default="", nullable=False)
+    control = db.Column(db.Text, default="", nullable=False)            # a Debian package's control paragraph, for the index
+    notes = db.Column(db.Text, default="", nullable=False)              # Markdown
+    status = db.Column(db.String(12), default="queued", nullable=False, index=True)
+    path = db.Column(db.String(400))                                    # under DATA_DIR/packages
+    size = db.Column(db.BigInteger)
+    sha256 = db.Column(db.String(64))                                   # of the file as served, after signing
+    origin = db.Column(db.String(20), default="upload", nullable=False)  # upload | promote
+    origin_package_id = db.Column(db.Integer)
+    error = db.Column(db.Text, default="", nullable=False)
+    created_by = db.Column(db.String(120))
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+    published_at = db.Column(db.DateTime)
+
+
 class Job(db.Model):
     """Work on the repository, done one at a time by the job thread (jobs.py):
     the repository can only take one writer."""
@@ -198,6 +235,7 @@ class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     kind = db.Column(db.String(20), nullable=False)          # import | promote | rollback | ...
     release_id = db.Column(db.Integer, db.ForeignKey("releases.id", ondelete="SET NULL"))
+    package_id = db.Column(db.Integer, db.ForeignKey("packages.id", ondelete="SET NULL"))
     payload = db.Column(db.Text, default="{}", nullable=False)
     status = db.Column(db.String(10), default="queued", nullable=False, index=True)
     log = db.Column(db.Text, default="", nullable=False)
@@ -236,12 +274,15 @@ class ApiToken(db.Model):
 
 class StatDay(db.Model):
     """Counts per day: ``check`` for update checks (the repository summary),
-    ``pull`` for a commit's download (its .commitmeta), keyed by commit."""
+    ``pull`` for a commit's download (its .commitmeta), keyed by commit.
+    ``pkgcheck`` and ``pkgpull`` are the same for the dnf and apt
+    repositories: their index, keyed by "rpm-stable" and the like, and a
+    package's download, keyed by its id."""
     __tablename__ = "stat_days"
 
     day = db.Column(db.String(10), primary_key=True)        # YYYY-MM-DD, UTC
-    metric = db.Column(db.String(10), primary_key=True)     # check | pull
-    target = db.Column(db.String(64), primary_key=True)     # "summary" | <commit>
+    metric = db.Column(db.String(10), primary_key=True)     # check | pull | pkgcheck | pkgpull
+    target = db.Column(db.String(64), primary_key=True)     # "summary" | <commit> | "rpm-stable" | <package id>
     uniques = db.Column(db.Integer, default=0, nullable=False)
     hits = db.Column(db.Integer, default=0, nullable=False)
 

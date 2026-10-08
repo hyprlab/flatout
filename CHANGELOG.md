@@ -6,6 +6,30 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- Packages: RPMs, Debian packages and other files, on the stable and beta
+  channels. An RPM is signed and published in a dnf repository at `/rpm/`,
+  and a Debian package in an apt repository at `/deb/`, so installs that
+  add the repository update with the rest of the system. Anything else, an
+  AppImage or a tarball, is offered as a download. The newest version of
+  each package is live, older ones stay for a downgrade, and a version can
+  be withdrawn or promoted from beta to stable
+- `/rpm/<remote>.repo` and `/deb/<remote>.sources`, which add the
+  repository in one command, the `.sources` file with its key inside
+- The install dialog offers the dnf repository, the apt repository and
+  other downloads once something is published there, each with a switch
+  under Content > Install dialog; the placeholders `{package_name}`,
+  `{rpm_repo_file_url}` and `{deb_sources_url}`
+- The Installs page counts installs checking the dnf and apt repositories,
+  and each package's downloads
+- The API's `/packages` endpoints and the MCP tools `list_packages`,
+  `get_package`, `upload_package_from_url`, `update_package`,
+  `withdraw_package` and `promote_packages`
+
+### Changed
+- The Docker image carries `rpm` and `createrepo-c`, for the dnf repository
+- Changing the signing key signs every RPM and package index again
+
 ## [1.1.0] — 2026-10-07
 
 ### Added

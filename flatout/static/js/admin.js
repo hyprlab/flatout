@@ -49,6 +49,7 @@
   }
   function size(n) {
     if (n == null) return "";
+    if (n < 1024) return n + " bytes";
     if (n < 1024 * 1024) return Math.round(n / 1024) + " KB";
     return (n / 1024 / 1024).toFixed(1) + " MB";
   }
@@ -139,116 +140,169 @@
     });
   }
 
+  /* ————— Uploads, for Releases and Packages ————— */
+
+  // A dropzone and the files waiting under it. They upload one after
+  // another, and each becomes its own release or package, as if uploaded
+  // alone. opts: input, drop, list, label (the dropzone's text), empty (that
+  // text with nothing chosen), unit ("bundle"), error (the form-error id) and
+  // refuse(file), which gives the reason to leave a file out, or "".
+  function fileQueue(opts) {
+    var q = { items: [], busy: false };
+    q.draw = function () {
+      opts.label.innerHTML = "";
+      opts.label.appendChild(q.items.length
+        ? el("span", {}, [el("strong", { text: q.items.length === 1 ? "1 " + opts.unit : q.items.length + " " + opts.unit + "s" }), " · choose or drop more"])
+        : el("span", {}, [el("strong", { text: opts.empty }), " or drop them here"]));
+      opts.drop.classList.toggle("has-file", q.items.length > 0);
+      opts.list.innerHTML = "";
+      opts.list.hidden = !q.items.length;
+      q.items.forEach(function (item) {
+        item.stateEl = el("span", { class: "upload-file-state", text: item.note || size(item.file.size) });
+        var remove = null;
+        if (!q.busy) {
+          remove = el("button", { type: "button", class: "iconbtn iconbtn--sm", "aria-label": "Remove " + item.file.name, title: "Remove",
+            onclick: function () { q.items.splice(q.items.indexOf(item), 1); q.draw(); } });
+          remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+        }
+        opts.list.appendChild(el("li", { class: "upload-file" + (item.failed ? " is-failed" : "") }, [
+          el("span", { class: "upload-file-name", text: item.file.name, title: item.file.name }), item.stateEl, remove]));
+      });
+    };
+    q.add = function (files) {
+      if (q.busy) return;
+      showError(opts.error, null);
+      var skipped = [];
+      Array.prototype.forEach.call(files, function (file) {
+        var why = opts.refuse(file);
+        if (why) { skipped.push(file.name + " (" + why + ")"); return; }
+        var known = q.items.some(function (i) { return i.file.name === file.name && i.file.size === file.size; });
+        if (!known) q.items.push({ file: file, note: "", failed: false });
+      });
+      if (skipped.length) showError(opts.error, new Error("Left out: " + skipped.join(", ") + "."));
+      q.draw();
+    };
+    opts.input.addEventListener("change", function () { q.add(opts.input.files); opts.input.value = ""; });
+    ["dragenter", "dragover"].forEach(function (t) {
+      opts.drop.addEventListener(t, function (e) { e.preventDefault(); opts.drop.classList.add("is-dropping"); });
+    });
+    ["dragleave", "drop"].forEach(function (t) {
+      opts.drop.addEventListener(t, function () { opts.drop.classList.remove("is-dropping"); });
+    });
+    opts.drop.addEventListener("drop", function (e) {
+      e.preventDefault();
+      if (e.dataTransfer.files.length) q.add(e.dataTransfer.files);
+    });
+    return q;
+  }
+
+  // Every file goes up in pieces of the size the server asks for (under
+  // 100 MB), so a proxy that caps request bodies, Cloudflare's among them,
+  // lets it through. Each piece is retried on its own. Resolves with the
+  // finished upload's id, for the release or package to be made from.
+  // XMLHttpRequest, for the progress bar.
+  function sendPiece(up, file, offset, progress) {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener("progress", function (ev) { if (ev.lengthComputable) progress(offset + ev.loaded); });
+      xhr.addEventListener("load", function () {
+        var data = {};
+        try { data = JSON.parse(xhr.responseText); } catch (_) {}
+        if (xhr.status === 200 || (xhr.status === 409 && typeof data.received === "number")) { resolve(data.received); return; }
+        var err = new Error(data.error || (xhr.status === 413 ? "The piece is larger than a proxy in front of the server accepts." : "The upload failed."));
+        err.retry = xhr.status >= 500;   // the server or a proxy faltered; a client error won't fix itself
+        reject(err);
+      });
+      xhr.addEventListener("error", function () { var e = new Error("The upload was cut off."); e.retry = true; reject(e); });
+      xhr.open("PUT", "/api/v1/uploads/" + up.id + "?offset=" + offset);
+      xhr.setRequestHeader("X-CSRF", F.csrf);
+      xhr.setRequestHeader("Accept", "application/json");
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.send(file.slice(offset, Math.min(offset + up.chunk_size, file.size)));
+    });
+  }
+  function sendFile(file, progress) {
+    if (!file.size) return Promise.reject(new Error("The file is empty."));
+    return call("POST", "/api/v1/uploads", { size: file.size }).then(function (up) {
+      var from = function (offset) {
+        if (offset >= file.size) return Promise.resolve();
+        var tries = 0;
+        var attempt = function () {
+          return sendPiece(up, file, offset, progress).catch(function (err) {
+            tries += 1;
+            if (!err.retry || tries >= 5) throw err;
+            return new Promise(function (wait) { setTimeout(wait, 1000 * Math.pow(2, tries - 1)); }).then(attempt);
+          });
+        };
+        return attempt().then(from);
+      };
+      return from(0).then(function () { return up.id; });
+    });
+  }
+
+  // Send everything in a queue, one file after another, with one progress
+  // bar for the lot. make(item, uploadId) turns a finished upload into a
+  // release or a package. Resolves with how many went and how many didn't;
+  // those that didn't stay in the queue, saying why.
+  function sendQueue(q, bar, make) {
+    var items = q.items.slice();
+    var total = items.reduce(function (n, i) { return n + i.file.size; }, 0) || 1;
+    var before = 0, sent = 0, failed = 0;
+    q.busy = true;
+    items.forEach(function (item) { item.failed = false; item.note = "Waiting"; });
+    q.draw();
+    bar.hidden = false;
+    bar.value = 0;
+    var next = function (i) {
+      if (i >= items.length) return Promise.resolve();
+      var item = items[i];
+      item.stateEl.textContent = "0%";
+      return sendFile(item.file, function (loaded) {
+        item.stateEl.textContent = Math.round(loaded / item.file.size * 100) + "%";
+        bar.value = Math.round((before + loaded) / total * 100);
+      }).then(function (uploadId) { return make(item, uploadId); }).then(function () {
+        sent++;
+        q.items.splice(q.items.indexOf(item), 1);
+      }, function (err) {
+        failed++;
+        item.failed = true;
+        item.note = err.message;
+      }).then(function () {
+        before += item.file.size;
+        q.draw();
+        return next(i + 1);
+      });
+    };
+    return next(0).then(function () {
+      q.busy = false;
+      q.items.forEach(function (i) { if (!i.failed) i.note = ""; });
+      q.draw();
+      bar.hidden = true;
+      return { sent: sent, failed: failed };
+    });
+  }
+
   /* ————— Releases ————— */
   var releasesPage = document.getElementById("releases-page");
   if (releasesPage) {
     var rows = document.getElementById("release-rows");
     var tiles = document.getElementById("channel-tiles");
-    var fileInput = document.getElementById("bundle-file");
-    var drop = document.getElementById("bundle-drop");
-    var list = document.getElementById("bundle-list");
-    // The bundles waiting to go. They upload one after another, and each
-    // becomes its own release and import job, as if uploaded alone.
-    var queue = [];
-    var uploading = false;
     var pollTimer = null;
-
-    var drawQueue = function () {
-      var name = document.getElementById("bundle-name");
-      name.innerHTML = "";
-      name.appendChild(queue.length
-        ? el("span", {}, [el("strong", { text: queue.length === 1 ? "1 bundle" : queue.length + " bundles" }), " · choose or drop more"])
-        : el("span", {}, [el("strong", { text: "Choose .flatpak bundles" }), " or drop them here"]));
-      drop.classList.toggle("has-file", queue.length > 0);
-      list.innerHTML = "";
-      list.hidden = !queue.length;
-      queue.forEach(function (item) {
-        item.stateEl = el("span", { class: "upload-file-state", text: item.note || size(item.file.size) });
-        var remove = null;
-        if (!uploading) {
-          remove = el("button", { type: "button", class: "iconbtn iconbtn--sm", "aria-label": "Remove " + item.file.name, title: "Remove",
-            onclick: function () { queue.splice(queue.indexOf(item), 1); drawQueue(); } });
-          remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-        }
-        list.appendChild(el("li", { class: "upload-file" + (item.failed ? " is-failed" : "") }, [
-          el("span", { class: "upload-file-name", text: item.file.name, title: item.file.name }), item.stateEl, remove]));
-      });
-    };
-    var add = function (files) {
-      if (uploading) return;
-      showError("upload-error", null);
-      var skipped = [];
-      Array.prototype.forEach.call(files, function (file) {
-        if (!/\.flatpak$/i.test(file.name)) { skipped.push(file.name); return; }
-        var known = queue.some(function (q) { return q.file.name === file.name && q.file.size === file.size; });
-        if (!known) queue.push({ file: file, note: "", failed: false });
-      });
-      if (skipped.length) showError("upload-error", new Error("Left out, not .flatpak bundles: " + skipped.join(", ") + "."));
-      drawQueue();
-    };
-    fileInput.addEventListener("change", function () { add(fileInput.files); fileInput.value = ""; });
-    ["dragenter", "dragover"].forEach(function (t) {
-      drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add("is-dropping"); });
+    var queue = fileQueue({
+      input: document.getElementById("bundle-file"), drop: document.getElementById("bundle-drop"),
+      list: document.getElementById("bundle-list"), label: document.getElementById("bundle-name"),
+      empty: "Choose .flatpak bundles", unit: "bundle", error: "upload-error",
+      refuse: function (file) {
+        if (/\.(rpm|deb)$/i.test(file.name)) return "packages go under Packages";
+        return /\.flatpak$/i.test(file.name) ? "" : "not a .flatpak bundle";
+      }
     });
-    ["dragleave", "drop"].forEach(function (t) {
-      drop.addEventListener(t, function () { drop.classList.remove("is-dropping"); });
-    });
-    drop.addEventListener("drop", function (e) {
-      e.preventDefault();
-      if (e.dataTransfer.files.length) add(e.dataTransfer.files);
-    });
-
-    // Every bundle goes up in pieces of the size the server asks for (under
-    // 100 MB), so a proxy that caps request bodies, Cloudflare's among them,
-    // lets it through. Each piece is retried on its own; then the release is
-    // made from the finished upload. XMLHttpRequest, for the progress bar.
-    var sendPiece = function (up, file, offset, progress) {
-      return new Promise(function (resolve, reject) {
-        var xhr = new XMLHttpRequest();
-        xhr.upload.addEventListener("progress", function (ev) { if (ev.lengthComputable) progress(offset + ev.loaded); });
-        xhr.addEventListener("load", function () {
-          var data = {};
-          try { data = JSON.parse(xhr.responseText); } catch (_) {}
-          if (xhr.status === 200 || (xhr.status === 409 && typeof data.received === "number")) { resolve(data.received); return; }
-          var err = new Error(data.error || (xhr.status === 413 ? "The piece is larger than a proxy in front of the server accepts." : "The upload failed."));
-          err.retry = xhr.status >= 500;   // the server or a proxy faltered; a client error won't fix itself
-          reject(err);
-        });
-        xhr.addEventListener("error", function () { var e = new Error("The upload was cut off."); e.retry = true; reject(e); });
-        xhr.open("PUT", "/api/v1/uploads/" + up.id + "?offset=" + offset);
-        xhr.setRequestHeader("X-CSRF", F.csrf);
-        xhr.setRequestHeader("Accept", "application/json");
-        xhr.setRequestHeader("Content-Type", "application/octet-stream");
-        xhr.send(file.slice(offset, Math.min(offset + up.chunk_size, file.size)));
-      });
-    };
-    var sendBundle = function (file, fields, progress) {
-      if (!file.size) return Promise.reject(new Error("The file is empty."));
-      return call("POST", "/api/v1/uploads", { size: file.size }).then(function (up) {
-        var from = function (offset) {
-          if (offset >= file.size) return Promise.resolve();
-          var tries = 0;
-          var attempt = function () {
-            return sendPiece(up, file, offset, progress).catch(function (err) {
-              tries += 1;
-              if (!err.retry || tries >= 5) throw err;
-              return new Promise(function (wait) { setTimeout(wait, 1000 * Math.pow(2, tries - 1)); }).then(attempt);
-            });
-          };
-          return attempt().then(from);
-        };
-        return from(0).then(function () {
-          return call("POST", "/api/v1/releases", { upload: up.id, channel: fields.channel, version: fields.version, notes: fields.notes });
-        });
-      });
-    };
 
     document.getElementById("upload-form").addEventListener("submit", function (e) {
       e.preventDefault();
-      if (uploading) return;
+      if (queue.busy) return;
       showError("upload-error", null);
       var btn = document.getElementById("upload-btn");
-      var bar = document.getElementById("upload-progress");
       var fields = {
         channel: document.querySelector('input[name="channel"]:checked').value,
         version: document.getElementById("upload-version").value.trim(),
@@ -258,10 +312,10 @@
       var clearFields = function () {
         ["upload-version", "upload-notes", "upload-url"].forEach(function (id) { document.getElementById(id).value = ""; });
       };
-      if (!queue.length && !url) { showError("upload-error", new Error("Choose a bundle, or give the address to fetch one from.")); return; }
-      if (queue.length && url) { showError("upload-error", new Error("Upload the chosen bundles or fetch one from the address, not both at once.")); return; }
+      if (!queue.items.length && !url) { showError("upload-error", new Error("Choose a bundle, or give the address to fetch one from.")); return; }
+      if (queue.items.length && url) { showError("upload-error", new Error("Upload the chosen bundles or fetch one from the address, not both at once.")); return; }
       F.setBusy(btn, true);
-      if (!queue.length) {
+      if (!queue.items.length) {
         fields.url = url;
         call("POST", "/api/v1/releases", fields)
           .then(function () { clearFields(); F.toast("Fetching it. It's published once it's in."); refresh(); })
@@ -269,48 +323,17 @@
           .finally(function () { F.setBusy(btn, false); });
         return;
       }
-
-      var items = queue.slice();
-      var total = items.reduce(function (n, q) { return n + q.file.size; }, 0) || 1;
-      var before = 0, sent = 0, failed = 0;
-      uploading = true;
-      items.forEach(function (item) { item.failed = false; item.note = "Waiting"; });
-      drawQueue();
-      bar.hidden = false;
-      bar.value = 0;
-      var next = function (i) {
-        if (i >= items.length) return Promise.resolve();
-        var item = items[i];
-        item.stateEl.textContent = "0%";
-        return sendBundle(item.file, fields, function (loaded) {
-          item.stateEl.textContent = Math.round(loaded / item.file.size * 100) + "%";
-          bar.value = Math.round((before + loaded) / total * 100);
-        }).then(function () {
-          sent++;
-          queue.splice(queue.indexOf(item), 1);
-        }, function (err) {
-          failed++;
-          item.failed = true;
-          item.note = err.message;
-        }).then(function () {
-          before += item.file.size;
-          drawQueue();
-          return next(i + 1);
-        });
-      };
-      next(0).then(function () {
-        uploading = false;
-        queue.forEach(function (q) { if (!q.failed) q.note = ""; });
-        drawQueue();
+      sendQueue(queue, document.getElementById("upload-progress"), function (item, uploadId) {
+        return call("POST", "/api/v1/releases", { upload: uploadId, channel: fields.channel, version: fields.version, notes: fields.notes });
+      }).then(function (r) {
         F.setBusy(btn, false);
-        bar.hidden = true;
-        if (sent) refresh();
-        if (!failed) {
+        if (r.sent) refresh();
+        if (!r.failed) {
           clearFields();
-          F.toast(sent === 1 ? "Uploaded. Publishing it now." : "Uploaded " + sent + " bundles. Publishing them now.");
+          F.toast(r.sent === 1 ? "Uploaded. Publishing it now." : "Uploaded " + r.sent + " bundles. Publishing them now.");
         } else {
-          showError("upload-error", new Error((failed === 1 ? "One bundle" : failed + " bundles") + " didn't upload" +
-            (sent ? " (" + sent + " did)" : "") + ". The list says why; upload again to retry them."));
+          showError("upload-error", new Error((r.failed === 1 ? "One bundle" : r.failed + " bundles") + " didn't upload" +
+            (r.sent ? " (" + r.sent + " did)" : "") + ". The list says why; upload again to retry them."));
         }
       });
     });
@@ -437,6 +460,256 @@
         if (busy) pollTimer = setTimeout(refresh, 2000);
       }).catch(F.toastError);
     };
+    refresh();
+  }
+
+  /* ————— Packages ————— */
+  var packagesPage = document.getElementById("packages-page");
+  if (packagesPage) {
+    var FORMAT = { rpm: "RPM", deb: "Debian", file: "File" };
+    var PKG_STATUS = {
+      queued: "Waiting", processing: "Publishing", live: "Live", superseded: "Earlier",
+      withdrawn: "Withdrawn", pruned: "Pruned", failed: "Failed"
+    };
+    var pkgTimer = null;
+    var pkgQueue = fileQueue({
+      input: document.getElementById("pkg-file"), drop: document.getElementById("pkg-drop"),
+      list: document.getElementById("pkg-list"), label: document.getElementById("pkg-name"),
+      empty: "Choose packages or files", unit: "file", error: "pkg-error",
+      refuse: function (file) { return /\.flatpak$/i.test(file.name) ? "Flatpak bundles go under Releases" : ""; }
+    });
+
+    document.getElementById("pkg-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (pkgQueue.busy) return;
+      showError("pkg-error", null);
+      var btn = document.getElementById("pkg-btn");
+      var fields = {
+        channel: document.querySelector('input[name="pkg-channel"]:checked').value,
+        notes: document.getElementById("pkg-notes").value,
+        version: document.getElementById("pkg-version").value.trim(),
+        name: document.getElementById("pkg-filename").value.trim()
+      };
+      var url = document.getElementById("pkg-url").value.trim();
+      var clearFields = function () {
+        ["pkg-notes", "pkg-version", "pkg-filename", "pkg-url"].forEach(function (id) { document.getElementById(id).value = ""; });
+      };
+      if (!pkgQueue.items.length && !url) { showError("pkg-error", new Error("Choose a package or a file, or give the address to fetch one from.")); return; }
+      if (pkgQueue.items.length && url) { showError("pkg-error", new Error("Upload the chosen files or fetch one from the address, not both at once.")); return; }
+      if (fields.name && pkgQueue.items.length > 1) { showError("pkg-error", new Error("A download name is for one file at a time.")); return; }
+      F.setBusy(btn, true);
+      if (!pkgQueue.items.length) {
+        fields.url = url;
+        call("POST", "/api/v1/packages", fields)
+          .then(function () { clearFields(); F.toast("Fetching it. It's published once it's in."); refresh(); })
+          .catch(function (err) { showError("pkg-error", err); })
+          .finally(function () { F.setBusy(btn, false); });
+        return;
+      }
+      sendQueue(pkgQueue, document.getElementById("pkg-progress"), function (item, uploadId) {
+        return call("POST", "/api/v1/packages", {
+          upload: uploadId, filename: item.file.name, channel: fields.channel, notes: fields.notes,
+          version: fields.version, name: fields.name
+        });
+      }).then(function (r) {
+        F.setBusy(btn, false);
+        if (r.sent) refresh();
+        if (!r.failed) {
+          clearFields();
+          F.toast(r.sent === 1 ? "Uploaded. Publishing it now." : "Uploaded " + r.sent + " files. Publishing them now.");
+        } else {
+          showError("pkg-error", new Error((r.failed === 1 ? "One file" : r.failed + " files") + " didn't upload" +
+            (r.sent ? " (" + r.sent + " did)" : "") + ". The list says why; upload again to retry them."));
+        }
+      });
+    });
+
+    var pkgTile = function (label, info, note) {
+      return el("section", { class: "panel tile" }, [
+        el("p", { class: "tile-label", text: label }),
+        el("p", { class: "tile-big", text: info ? info.version : "None" }),
+        el("p", { class: "hint", text: info ? info.name + " · " + info.arches.join(", ") + " · " + when(info.published_at) : note })
+      ]);
+    };
+
+    // Each command with its own Copy button: what people run once to add a
+    // repository, after which their system's updates bring each version.
+    var commandBlock = function (title, text) {
+      return el("div", { class: "pkg-command" }, [
+        el("p", { class: "setting-label", text: title }),
+        el("div", { class: "pkg-command-box" }, [
+          el("pre", { text: text }),
+          el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Copy", onclick: function () { copy(text); } })
+        ])
+      ]);
+    };
+
+    var drawRepos = function (repoInfo) {
+      var p = repoInfo.packages;
+      var box = document.getElementById("pkg-commands");
+      var dl = document.getElementById("pkg-addresses");
+      box.innerHTML = "";
+      dl.innerHTML = "";
+      var remote = repoInfo.remote_name;
+      [["stable", ""], ["beta", " (beta)"]].forEach(function (c) {
+        var rpm = p.rpm[c[0]], deb = p.deb[c[0]];
+        var beta = c[0] === "beta";
+        if (rpm) {
+          box.appendChild(commandBlock("Fedora and other dnf systems" + c[1],
+            "sudo curl -fsSLo /etc/yum.repos.d/" + remote + (beta ? "-beta" : "") + ".repo " + (beta ? p.rpm.beta_repo_file_url : p.rpm.repo_file_url) +
+            "\nsudo dnf install " + rpm.name));
+        }
+        if (deb) {
+          box.appendChild(commandBlock("Debian, Ubuntu and other apt systems" + c[1],
+            "sudo curl -fsSLo /etc/apt/sources.list.d/" + remote + (beta ? "-beta" : "") + ".sources " + (beta ? p.deb.beta_sources_url : p.deb.sources_url) +
+            "\nsudo apt update && sudo apt install " + deb.name));
+        }
+      });
+      var pairs = [];
+      if (p.rpm.stable || p.rpm.beta) pairs.push(["dnf repository", p.rpm.stable ? p.rpm.repo_url : p.rpm.beta_repo_url], ["Its key", p.rpm.key_url]);
+      if (p.deb.stable || p.deb.beta) pairs.push(["apt archive", p.deb.repo_url], ["Its key", p.deb.key_url]);
+      pairs.forEach(function (pair) {
+        dl.appendChild(el("dt", { text: pair[0] }));
+        dl.appendChild(el("dd", {}, [el("code", { text: pair[1] }), " ",
+          el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Copy", onclick: function () { copy(pair[1]); } })]));
+      });
+      document.getElementById("pkg-repos").hidden = !box.childNodes.length;
+    };
+
+    var pkgRow = function (r) {
+      var actions = [];
+      if (r.status === "live" || r.status === "superseded") {
+        actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Withdraw", title: "Take it out and delete it", onclick: function () {
+          var what = (r.name || "This file") + " " + r.version;
+          var after = r.format === "file" ? " It stops being offered for download." :
+            " New installs get the version before it; installed copies keep this one until a newer version is published.";
+          if (!confirm("Withdraw " + what + " from " + r.channel + "?" + after + " The file is deleted.")) return;
+          call("POST", "/api/v1/packages/" + r.id + "/withdraw", {}).then(function () {
+            F.toast("Withdrawing " + what);
+            refresh();
+          }).catch(F.toastError);
+        } }));
+      }
+      actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Details", onclick: function () { openPackage(r.id); } }));
+      return el("li", { class: "release-row is-" + r.status }, [
+        el("div", { class: "release-main" }, [
+          el("span", { class: "release-version", text: r.name ? r.name + " " + r.version : "Reading the file…" }),
+          r.format ? el("span", { class: "chip chip--muted", text: FORMAT[r.format] }) : null,
+          el("span", { class: "chip chip--muted", text: r.channel }),
+          r.arch ? el("span", { class: "chip chip--muted", text: r.arch }) : null,
+          el("span", { class: "status status--" + r.status, text: PKG_STATUS[r.status] || r.status })
+        ]),
+        el("div", { class: "release-sub" }, [
+          (r.created_by ? (r.origin === "promote" ? "Promoted" : "Uploaded") + " by " + r.created_by + " · " : "") +
+          when(r.published_at || r.created_at) + (r.file.size ? " · " + size(r.file.size) : "") +
+          (r.evr && r.evr !== r.version ? " · " + r.evr : "")
+        ]),
+        r.error ? el("p", { class: "form-error", text: r.error }) : null,
+        el("div", { class: "release-actions" }, actions)
+      ]);
+    };
+
+    var openPackage = function (id) {
+      var body = document.getElementById("pkg-modal-body");
+      body.innerHTML = "";
+      body.appendChild(el("p", { class: "hint", text: "Loading…" }));
+      document.getElementById("pkg-modal").showModal();
+      call("GET", "/api/v1/packages/" + id).then(function (data) {
+        var r = data.package;
+        document.getElementById("pkg-modal-title").textContent = (r.name || "Package") + " " + r.version + " · " + r.channel;
+        body.innerHTML = "";
+        var facts = el("dl", { class: "addresses" });
+        [["Type", FORMAT[r.format]], ["Status", PKG_STATUS[r.status] || r.status], ["Version", r.evr],
+         ["Architecture", r.arch], ["Summary", r.summary], ["SHA-256", r.file.sha256],
+         ["Download", r.file.url], ["Published", when(r.published_at)]].forEach(function (p) {
+          if (!p[1]) return;
+          facts.appendChild(el("dt", { text: p[0] }));
+          facts.appendChild(el("dd", {}, [el("code", { text: p[1] })]));
+        });
+        body.appendChild(facts);
+        var notes = el("textarea", { rows: 6, class: "field-input" });
+        notes.value = r.notes || "";
+        var version = el("input", { value: r.version || "", maxlength: 120 });
+        body.appendChild(el("label", { class: "field" }, [el("span", { class: "field-label", text: "Version shown on the site" }), version]));
+        body.appendChild(el("label", { class: "field" }, [el("span", { class: "field-label", text: "Release notes (Markdown)" }), notes]));
+        body.appendChild(el("div", {}, [el("button", { type: "button", class: "btn btn--primary", text: "Save", onclick: function () {
+          call("PATCH", "/api/v1/packages/" + r.id, { notes: notes.value, version: version.value }).then(function () {
+            F.toast("Saved");
+            refresh();
+          }).catch(F.toastError);
+        } })]));
+        if (r.job && r.job.log) {
+          body.appendChild(el("details", { class: "term-like" }, [
+            el("summary", { text: "What the job did" }),
+            el("pre", { class: "joblog", text: r.job.log })
+          ]));
+        }
+      }).catch(function (err) { body.innerHTML = ""; body.appendChild(el("p", { class: "form-error", text: err.message })); });
+    };
+
+    var refresh = function () {
+      clearTimeout(pkgTimer);
+      Promise.all([call("GET", "/api/v1/repo"), call("GET", "/api/v1/packages?limit=100")]).then(function (res) {
+        var repoInfo = res[0], list = res[1].packages, p = repoInfo.packages;
+        var blocker = document.getElementById("packages-blocker");
+        blocker.innerHTML = "";
+        var cant = [];
+        if (!p.tools.rpm) cant.push("RPMs (rpm, rpmsign and createrepo_c)");
+        if (!p.tools.deb) cant.push("Debian packages (dpkg-deb)");
+        if (cant.length) {
+          blocker.appendChild(el("p", { text: "This server can't publish " + cant.join(" or ") + ": the tools aren't installed where Flatout runs. Run Flatout from its Docker image. Other files work." }));
+        } else if (!repoInfo.signing_key) {
+          blocker.appendChild(el("p", {}, ["RPM and Debian packages are signed with the repository's key, which doesn't exist yet. ",
+            el("a", { class: "link", href: "/admin/repository", text: "Create one under Signing and addresses." })]));
+        }
+        blocker.hidden = !blocker.childNodes.length;
+        document.getElementById("pkg-kept").value = repoInfo.settings.packages_kept;
+
+        pkgTiles.innerHTML = "";
+        var any = list.some(function (r) { return r.format === "rpm" || r.format === "deb"; });
+        [["rpm", "RPM"], ["deb", "Debian"]].forEach(function (f) {
+          var has = list.some(function (r) { return r.format === f[0]; });
+          if (!has && any) return;   // show only the kinds in use, or both while there are none
+          ["stable", "beta"].forEach(function (c) {
+            if (c === "beta" && !p[f[0]].beta) return;
+            pkgTiles.appendChild(pkgTile(f[1] + (c === "beta" ? " · beta" : ""), p[f[0]][c],
+              "Upload " + (f[0] === "rpm" ? "an .rpm" : "a .deb") + " to start the " + (f[0] === "rpm" ? "dnf" : "apt") + " repository."));
+          });
+        });
+        var betaLive = list.some(function (r) { return r.channel === "beta" && r.status === "live"; });
+        if (betaLive) {
+          pkgTiles.appendChild(el("section", { class: "panel tile" }, [
+            el("p", { class: "tile-label", text: "Beta to stable" }),
+            el("p", { class: "hint", text: "Copy the newest beta of every package and file to stable, as they are." }),
+            el("div", { class: "tile-actions" }, [el("button", { type: "button", class: "btn btn--primary btn--xs", text: "Promote to stable", onclick: function () {
+              call("POST", "/api/v1/packages/promote", { from: "beta", to: "stable" }).then(function (d) {
+                F.toast("Promoting " + d.promoted.length + (d.promoted.length === 1 ? " package" : " packages") + " to stable");
+                refresh();
+              }).catch(F.toastError);
+            } })])
+          ]));
+        }
+        drawRepos(repoInfo);
+
+        pkgRows.innerHTML = "";
+        if (!list.length) pkgRows.appendChild(el("li", { class: "hint", text: "Nothing uploaded yet." }));
+        list.forEach(function (r) { pkgRows.appendChild(pkgRow(r)); });
+        var busy = list.some(function (r) { return r.status === "queued" || r.status === "processing"; }) ||
+          list.some(function (r) { return r.job && (r.job.status === "queued" || r.job.status === "running"); });
+        document.getElementById("pkg-state").textContent = busy ? "Publishing…" : "";
+        if (busy) pkgTimer = setTimeout(refresh, 2000);
+      }).catch(F.toastError);
+    };
+    var pkgRows = document.getElementById("pkg-rows");
+    var pkgTiles = document.getElementById("pkg-tiles");
+
+    document.getElementById("pkg-kept-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      showError("pkg-kept-error", null);
+      call("PATCH", "/api/v1/repo/settings", { packages_kept: parseInt(document.getElementById("pkg-kept").value, 10) })
+        .then(function () { F.toast("Saved"); })
+        .catch(function (err) { showError("pkg-kept-error", err); });
+    });
     refresh();
   }
 
@@ -760,6 +1033,19 @@
         table("arch-stats", ["Architecture", "Installs, last 30 days", "Installs, all time", "Downloads, all time"],
           s.arches.map(function (a) { return [a.arch, fmt(a.installs_30_days), fmt(a.installs), fmt(a.downloads)]; }),
           "No downloads counted yet.");
+
+        var pk = s.packages;
+        document.getElementById("pkg-stats").hidden = !pk.repositories.length && !pk.downloads.length;
+        var REPO = { rpm: "dnf", deb: "apt" };
+        table("pkg-repo-stats", ["Repository", "Installs checking today", "Busiest day, last 7 days"],
+          pk.repositories.map(function (r) { return [REPO[r.format] + " · " + r.channel, fmt(r.today), fmt(r.peak_7_days)]; }),
+          "No installs have checked the repositories in the last 7 days.");
+        var KIND = { rpm: "RPM", deb: "Debian", file: "File" };
+        table("pkg-download-stats", ["Package", "Version", "Type", "Channel", "Architecture", "Installs", "Downloads", "Seen"],
+          pk.downloads.map(function (d) {
+            return [d.name, d.version, KIND[d.format] || d.format, d.channel, d.arch || "", fmt(d.installs), fmt(d.downloads),
+                    d.first_seen + " to " + d.last_seen];
+          }), "No downloads counted yet.");
 
         var ORIGIN = { upload: "uploaded", promote: "promoted", rollback: "brought back" };
         table("build-stats", ["Version", "Channel", "Architecture", "Commit", "Installs", "Downloads", "First seen", "Last seen"],

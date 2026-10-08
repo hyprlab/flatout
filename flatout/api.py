@@ -29,7 +29,7 @@ bp = Blueprint("api", __name__, url_prefix="/api/v1")
 SCOPES = {
     "read": "Read the site, media, releases, the repository and install numbers",
     "site": "Change and publish the site, and upload or delete media",
-    "releases": "Upload, promote, roll back and withdraw releases",
+    "releases": "Upload, promote, roll back and withdraw releases and packages",
 }
 TOKEN_PREFIX = "fo_"
 
@@ -533,7 +533,7 @@ def _release_json(r, with_log: bool = False) -> dict:
 
 
 def _job_json(j, with_log: bool = True) -> dict:
-    out = {"id": j.id, "kind": j.kind, "status": j.status, "release_id": j.release_id,
+    out = {"id": j.id, "kind": j.kind, "status": j.status, "release_id": j.release_id, "package_id": j.package_id,
            "created_by": j.created_by, "created_at": j.created_at.isoformat() + "Z",
            "started_at": j.started_at.isoformat() + "Z" if j.started_at else None,
            "finished_at": j.finished_at.isoformat() + "Z" if j.finished_at else None}
@@ -821,6 +821,212 @@ def channel_end(channel):
     return jsonify(job=_job_json(job)), 202
 
 
+# ———— Packages: RPM, Debian, other files ————
+
+def _package_json(p, with_log: bool = False) -> dict:
+    from . import packages
+    from .models import Job
+    job = Job.query.filter_by(package_id=p.id).order_by(Job.id.desc()).first()
+    return {
+        "id": p.id, "format": p.format or None, "channel": p.channel, "name": p.name or None,
+        "version": p.version, "evr": p.evr or None, "arch": p.arch or None, "summary": p.summary,
+        "notes": p.notes, "status": p.status, "origin": p.origin, "from_package": p.origin_package_id,
+        "file": {"size": p.size, "sha256": p.sha256,
+                 "url": f"{site.base_url()}/download/{packages.download_name(p)}"
+                 if p.status == "live" and p.format else None},
+        "error": p.error or None, "created_by": p.created_by,
+        "created_at": p.created_at.isoformat() + "Z",
+        "published_at": p.published_at.isoformat() + "Z" if p.published_at else None,
+        "job": _job_json(job, with_log) if job else None,
+    }
+
+
+def _format_filter(value) -> str:
+    from .packages import FORMATS
+    if value not in FORMATS:
+        raise ApiError(400, "format is rpm, deb or file.")
+    return value
+
+
+@bp.route("/packages")
+@needs("read")
+def packages_list():
+    """Packages and files, newest first. Filter with ?format=rpm|deb|file,
+    ?channel= and ?status=."""
+    from .models import Package
+    query = Package.query
+    if request.args.get("format"):
+        query = query.filter_by(format=_format_filter(request.args["format"]))
+    if request.args.get("channel"):
+        query = query.filter_by(channel=_channel(request.args["channel"]))
+    if request.args.get("status"):
+        query = query.filter_by(status=request.args["status"])
+    limit = min(max(request.args.get("limit", 50, type=int), 1), 500)
+    rows = query.order_by(Package.id.desc()).limit(limit).all()
+    return jsonify(packages=[_package_json(p) for p in rows])
+
+
+def _store_package(save) -> tuple[str, int]:
+    """Put an upload in packages/incoming (``save(dest)``) and return its
+    path there and its size."""
+    import uuid
+    from . import packages
+    name = f"incoming-{uuid.uuid4().hex}"
+    dest = packages.incoming_dir() / name
+    save(dest)
+    size = dest.stat().st_size
+    if not size:
+        dest.unlink(missing_ok=True)
+        raise ApiError(400, "The uploaded file is empty.")
+    return f"incoming/{name}", size
+
+
+@bp.route("/packages", methods=["POST"])
+@needs("releases")
+def packages_create():
+    """Upload a package or a file: multipart with "file", "channel" and
+    optional "notes". An .rpm goes into the dnf repository and a .deb into
+    the apt repository, signed; anything else becomes a download, named by
+    "name" (default: the file's own name), with an optional "version" and
+    "arch". Or JSON with "upload" (an id from POST /uploads, with "filename")
+    or "url", and the same fields. Answers 202 at once; a job publishes it."""
+    from . import chunks, jobs, packages
+    from .models import Package
+    db.session.commit()   # end the read before taking in the file (see releases_create)
+    upload = request.files.get("file")
+    if upload is not None:
+        fields = request.form
+        original = upload.filename or ""
+    else:
+        fields = body()
+        if not fields.get("url") and not fields.get("upload"):
+            raise ApiError(400, 'Send the file as a multipart "file" field, or JSON with "upload" '
+                                '(sent in pieces to /uploads) or a "url" to fetch it from.')
+        if fields.get("url") and not str(fields["url"]).startswith(("https://", "http://")):
+            raise ApiError(400, "url must be an http(s) address.")
+        original = str(fields.get("filename") or "") if fields.get("upload") else \
+            packages.filename_from_url(str(fields.get("url") or ""))
+    original = original.replace("\\", "/").rsplit("/", 1)[-1][:255]
+    if original.lower().endswith(".flatpak"):
+        raise ApiError(400, "This is a Flatpak bundle. Upload it as a release instead (POST /releases).")
+    name = str(fields.get("name") or "").strip()
+    if name and not packages.NAME_RE.match(name):
+        raise ApiError(400, "name may use letters, digits, dots, dashes and underscores, such as App-x86_64.AppImage.")
+    pkg = Package(channel=_channel(fields.get("channel")), status="queued", created_by=g.actor, name=name,
+                  version=str(fields.get("version") or "").strip()[:120],
+                  arch=str(fields.get("arch") or "").strip()[:20],
+                  notes=str(fields.get("notes") or "")[:20000])
+    payload = {"filename": original}
+    if upload is not None:
+        pkg.path, pkg.size = _store_package(upload.save)
+    elif fields.get("upload"):
+        upload_id = str(fields["upload"])
+        try:
+            chunks.complete_file(_uploads_dir(), upload_id)
+        except chunks.ChunkError as err:
+            _chunk_error(err)
+        pkg.path, pkg.size = _store_package(lambda dest: chunks.take(_uploads_dir(), upload_id, dest))
+    else:
+        payload["url"] = str(fields["url"])
+    if pkg.path:
+        # What it is shows in its first bytes: refuse a package this server
+        # can't publish now, rather than queue a job bound to fail.
+        stored = packages.root() / pkg.path
+        fmt = packages.sniff(stored, original)
+        problem = packages.not_ready(fmt) if fmt != "flatpak" else \
+            "This is a Flatpak bundle. Upload it as a release instead (POST /releases)."
+        if problem:
+            stored.unlink(missing_ok=True)
+            raise ApiError(409 if "signing key" in problem else 400 if fmt == "flatpak" else 503, problem)
+        pkg.format = fmt
+        if fmt == "file" and not (name or original):
+            stored.unlink(missing_ok=True)
+            raise ApiError(400, 'Say what the file is called: "filename" or "name".')
+    db.session.add(pkg)
+    db.session.commit()
+    job = jobs.enqueue("package", None, payload, g.actor, package_id=pkg.id)
+    return jsonify(package=_package_json(pkg), job=_job_json(job)), 202
+
+
+@bp.route("/packages/<int:package_id>")
+@needs("read")
+def package_get(package_id):
+    from .models import Package
+    pkg = db.session.get(Package, package_id) or _missing("package")
+    return jsonify(package=_package_json(pkg, with_log=True))
+
+
+@bp.route("/packages/<int:package_id>", methods=["PATCH"])
+@needs("releases")
+def package_update(package_id):
+    """Change the notes, or the version label shown on the site. A package's
+    own version, the one dnf and apt compare, can't change; build a new one."""
+    from .models import Package
+    pkg = db.session.get(Package, package_id) or _missing("package")
+    data = body()
+    if "notes" in data:
+        pkg.notes = str(data["notes"] or "")[:20000]
+    if "version" in data and str(data["version"]).strip():
+        pkg.version = str(data["version"]).strip()[:120]
+    db.session.commit()
+    return jsonify(package=_package_json(pkg))
+
+
+@bp.route("/packages/<int:package_id>/withdraw", methods=["POST"])
+@needs("releases")
+def package_withdraw(package_id):
+    """Take a package out of its repository, or a file off the site, and
+    delete it. The previous version becomes the newest again for new
+    installs; dnf and apt don't take installed copies back to it."""
+    from . import jobs
+    from .models import Package
+    pkg = db.session.get(Package, package_id) or _missing("package")
+    if pkg.status not in ("live", "superseded"):
+        raise ApiError(409, "Only a published package can be withdrawn.")
+    job = jobs.enqueue("package-withdraw", None, {}, g.actor, package_id=pkg.id)
+    return jsonify(package=_package_json(pkg), job=_job_json(job)), 202
+
+
+@bp.route("/packages/promote", methods=["POST"])
+@needs("releases")
+def packages_promote():
+    """Copy the newest packages of one channel to another, usually beta to
+    stable: {"from": "beta", "to": "stable"}, optionally "format" and
+    "notes". A version the other channel already has is left alone."""
+    from . import jobs, packages
+    from .models import Package
+    data = body()
+    source, dest = _channel(data.get("from"), "beta"), _channel(data.get("to"), "stable")
+    if source == dest:
+        raise ApiError(400, "from and to must be different channels.")
+    heads = Package.query.filter_by(channel=source, status="live").all()
+    if data.get("format"):
+        heads = [h for h in heads if h.format == _format_filter(data["format"])]
+    there = {(p.format, p.name, p.arch, p.evr) for p in Package.query.filter(
+        Package.channel == dest, Package.status.in_(packages.IN_REPO), Package.format != "file")}
+    heads = [h for h in heads if (h.format, h.name, h.arch, h.evr) not in there]
+    if not heads:
+        raise ApiError(409, f"The {source} channel has nothing to promote that {dest} doesn't have.")
+    for fmt in {h.format for h in heads}:
+        problem = packages.not_ready(fmt)
+        if problem:
+            raise ApiError(409 if "signing key" in problem else 503, problem)
+    created = []
+    for head in heads:
+        pkg = Package(format=head.format, channel=dest, name=head.name, version=head.version, arch=head.arch,
+                      notes=str(data["notes"]) if data.get("notes") is not None else head.notes,
+                      status="queued", origin="promote", origin_package_id=head.id, created_by=g.actor)
+        db.session.add(pkg)
+        db.session.flush()
+        created.append(pkg)
+    db.session.commit()
+    out = []
+    for pkg in created:
+        job = jobs.enqueue("package-promote", None, {}, g.actor, package_id=pkg.id)
+        out.append({"package": _package_json(pkg), "job": _job_json(job)})
+    return jsonify(promoted=out), 202
+
+
 @bp.route("/jobs")
 @needs("read")
 def jobs_list():
@@ -912,11 +1118,13 @@ REPO_SETTINGS = {
     "public_url": "The site's public address, such as https://app.example.org",
     "runtime_repo": "Where installs fetch the runtime from (a .flatpakrepo address)",
     "prune_depth": "How many past builds of each channel to keep for rollback (1-100)",
+    "packages_kept": "How many versions of each RPM, Debian package or file to keep per channel, "
+                     "for a downgrade (1-50)",
 }
 
 
 def _repo_json() -> dict:
-    from . import releases, repo
+    from . import packages, releases, repo
     from .models import Release, get_setting
     doc = site.get("live")
     info = releases.public_info(doc, site.base_url())
@@ -933,6 +1141,9 @@ def _repo_json() -> dict:
         "signing_key": repo.key_info(),
         "tools": repo.tools(),
         "stable": info["stable"], "beta": info["beta"],
+        # The dnf and apt repositories and other downloads: their addresses,
+        # the newest of each, and which formats this server can publish.
+        "packages": {**info["packages"], "tools": packages.tools()},
         # What is set; empty means the default described in REPO_SETTINGS.
         "settings": {
             "app_id": get_setting("app_id") or "",
@@ -941,6 +1152,7 @@ def _repo_json() -> dict:
             "public_url": get_setting("public_url") or "",
             "runtime_repo": get_setting("runtime_repo") or "https://dl.flathub.org/repo/flathub.flatpakrepo",
             "prune_depth": int(get_setting("prune_depth") or 10),
+            "packages_kept": int(get_setting("packages_kept") or packages.KEPT),
         },
         "detected_url": site.base_url() if not get_setting("public_url") else None,
     }
@@ -955,7 +1167,7 @@ def repo_get():
 @bp.route("/repo/settings", methods=["PATCH"])
 @needs("releases")
 def repo_settings():
-    """Any of app_id, beta_app_id, remote_name, public_url, runtime_repo, prune_depth.
+    """Any of app_id, beta_app_id, remote_name, public_url, runtime_repo, prune_depth, packages_kept.
     Everything is checked before anything is saved; an empty string returns
     a setting to its default."""
     import re
@@ -999,6 +1211,14 @@ def repo_settings():
         if not 1 <= depth <= 100:
             raise ApiError(400, "prune_depth must be between 1 and 100.")
         changes["prune_depth"] = str(depth)
+    if "packages_kept" in data:
+        try:
+            kept = int(data["packages_kept"])
+        except (TypeError, ValueError):
+            raise ApiError(400, "packages_kept must be a number.")
+        if not 1 <= kept <= 50:
+            raise ApiError(400, "packages_kept must be between 1 and 50.")
+        changes["packages_kept"] = str(kept)
     for key, value in changes.items():
         set_setting(key, value)
     return jsonify(_repo_json())
@@ -1024,12 +1244,14 @@ def repo_key():
         job = jobs.enqueue("keygen", None, {"name": f"{name} repository", "email": str(data.get("email") or "")[:200]}, g.actor)
         return jsonify(job=_job_json(job)), 202
     if action == "import":
+        from . import packages
         try:
             fpr = repo.import_key(str(data.get("armored") or ""))
         except repo.RepoError as err:
             raise ApiError(400, str(err))
-        if repo.refs():
-            jobs.enqueue("summary", None, {}, g.actor)
+        if repo.refs() or packages.any_published():
+            # Packages already signed carry the old key: sign them again.
+            jobs.enqueue("summary", None, {"resign": True}, g.actor)
         return jsonify(signing_key=repo.key_info(), fingerprint=fpr)
     raise ApiError(400, 'action is "generate" or "import".')
 
@@ -1060,7 +1282,7 @@ def repo_key_secret():
 @needs("releases")
 def repo_rebuild():
     """Re-sign the summary and regenerate deltas, after changing the address
-    or the app's name, say."""
+    or the app's name, say. The dnf and apt indexes are rewritten too."""
     from . import jobs
     _ready_for_releases()
     job = jobs.enqueue("summary", None, {}, g.actor)

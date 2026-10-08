@@ -119,6 +119,11 @@ def releases():
     return _page("admin/releases.html", "releases", "Releases")
 
 
+@bp.route("/packages")
+def packages():
+    return _page("admin/packages.html", "packages", "Packages")
+
+
 @bp.route("/repository")
 def repository():
     return _page("admin/repository.html", "repository", "Signing and addresses")
