@@ -157,18 +157,19 @@ def create_app(config_class=Config) -> Flask:
         return resp
 
     def _content_security_policy() -> str:
-        """Scripts and styles must carry this request's nonce, so injected
-        markup can no longer run even if a sanitizer miss ever let it in.
-        Turnstile's own origin is allowed only while the challenge is on."""
+        """Inline scripts must carry this request's nonce, so injected markup
+        can no longer run even if a sanitizer miss ever let it in; the site's
+        own scripts come from the same origin. Turnstile's origin is allowed
+        only while the challenge is on."""
         turnstile = " https://challenges.cloudflare.com" if auth.turnstile_config() else ""
         return (
             "default-src 'self'"
-            f"; script-src 'nonce-{csp_nonce()}'{turnstile}"
+            f"; script-src 'self' 'nonce-{csp_nonce()}'{turnstile}"
             "; style-src 'self' 'unsafe-inline'"   # style attributes would need a nonce each
             "; img-src 'self' data: https:"         # the owner may point images anywhere https
             "; font-src 'self' data:"
             f"; connect-src 'self'{turnstile}"
-            f"; frame-src {turnstile.strip() or chr(39) + 'none' + chr(39)}"
+            f"; frame-src 'self'{turnstile}"        # the editor frames its own preview
             "; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
         )
 

@@ -136,8 +136,10 @@ def test_html_carries_a_csp_and_the_page_own_scripts_its_nonce(client, admin):
     import re
     resp = client.get("/admin")
     policy = resp.headers["Content-Security-Policy"]
-    nonce = re.search(r"script-src 'nonce-([^']+)'", policy).group(1)
+    nonce = re.search(r"script-src 'self' 'nonce-([^']+)'", policy).group(1)
     assert f'nonce="{nonce}"' in resp.get_data(as_text=True)
+    # Same-origin for the app's own scripts, and for the editor's preview frame.
+    assert "frame-src 'self'" in policy
     assert "object-src 'none'" in policy and "frame-ancestors 'self'" in policy
     # Turnstile's origin only joins the policy while the challenge is on.
     assert "challenges.cloudflare.com" not in policy
