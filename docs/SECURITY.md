@@ -20,15 +20,15 @@ Only the latest stable release receives security fixes.
 | Threat | Defense |
 | --- | --- |
 | Cross-site request forgery | A per-session token on every POST, PUT, PATCH and DELETE a session authenticates, compared in constant time. API tokens are only ever sent deliberately, so requests that carry one need no CSRF token |
-| Cross-site scripting | Jinja autoescaping; user text rendered with `textContent` in JavaScript; the site's Markdown through an allowlist sanitizer; uploaded SVGs with script refused, and every SVG served with a sandboxing policy |
+| Cross-site scripting | Jinja autoescaping; user text rendered with `textContent` in JavaScript; the site's Markdown through an allowlist sanitizer; uploaded SVGs with script refused, and every SVG served with a sandboxing policy; and a Content-Security-Policy with a per-request nonce, so a missed injection still cannot run |
 | Clickjacking | `X-Frame-Options: DENY`, except the admin's preview of the draft, which only the admin itself may frame (`SAMEORIGIN`) |
 | Tampered updates | Every commit and the repository summary are signed with the repository's GPG key; Flatpak refuses anything else, and anything older than what is installed |
 | API tokens | Stored as SHA-256 hashes, shown once; each has scopes, optionally an expiry, and can be revoked. A token can't make tokens, and only an admin can mint one that can change the site or the repository. A token acts within its owner's account, so one owned by a plain account can't create or replace the signing key |
 | Server-side fetches | A release or package imported from a URL must be http(s) and must resolve to public addresses only, checked again on every redirect hop. The fetch connects to the address the check approved, so a DNS answer switched after the check can't redirect the download to the internal network |
 | DNS rebinding against `/mcp` | Requests whose `Origin` isn't this site are refused |
-| Password guessing | Salted hashes (Werkzeug's scrypt/pbkdf2); a throttle of eight failures per account and address per fifteen minutes; optional Cloudflare Turnstile, turned on in Settings > Security only after a challenge passes with the new keys |
+| Password guessing | Salted hashes (scrypt at OWASP's work factor); a throttle of eight failures per account and forty per address per fifteen minutes, shared with the change-password form; a wrong answer takes the same time whether the account exists; optional Cloudflare Turnstile, turned on in Settings > Security only after a challenge passes with the new keys |
 | Open redirects | The post-sign-in `next` must be a same-site path |
-| Session theft | `HttpOnly` and `SameSite=Lax` cookies; `Secure` with `SESSION_COOKIE_SECURE=1`; sign-in ids carry a stamp of the password, so changing or resetting it ends every other session and remember-me cookie of the account |
+| Session theft | `HttpOnly` and `SameSite=Lax` cookies; `Secure` with `SESSION_COOKIE_SECURE=1`, which also adds `Strict-Transport-Security`; remember-me lasts 30 days; sign-in ids carry a stamp of the password, so changing or resetting it ends every other session and remember-me cookie of the account |
 | A default password | There is none: the first account is created in the setup wizard |
 | A stolen backup | Encrypted with OpenPGP (AES-256) under a passphrase of at least 12 characters that the server never stores; only an admin, signed in, can make or download one, never an API token |
 | Stale pages | HTML is served `no-store` |
