@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- The current page in the sidebar and in Settings is marked by a short bar
+  beside its highlight instead of along its edge
+
 ## [1.3.0] — 2026-10-08
 
 ### Fixed
