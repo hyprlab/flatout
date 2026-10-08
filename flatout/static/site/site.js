@@ -133,12 +133,28 @@
   (function () {
     if (!("IntersectionObserver" in window)) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    if (document.body.classList.contains("is-preview")) return;   // the editor reloads it constantly
     var targets = Array.prototype.slice.call(document.querySelectorAll(".reveal-me"));
     if (!targets.length) return;
     var COL_STEP = 90, ROW_STEP = 110;
+    // The editor's preview reloads on every saved change: what is on screen
+    // when it loads appears at once, so editing doesn't replay the fade;
+    // what the editor scrolls to fades in as it does on the site.
+    var preview = document.body.classList.contains("is-preview");
+    var settled = false;
 
     var show = new IntersectionObserver(function (entries) {
+      if (preview && !settled) {
+        settled = true;
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          e.target.classList.add("reveal--now", "is-in");
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () { e.target.classList.remove("reveal--now"); });
+          });
+        });
+        return;
+      }
+      settled = true;
       var batch = entries.filter(function (e) { return e.isIntersecting && !e.target.classList.contains("is-in"); })
         .map(function (e) {
           var r = e.target.getBoundingClientRect();

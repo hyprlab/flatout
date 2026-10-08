@@ -441,6 +441,8 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .reveal:not(.is-in) {
   transition: opacity .45s ease, translate .45s ease;
 }
+/* In the editor's preview, what is on screen as it (re)loads is shown at once. */
+.reveal.reveal--now { transition: none !important; }
 .reveal.is-in {
   opacity: 1;
   translate: 0 0;
