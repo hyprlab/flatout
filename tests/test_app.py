@@ -161,6 +161,16 @@ def test_cf_connecting_ip_counts_only_behind_a_configured_proxy(app):
         assert serve.client_address() == "203.0.113.9"
 
 
+def test_the_database_is_readable_only_by_the_app(app, client, csrf, admin, tmp_path):
+    import stat
+    # Write something so the WAL exists too.
+    client.patch("/api/v1/site", json={"app": {"name": "Permed"}}, headers={"X-CSRF": csrf})
+    for name in ("flatout.db", "flatout.db-wal", "flatout.db-shm"):
+        path = tmp_path / name
+        if path.exists():
+            assert stat.S_IMODE(path.stat().st_mode) == 0o600, name
+
+
 def test_changelog_renders_in_the_about_tab(client, csrf, admin):
     from flatout import __version__
     body = client.get("/admin").data.decode()

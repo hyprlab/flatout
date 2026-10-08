@@ -255,6 +255,7 @@ def create_app(config_class=Config) -> Flask:
     with app.app_context():
         db.create_all()
         _migrate(app)
+        _guard_db_permissions()
 
     _start_worker(app)
     if not app.config.get("TESTING") and not (app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true"):
@@ -285,6 +286,19 @@ def _wants_json() -> bool:
     # only one that asks for JSON by name gets JSON.
     best = request.accept_mimetypes.best_match(["text/html", "application/json"])
     return best == "application/json"
+
+
+def _guard_db_permissions() -> None:
+    """The database holds every password hash and token hash; only the app's
+    own user may read it. SQLite needs the same for its WAL companions."""
+    url = db.engine.url
+    if url.get_backend_name() != "sqlite" or not url.database:
+        return
+    from pathlib import Path
+    main = Path(url.database)
+    for candidate in (main, *(main.parent / f"{main.name}{s}" for s in ("-wal", "-shm", "-journal"))):
+        if candidate.exists():
+            candidate.chmod(0o600)
 
 
 def _migrate(app: Flask) -> None:

@@ -48,6 +48,8 @@ All notable changes to Flatout are documented here. The format follows
 - A restore now checks the backup as it unpacks: an entry that isn't a file
   or a folder, an implausible file count, or a total that would overfill
   the disk all refuse the restore before it replaces anything
+- The database file and its journal companions are now readable only by
+  the app's own user, including right after a restore
 
 ### Changed
 - New passwords hash with scrypt at OWASP's current work factor (2^17), and

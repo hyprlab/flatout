@@ -446,7 +446,7 @@ def restore_file(app: Flask, backup: Path, passphrase: str, work: Path | None = 
 
 def _swap_in(app: Flask, unpacked: Path, replaced: Path) -> None:
     """Replace this install's data with the unpacked backup's."""
-    from . import _migrate, setup, stats
+    from . import _guard_db_permissions, _migrate, setup, stats
     live = data_dir()
     database = database_path()
     replaced.mkdir(parents=True, exist_ok=True)
@@ -471,3 +471,4 @@ def _swap_in(app: Flask, unpacked: Path, replaced: Path) -> None:
     setup._completed["done"] = False
     db.create_all()
     _migrate(app)
+    _guard_db_permissions()
