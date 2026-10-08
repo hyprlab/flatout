@@ -42,6 +42,9 @@ All notable changes to Flatout are documented here. The format follows
 - Importing from a URL checks the announced size and the free disk before
   downloading, refuses a download that stops short of what was announced,
   and never leaves a partial file behind
+- A failed job's log shows the failing line instead of a traceback with the
+  server's paths, and a chatty job keeps its last 400 lines instead of
+  growing the database without bound
 
 ### Changed
 - New passwords hash with scrypt at OWASP's current work factor (2^17), and

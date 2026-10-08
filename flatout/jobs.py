@@ -20,7 +20,6 @@ import shutil
 import socket
 import threading
 import time
-import traceback
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -100,6 +99,9 @@ def run_all_queued(app: Flask) -> None:
             run_job(job)
 
 
+LOG_LINES_KEPT = 400   # a chatty job stores its newest lines, the rest is in the server's log
+
+
 def run_job(job: Job) -> None:
     lines: list[str] = []
     job.status = "running"
@@ -116,8 +118,12 @@ def run_job(job: Job) -> None:
         job.status = "failed"
         message = str(err) if isinstance(err, repo.RepoError) else f"{type(err).__name__}: {err}"
         lines.append("FAILED: " + message)
-        if not isinstance(err, repo.RepoError):
-            lines.append(traceback.format_exc())
+        if isinstance(err, repo.RepoError):
+            log.warning("job %s (%s) failed: %s", job.id, job.kind, message)
+        else:
+            # The traceback has server paths and payloads; it stays in the
+            # server's log where only whoever runs Flatout can read it.
+            log.exception("job %s (%s) failed: %s", job.id, job.kind, message)
         if job.release_id:
             rel = db.session.get(Release, job.release_id)
             if rel and rel.status in ("queued", "processing"):
@@ -125,8 +131,11 @@ def run_job(job: Job) -> None:
                 rel.error = message
         if job.package_id:
             _package_failed(db.session.get(Package, job.package_id), message)
-        log.warning("job %s (%s) failed: %s", job.id, job.kind, message)
     lines.append(f"Finished in {time.monotonic() - started:.1f}s.")
+    if len(lines) > LOG_LINES_KEPT:
+        kept = [f"({len(lines) - LOG_LINES_KEPT} earlier lines left out here; the full output ran anyway.)"]
+        kept += lines[-LOG_LINES_KEPT:]
+        lines = kept
     job.log = (job.log + "\n" if job.log else "") + "\n".join(lines)
     job.finished_at = utcnow()
     db.session.commit()

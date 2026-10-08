@@ -142,3 +142,38 @@ def test_a_full_download_is_kept(app, monkeypatch, tmp_path):
     with app.app_context():
         size, sha = jobs._fetch("http://packages.example/b.flatpak", dest, [])
     assert size == 1500 and sha == hashlib.sha256(body).hexdigest() and dest.read_bytes() == body
+
+
+def _run_job(app, kind, handler, monkeypatch):
+    """Run a queued job of ``kind`` with ``handler`` standing in for the real one."""
+    from flatout import jobs
+    from flatout.models import Job
+    monkeypatch.setitem(jobs.HANDLERS, kind, handler)
+    with app.app_context():
+        job = Job(kind=kind, payload="{}", created_by="test")
+        db.session.add(job)
+        db.session.commit()
+        jobs.run_job(job)
+        return db.session.get(Job, job.id)
+
+
+def test_a_jobs_log_shows_the_failing_line_not_the_traceback(app, monkeypatch):
+    """The traceback goes to the server's log; a job's log is visible to
+    scoped tokens and stays free of server paths and payloads."""
+    def boom(job, payload, lines):
+        lines.append("Working on it.")
+        raise ValueError("odd value in /data/bundles/incoming-1.flatpak")
+    job = _run_job(app, "import", boom, monkeypatch)
+    assert job.status == "failed"
+    assert "FAILED: ValueError: odd value" in job.log and "Traceback" not in job.log
+
+
+def test_a_chatty_jobs_log_is_trimmed(app, monkeypatch):
+    from flatout import jobs
+    monkeypatch.setattr(jobs, "LOG_LINES_KEPT", 10)
+
+    def chatty(job, payload, lines):
+        lines.extend(f"line {i}" for i in range(50))
+    job = _run_job(app, "summary", chatty, monkeypatch)
+    assert job.status == "done"
+    assert "earlier lines left out" in job.log and "line 49" in job.log and "line 30" not in job.log
