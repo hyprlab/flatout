@@ -55,6 +55,8 @@ All notable changes to Flatout are documented here. The format follows
   the app's own user, including right after a restore
 
 ### Changed
+- A new Flatout icon in the admin, the sign-in and setup pages, and the
+  browser tab
 - New passwords hash with scrypt at OWASP's current work factor (2^17), and
   "Keep me signed in" lasts 30 days instead of a year and is off unless
   ticked
