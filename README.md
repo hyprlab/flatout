@@ -17,6 +17,11 @@ update reaches every install; edit the homepage in the browser and publish it
 when it looks right. Scripts and AI agents can do all of it through an API
 and an MCP server.
 
+<p align="center">
+  <img src="data/repo/screenshot-site.png" width="49%" alt="The site editor: the homepage's sections on the left, a live preview of the draft on the right">
+  <img src="data/repo/screenshot-installs.png" width="49%" alt="Installs: estimated installs, the latest stable and beta, and installs checking for updates each day">
+</p>
+
 ## Features
 
 - **A homepage you edit in the browser.** Every section's text, which
