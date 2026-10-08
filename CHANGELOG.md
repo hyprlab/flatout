@@ -21,6 +21,8 @@ All notable changes to Flatout are documented here. The format follows
 ### Security
 - Markdown 3.8.1: a malformed document could abort a request with an
   unhandled exception (CVE-2025-69534)
+- Flask 3.1.3 and requests 2.34.2, which fix the advisories published
+  against the versions before them
 - Sign-in answers in the same time whether the account exists or not, so the
   response time no longer says which emails have accounts
 - The sign-in throttle now also caps attempts per address across accounts,
