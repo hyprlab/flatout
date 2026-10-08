@@ -4,6 +4,7 @@ Everything here renders the live site document (site.py). The admin's preview
 uses the same templates with the draft (admin.preview).
 """
 from datetime import datetime, timezone
+from xml.sax.saxutils import escape as _xml_escape
 
 from flask import (Blueprint, Response, abort, current_app, make_response, render_template, request,
                    send_from_directory)
@@ -118,7 +119,7 @@ def sitemap():
     urls = [base + "/"] + [f"{base}/{p['slug']}" for p in doc["pages"] if p["published"]]
     if site.status() != "published":
         urls = []
-    body = "".join(f"<url><loc>{u}</loc></url>" for u in urls)
+    body = "".join(f"<url><loc>{_xml_escape(u)}</loc></url>" for u in urls)
     return Response(
         f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>',
         mimetype="application/xml",

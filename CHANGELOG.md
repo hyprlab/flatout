@@ -41,6 +41,9 @@ All notable changes to Flatout are documented here. The format follows
 - New passwords hash with scrypt at OWASP's current work factor (2^17), and
   "Keep me signed in" lasts 30 days instead of a year and is off unless
   ticked
+- Markdown-filled links whose placeholders fill to a `javascript:` address
+  are refused, the sanitizer closes tags the input left open, and the
+  sitemap escapes its URLs
 
 ### Added
 - CI checks dependencies against the published vulnerability databases

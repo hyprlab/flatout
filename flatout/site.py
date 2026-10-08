@@ -19,7 +19,7 @@ from markupsafe import Markup, escape
 from . import site_schema
 from .icons import icon_svg
 from .models import Media, SiteDocument, SiteRevision, db, get_setting, utcnow
-from .sanitize import sanitize_html
+from .sanitize import sanitize_html, url_is_safe
 
 REVISIONS_KEPT = 100
 
@@ -231,8 +231,10 @@ class Renderer:
 
     def link(self, url: str) -> str:
         """A button or link target, with placeholders filled. #install is the
-        install dialog's anchor."""
-        return self._fill(url or "").strip()
+        install dialog's anchor. The scheme is checked *after* filling: a
+        placeholder must not be able to smuggle in a javascript: address."""
+        filled = self._fill(url or "").strip()
+        return filled if url_is_safe(filled) else ""
 
     def icon(self, value: str, css_class: str = "") -> Markup:
         if value and value.startswith(("/media/", "https://", "http://")):

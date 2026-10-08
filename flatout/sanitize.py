@@ -30,10 +30,17 @@ DROP_WITH_CONTENT = {"script", "style", "iframe", "object", "embed", "form", "sv
 _SAFE_URL = re.compile(r"^(https?:)?//|^https?:|^/|^#|^mailto:", re.I)
 
 
+def url_is_safe(url: str) -> bool:
+    """True for addresses a link or image may point at; javascript: and
+    data: (except inside an image's own pipeline) are refused."""
+    return bool(_SAFE_URL.match(url.strip()))
+
+
 class _Sanitizer(HTMLParser):
     def __init__(self, demote: dict, site: bool):
         super().__init__(convert_charrefs=True)
         self.out = []
+        self.open_tags = []
         self.skip_depth = 0
         self.demote = demote
         self.site = site
@@ -65,18 +72,33 @@ class _Sanitizer(HTMLParser):
             parts.append(' loading="lazy"')
         out_tag = self.demote.get(tag, tag)
         self.out.append(f"<{out_tag}{''.join(parts)}{' /' if tag in VOID else ''}>")
+        if tag not in VOID:
+            self.open_tags.append(out_tag)
 
     def handle_endtag(self, tag):
         if self.skip_depth:
             if tag in DROP_WITH_CONTENT:
                 self.skip_depth -= 1
             return
-        if tag in ALLOWED and tag not in VOID:
-            self.out.append(f"</{self.demote.get(tag, tag)}>")
+        out_tag = self.demote.get(tag, tag)
+        if tag in ALLOWED and tag not in VOID and out_tag in self.open_tags:
+            # Close anything misnested between the opener and this closer.
+            while self.open_tags:
+                open_tag = self.open_tags.pop()
+                self.out.append(f"</{open_tag}>")
+                if open_tag == out_tag:
+                    break
 
     def handle_data(self, data):
         if not self.skip_depth and data:
             self.out.append(escape(data))
+
+    def close(self):
+        super().close()
+        # Input that ends mid-element (an unfinished table or quote) must not
+        # swallow the page that follows it: close what's still open.
+        while self.open_tags:
+            self.out.append(f"</{self.open_tags.pop()}>")
 
 
 # The site's own Markdown keeps its heading levels, under the page's one <h1>.

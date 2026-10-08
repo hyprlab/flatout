@@ -122,6 +122,24 @@ def test_markdown_is_sanitized(client, csrf, admin):
     assert 'href="https://example.org" target="_blank"' in body
 
 
+def test_the_sanitizer_closes_what_input_left_open():
+    from flatout.sanitize import sanitize_html
+    assert sanitize_html("<blockquote><pre>unfinished") == "<blockquote><pre>unfinished</pre></blockquote>"
+    assert sanitize_html("<p>fine</p></em><p>also fine") == "<p>fine</p><p>also fine</p>"
+    assert sanitize_html("<h2>head") == "<h3>head</h3>"   # demoted, and closed
+
+
+def test_a_filled_link_is_checked_for_its_scheme(app):
+    from flatout import site
+    with app.test_request_context("/"):
+        r = site.Renderer(site_schema.default_document())
+        assert r.link("https://example.org/x") == "https://example.org/x"
+        assert r.link("#install") == "#install"
+        assert r.link("javascript:alert(1)") == ""
+        r.values["site_url"] = "javascript:alert(1)"
+        assert r.link("{site_url}") == ""
+
+
 def test_theme_reaches_the_page(client, csrf, admin):
     client.patch("/api/v1/site", json={"theme": {"light": {"accent": "#123456"}, "font_body": "inter",
                                                  "font_size": 18}}, headers=h(csrf))
