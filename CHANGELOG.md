@@ -39,6 +39,9 @@ All notable changes to Flatout are documented here. The format follows
 - A media upload larger than the limit is refused before its body is read,
   and bundle uploads arriving at the same time now count each other's
   announced size against the free disk
+- Importing from a URL checks the announced size and the free disk before
+  downloading, refuses a download that stops short of what was announced,
+  and never leaves a partial file behind
 
 ### Changed
 - New passwords hash with scrypt at OWASP's current work factor (2^17), and

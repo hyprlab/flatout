@@ -77,3 +77,68 @@ def test_a_rebound_lookup_is_refused(app, monkeypatch, tmp_path):
     monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **kw: next(lookups))
     with app.app_context(), pytest.raises(repo.RepoError, match="not a public address"):
         jobs._fetch("http://packages.example/bundle.flatpak", tmp_path / "b", [])
+
+
+def _serve(monkeypatch, body: bytes, declared: int | None = None, cut: int | None = None):
+    """A one-shot local HTTP server the fetch reaches by a monkeypatched
+    dialer: getaddrinfo answers a public address, the socket dials localhost.
+    ``declared`` overrides the Content-Length header; ``cut`` closes the
+    response after that many bytes despite a longer declared length."""
+    import http.server
+    import threading
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Length", str(declared if declared is not None else len(body)))
+            self.end_headers()
+            self.wfile.write(body[:cut] if cut else body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.handle_request, daemon=True).start()
+    port = server.server_address[1]
+    real_getaddrinfo, real_connect = socket.getaddrinfo, socket.create_connection
+
+    def getaddrinfo(host, port, *a, **kw):
+        if host in ("127.0.0.1", "localhost"):   # the dialer's own resolution
+            return real_getaddrinfo(host, port, *a, **kw)
+        return _answers("93.184.216.34")
+    monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
+    monkeypatch.setattr(socket, "create_connection",
+                        lambda address, timeout=None, source_address=None:
+                        real_connect(("127.0.0.1", port), timeout, source_address))
+    return server
+
+
+def test_a_declared_size_over_the_limit_never_writes_a_byte(app, monkeypatch, tmp_path):
+    from flatout import jobs
+    body = b"x" * 500
+    _serve(monkeypatch, body, declared=app.config["MAX_CONTENT_LENGTH"] + 1)
+    dest = tmp_path / "b.flatpak"
+    with app.app_context(), pytest.raises(repo.RepoError, match="limit"):
+        jobs._fetch("http://packages.example/b.flatpak", dest, [])
+    assert not dest.exists()
+
+
+def test_a_stalled_download_leaves_no_partial_file(app, monkeypatch, tmp_path):
+    from flatout import jobs
+    body = b"x" * 20_000
+    _serve(monkeypatch, body, cut=1000)   # says 20000, sends 1000, hangs up
+    dest = tmp_path / "b.flatpak"
+    with app.app_context(), pytest.raises(Exception):
+        jobs._fetch("http://packages.example/b.flatpak", dest, [])
+    assert not dest.exists()
+
+
+def test_a_full_download_is_kept(app, monkeypatch, tmp_path):
+    from flatout import jobs
+    import hashlib
+    body = b"y" * 1500
+    _serve(monkeypatch, body)
+    dest = tmp_path / "b.flatpak"
+    with app.app_context():
+        size, sha = jobs._fetch("http://packages.example/b.flatpak", dest, [])
+    assert size == 1500 and sha == hashlib.sha256(body).hexdigest() and dest.read_bytes() == body

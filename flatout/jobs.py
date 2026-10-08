@@ -274,16 +274,34 @@ def _fetch(url: str, dest: Path, lines: list) -> tuple[int, str]:
     digest, size = hashlib.sha256(), 0
     req = urllib.request.Request(url, headers={"User-Agent": "Flatout"})
     opener = urllib.request.build_opener(_PublicHTTPHandler, _PublicHTTPSHandler, _PublicRedirectHandler)
-    with opener.open(req, timeout=60) as resp, open(dest, "wb") as out:
-        while True:
-            chunk = resp.read(1024 * 1024)
-            if not chunk:
-                break
-            size += len(chunk)
-            if size > limit:
-                raise repo.RepoError(f"The download is larger than the {limit // (1024 * 1024)} MB limit.")
-            digest.update(chunk)
-            out.write(chunk)
+    try:
+        with opener.open(req, timeout=60) as resp:
+            declared = resp.headers.get("Content-Length")
+            declared_size = None
+            if declared and declared.isdigit():
+                declared_size = int(declared)
+                if declared_size > limit:
+                    raise repo.RepoError(f"The file at that address is {declared_size // (1024 * 1024)} MB; "
+                                         f"the limit is {limit // (1024 * 1024)} MB (MAX_UPLOAD_MB).")
+                free = shutil.disk_usage(dest.parent).free
+                if free < declared_size + 100 * 1024 * 1024:
+                    raise repo.RepoError(f"Not enough free disk space for a {declared_size // (1024 * 1024)} MB "
+                                         f"download; {free // (1024 * 1024)} MB is free.")
+            with open(dest, "wb") as out:
+                while True:
+                    chunk = resp.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    if size > limit:
+                        raise repo.RepoError(f"The download is larger than the {limit // (1024 * 1024)} MB limit.")
+                    digest.update(chunk)
+                    out.write(chunk)
+            if declared_size is not None and size != declared_size:
+                raise repo.RepoError(f"The download stopped at {size} of {declared_size} bytes.")
+    except Exception:
+        dest.unlink(missing_ok=True)   # never keep a partial download
+        raise
     lines.append(f"Downloaded {size} bytes.")
     return size, digest.hexdigest()
 
