@@ -187,6 +187,16 @@ def test_media_refuses_other_files_and_scripted_svg(client, csrf, admin):
         assert resp.status_code == 400
 
 
+def test_a_media_body_over_the_limit_is_refused_unread(client, csrf, admin, monkeypatch):
+    """The 413 comes from the declared length, before the body is decoded."""
+    from flatout import media
+    monkeypatch.setattr(media, "MAX_IMAGE", 1024)   # so the test body can stay small
+    limit = 1024 * 4 // 3 + 64 * 1024
+    big = base64.b64encode(b"x" * (limit + 1)).decode()
+    resp = client.post("/api/v1/media", json={"filename": "big.png", "data_base64": big}, headers=h(csrf))
+    assert resp.status_code == 413
+
+
 def test_uploaded_svg_is_served_sandboxed(client, csrf, admin):
     svg = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>'
     item = client.post("/api/v1/media", json={"filename": "a.svg", "data_base64": base64.b64encode(svg).decode()},

@@ -36,6 +36,9 @@ All notable changes to Flatout are documented here. The format follows
 - `CF-Connecting-IP` is only believed when a trusted proxy is configured
   (`TRUST_PROXY`), so a direct visitor can no longer invent the address
   install counts are keyed by
+- A media upload larger than the limit is refused before its body is read,
+  and bundle uploads arriving at the same time now count each other's
+  announced size against the free disk
 
 ### Changed
 - New passwords hash with scrypt at OWASP's current work factor (2^17), and

@@ -40,6 +40,22 @@ def chunk_size(request_limit: int | None) -> int:
     return min(CHUNK_BYTES, max(1024 * 1024, request_limit - 1024 * 1024))
 
 
+def planned_total(base: Path) -> int:
+    """Bytes every upload in progress under ``base`` says it will take, so a
+    new one is refused when the pieces still to come wouldn't fit."""
+    total = 0
+    if not base.is_dir():
+        return 0
+    for path in base.iterdir():
+        size = path / "size"
+        if path.is_dir() and ID_RE.match(path.name) and size.exists():
+            try:
+                total += int(size.read_text())
+            except (OSError, ValueError):
+                pass
+    return total
+
+
 def start(base: Path, size: int) -> str:
     upload_id = secrets.token_hex(12)
     path = base / upload_id

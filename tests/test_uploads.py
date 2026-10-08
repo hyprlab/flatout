@@ -89,3 +89,19 @@ def test_unfinished_uploads_are_dropped_after_a_day(tmp_path):
         os.utime(path, (old, old))
     assert chunks.prune(tmp_path) == 1
     assert (tmp_path / fresh).is_dir() and not (tmp_path / stale).exists()
+
+
+def test_uploads_in_flight_count_against_free_space(app, client, csrf, ready):
+    """Each upload on the way has promised its size; a new one is refused
+    when all of them together wouldn't fit."""
+    big = 100 * 1024 * 1024
+    first = client.post("/api/v1/uploads", json={"size": big}, headers=h(csrf))
+    assert first.status_code == 201
+    from flatout import chunks as c
+    with app.app_context():
+        import flatout.api as api_module
+        assert c.planned_total(api_module._uploads_dir()) == big
+    # A second hundred megabytes still fits this disk.
+    assert client.post("/api/v1/uploads", json={"size": big}, headers=h(csrf)).status_code == 201
+    client.delete(f"/api/v1/uploads/{first.get_json()['id']}", headers=h(csrf))
+    assert client.delete(f"/api/v1/uploads/{'0' * 24}", headers=h(csrf)).status_code == 404

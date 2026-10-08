@@ -408,6 +408,12 @@ def media_upload():
     {"filename": "...", "data_base64": "...", "alt": "..."} for clients that
     can't send multipart, agents among them."""
     import base64
+    # Media are small; refuse a bigger body before reading it, so an
+    # oversized request can't be used to exhaust memory. The limit leaves
+    # room for base64 inflation and multipart framing.
+    limit = media.MAX_IMAGE * 4 // 3 + 64 * 1024
+    if (request.content_length or 0) > limit:
+        raise ApiError(413, f"Media can be {media.MAX_IMAGE // (1024 * 1024)} MB at most.")
     if request.files.get("file"):
         upload = request.files["file"]
         data, name, alt = upload.read(), upload.filename or "", request.form.get("alt", "")
@@ -617,8 +623,11 @@ def upload_start():
         raise ApiError(413, f"Bundles can be {current_app.config['MAX_UPLOAD_MB']} MB at most (MAX_UPLOAD_MB).")
     _uploads_dir().mkdir(exist_ok=True)
     free = shutil.disk_usage(_uploads_dir()).free
-    if free < size * 1.2 + 100 * 1024 * 1024:
-        raise ApiError(507, f"Not enough free disk space for a bundle of {size // (1024 * 1024)} MB.")
+    planned = chunks.planned_total(_uploads_dir())
+    if free < (planned + size) * 1.2 + 100 * 1024 * 1024:
+        raise ApiError(507, f"Not enough free disk space for a bundle of {size // (1024 * 1024)} MB"
+                            + (f" with another {planned // (1024 * 1024)} MB of uploads already arriving."
+                               if planned else "."))
     upload_id = chunks.start(_uploads_dir(), size)
     return jsonify(id=upload_id, size=size, received=0,
                    chunk_size=chunks.chunk_size(current_app.config.get("MAX_CONTENT_LENGTH"))), 201
