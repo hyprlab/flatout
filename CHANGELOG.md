@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.6.0] — 2026-10-09
+
 ### Changed
 - The Installs page shows machines by architecture at the top, and puts
   releases, architectures, packages and builds below the chart as one view
