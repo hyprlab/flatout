@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.5.2] — 2026-10-09
+
 ### Changed
 - The sign-in and account pages drop the tagline and show Flatout's version
   at the bottom
