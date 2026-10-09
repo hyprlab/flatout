@@ -6,6 +6,11 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- The Installs page shows machines by architecture at the top, and puts
+  releases, architectures, packages and builds below the chart as one view
+  at a time; long tables show their first 10 rows until you ask for all
+
 ## [1.5.2] — 2026-10-09
 
 ### Changed

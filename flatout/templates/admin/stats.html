@@ -25,33 +25,40 @@
     </details>
   </section>
 
-  <section class="panel">
-    <h3 class="panel-title">By release</h3>
-    <p class="hint">Distinct installs that downloaded each version, every architecture together, and the downloads
-      in all. An install counts once for each day it pulled the release, which in practice is once.</p>
-    <div class="table-scroll"><table class="data-table" id="release-stats"></table></div>
-  </section>
+  <section class="panel" id="stats-detail">
+    <div class="panel-head">
+      <div class="seg" role="radiogroup" aria-label="Detail">
+        <label><input type="radio" name="stats-view" value="releases" checked><span>Releases</span></label>
+        <label><input type="radio" name="stats-view" value="arches"><span>Architectures</span></label>
+        <label id="pkg-view" hidden><input type="radio" name="stats-view" value="packages"><span>Packages</span></label>
+        <label><input type="radio" name="stats-view" value="builds"><span>Builds</span></label>
+      </div>
+    </div>
 
-  <section class="panel">
-    <h3 class="panel-title">Machines by architecture</h3>
-    <p class="hint">Installs that downloaded a release built for each architecture.</p>
-    <div class="table-scroll"><table class="data-table" id="arch-stats"></table></div>
-  </section>
+    <div class="stats-view" data-view="releases">
+      <p class="hint">Distinct installs that downloaded each version, every architecture together, and the downloads
+        in all. An install counts once for each day it pulled the release, which in practice is once.</p>
+      <div class="table-scroll"><table class="data-table" id="release-stats"></table></div>
+    </div>
 
-  <section class="panel" id="pkg-stats" hidden>
-    <h3 class="panel-title">Packages</h3>
-    <p class="hint">Installs with the dnf or apt repository added fetch its index when they look for updates, which
-      dnf does daily with this site's repository file and apt does daily on most systems. Counted like the
-      Flatpak installs above, once a day each.</p>
-    <div class="table-scroll"><table class="data-table" id="pkg-repo-stats"></table></div>
-    <p class="hint">Downloads of each package and file: by dnf and apt, and from the site.</p>
-    <div class="table-scroll"><table class="data-table" id="pkg-download-stats"></table></div>
-  </section>
+    <div class="stats-view" data-view="arches" hidden>
+      <p class="hint">Installs that downloaded a release built for each architecture.</p>
+      <div class="table-scroll"><table class="data-table" id="arch-stats"></table></div>
+    </div>
 
-  <section class="panel">
-    <h3 class="panel-title">Each build</h3>
-    <p class="hint">Every signed commit installs have downloaded: uploads, promotions and rollbacks each make one.</p>
-    <div class="table-scroll"><table class="data-table" id="build-stats"></table></div>
+    <div class="stats-view" data-view="packages" hidden>
+      <p class="hint">Installs with the dnf or apt repository added fetch its index when they look for updates, which
+        dnf does daily with this site's repository file and apt does daily on most systems. Counted like the
+        Flatpak installs above, once a day each.</p>
+      <div class="table-scroll"><table class="data-table" id="pkg-repo-stats"></table></div>
+      <p class="hint stats-subhint">Downloads of each package and file: by dnf and apt, and from the site.</p>
+      <div class="table-scroll"><table class="data-table" id="pkg-download-stats"></table></div>
+    </div>
+
+    <div class="stats-view" data-view="builds" hidden>
+      <p class="hint">Every signed commit installs have downloaded: uploads, promotions and rollbacks each make one.</p>
+      <div class="table-scroll"><table class="data-table" id="build-stats"></table></div>
+    </div>
   </section>
 </div>
 {% endblock %}

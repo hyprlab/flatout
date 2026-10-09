@@ -379,14 +379,18 @@ From those two signals the page shows:
   days; until checks build up, the most-downloaded release of the last 14
 - **Latest stable** and **Latest beta**: the installs that downloaded the
   current version since it came out, by architecture
+- **Machines by architecture**: each architecture's share of release
+  downloads in the last 30 days
 - **Active today**, the **seven-day average**, and how many installs are **on
   an older release** than the latest stable or beta
 - **Releases in the last 30 days**, stable and beta
 - Update checks per day over 30 days, 90 days or a year, as a chart or a
   table, with the busiest day
-- Installs and downloads **by release**, **by architecture** (the last 30
-  days and all time), and for **each build**: every signed commit, uploaded,
-  promoted or brought back, with when it was first and last downloaded
+- Below the chart, one view at a time: installs and downloads **by
+  release**, **by architecture** (the last 30 days and all time), the
+  **packages**, and **each build**: every signed commit, uploaded, promoted
+  or brought back, with when it was first and last downloaded. Long tables
+  show their first 10 rows until you ask for all of them
 
 Packages are counted the same way. An install with the dnf or apt
 repository added fetches its index (`repomd.xml`, `InRelease`) when it
@@ -394,7 +398,8 @@ checks for updates, which dnf does daily with the `.repo` file Flatout
 writes and apt does daily on most systems, so the Packages part of the page
 shows the installs checking each repository today and on the busiest day of
 the week. Each package and file also counts its downloads, by dnf and apt or
-from the site.
+from the site. They are under Packages below the chart, which appears
+once there is something to show.
 
 `GET /api/v1/stats` returns the same, for scripts and agents.
 

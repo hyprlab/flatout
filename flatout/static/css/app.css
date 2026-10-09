@@ -1087,6 +1087,17 @@ input.switch:checked::after { transform: translateX(14px); }
 .tile-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .stats-meta { margin: 0; }
 #stats-page .panel-head { align-items: center; flex-wrap: wrap; }
+#stats-detail > .panel-head { margin-bottom: 14px; }
+#stats-detail .seg { max-width: 100%; overflow-x: auto; }
+.stats-view > .hint { margin-bottom: 4px; }
+.stats-view .stats-subhint { margin-top: 18px; }
+.table-more { margin-top: 10px; }
+.arch-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.arch-row { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; row-gap: 4px; align-items: baseline; font-size: 13px; }
+.arch-name { font-weight: 650; }
+.arch-num { font-weight: 750; font-variant-numeric: tabular-nums; }
+.arch-bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.arch-bar span { display: block; height: 100%; border-radius: 3px; background: var(--series-1); }
 
 /* ——— API and agents ——— */
 .token-form { display: flex; flex-direction: column; gap: 12px; max-width: 560px; }

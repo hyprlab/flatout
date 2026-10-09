@@ -974,18 +974,70 @@
     var archChips = function (arches) {
       return Object.keys(arches || {}).map(function (a) { return a + " " + fmt(arches[a]); });
     };
-    var table = function (id, heads, rowsOf, empty) {
+    // Long tables show their first rows and a button for the rest; what was
+    // opened stays open when the range changes.
+    var ROWS = 10, expanded = {};
+    var table = function (id, heads, rowsOf, empty, limit) {
       var t = document.getElementById(id);
+      var wrap = t.closest(".table-scroll") || t;
+      var more = document.getElementById(id + "-more");
+      if (more) more.remove();
       t.innerHTML = "";
       if (!rowsOf.length) {
         t.appendChild(el("tbody", {}, [el("tr", {}, [el("td", { class: "hint", text: empty })])]));
         return;
       }
+      var cut = limit && rowsOf.length > limit + 2;   // never hide just a row or two
+      var shown = cut && !expanded[id] ? rowsOf.slice(0, limit) : rowsOf;
       t.appendChild(el("thead", {}, [el("tr", {}, heads.map(function (h) { return el("th", { text: h }); }))]));
-      t.appendChild(el("tbody", {}, rowsOf.map(function (cells) {
+      t.appendChild(el("tbody", {}, shown.map(function (cells) {
         return el("tr", {}, cells.map(function (c) { return el("td", typeof c === "object" && c ? c : { text: c }); }));
       })));
+      if (!cut) return;
+      wrap.after(el("p", { class: "table-more", id: id + "-more" }, [
+        el("button", { type: "button", class: "btn btn--ghost btn--xs",
+                       text: expanded[id] ? "Show the first " + limit : "Show all " + fmt(rowsOf.length),
+                       onclick: function () {
+                         expanded[id] = !expanded[id];
+                         table(id, heads, rowsOf, empty, limit);
+                         if (!expanded[id]) wrap.scrollIntoView({ block: "nearest" });
+                       } })
+      ]));
     };
+
+    // Machines by architecture, as shares: the counts add up every release an
+    // install took, so only the proportions say something about machines.
+    var archTile = function (arches) {
+      var live = arches.filter(function (a) { return a.installs_30_days > 0; });
+      if (!live.length) return tileOf("Machines by architecture", "None", "No downloads in the last 30 days.");
+      var total = live.reduce(function (n, a) { return n + a.installs_30_days; }, 0);
+      return el("section", { class: "panel tile" }, [
+        el("p", { class: "tile-label", text: "Machines by architecture" }),
+        el("ul", { class: "arch-list" }, live.map(function (a) {
+          var share = a.installs_30_days / total;
+          var pct = share >= 0.01 ? Math.round(share * 100) + "%" : "Under 1%";
+          return el("li", { class: "arch-row" }, [
+            el("span", { class: "arch-name", text: a.arch }),
+            el("span", { class: "arch-num", text: pct }),
+            el("span", { class: "arch-bar", "aria-hidden": "true" }, [
+              el("span", { style: "width:" + Math.max(share * 100, 1) + "%" })
+            ])
+          ]);
+        })),
+        el("p", { class: "hint", text: "Share of release downloads in the last 30 days." })
+      ]);
+    };
+
+    // The detail panel shows one view at a time; the address keeps it over a reload.
+    var views = document.querySelectorAll('input[name="stats-view"]');
+    var showView = function (name) {
+      var input = document.querySelector('input[name="stats-view"][value="' + name + '"]');
+      if (!input || input.closest("label").hidden) input = views[0];
+      input.checked = true;
+      document.querySelectorAll(".stats-view").forEach(function (v) { v.hidden = v.dataset.view !== input.value; });
+      history.replaceState(null, "", input === views[0] ? location.pathname + location.search : "#" + input.value);
+    };
+    views.forEach(function (r) { r.addEventListener("change", function () { showView(r.value); }); });
     var BASIS = {
       checks: "The busiest day of update checks in the last 7 days.",
       release: "The most-downloaded release of the last 14 days, until update checks build up.",
@@ -1010,6 +1062,7 @@
             ? tileOf(p[0] + " · " + r.version, fmt(r.installs), "Installs since " + longDay(r.published_at.slice(0, 10)) + ", " + fmt(r.downloads) + " downloads.", archChips(r.arches))
             : tileOf(p[0], "None", p[2]));
         });
+        summary.appendChild(archTile(s.arches));
 
         var t = document.getElementById("stats-tiles");
         t.innerHTML = "";
@@ -1032,14 +1085,14 @@
           s.releases.map(function (r) {
             return [r.version, r.channel, fmt(r.installs), fmt(r.downloads), archChips(r.arches).join(", "),
                     r.first_seen + " to " + r.last_seen];
-          }), "No downloads counted yet.");
+          }), "No downloads counted yet.", ROWS);
 
         table("arch-stats", ["Architecture", "Installs, last 30 days", "Installs, all time", "Downloads, all time"],
           s.arches.map(function (a) { return [a.arch, fmt(a.installs_30_days), fmt(a.installs), fmt(a.downloads)]; }),
           "No downloads counted yet.");
 
         var pk = s.packages;
-        document.getElementById("pkg-stats").hidden = !pk.repositories.length && !pk.downloads.length;
+        document.getElementById("pkg-view").hidden = !pk.repositories.length && !pk.downloads.length;
         var REPO = { rpm: "dnf", deb: "apt" };
         table("pkg-repo-stats", ["Repository", "Installs checking today", "Busiest day, last 7 days"],
           pk.repositories.map(function (r) { return [REPO[r.format] + " · " + r.channel, fmt(r.today), fmt(r.peak_7_days)]; }),
@@ -1049,7 +1102,7 @@
           pk.downloads.map(function (d) {
             return [d.name, d.version, KIND[d.format] || d.format, d.channel, d.arch || "", fmt(d.installs), fmt(d.downloads),
                     d.first_seen + " to " + d.last_seen];
-          }), "No downloads counted yet.");
+          }), "No downloads counted yet.", ROWS);
 
         var ORIGIN = { upload: "uploaded", promote: "promoted", rollback: "brought back" };
         table("build-stats", ["Version", "Channel", "Architecture", "Commit", "Installs", "Downloads", "First seen", "Last seen"],
@@ -1057,7 +1110,8 @@
             return [b.version ? b.version + (b.origin && b.origin !== "upload" ? " (" + ORIGIN[b.origin] + ")" : "") : "Unknown build",
                     b.channel || "", b.arch || "", { text: b.commit.slice(0, 12), class: "mono", title: b.commit },
                     fmt(b.installs), fmt(b.downloads), b.first_seen, b.last_seen];
-          }), "No downloads counted yet.");
+          }), "No downloads counted yet.", ROWS);
+        showView(location.hash.slice(1));
       }).catch(function (err) { chartBox.classList.remove("is-loading"); F.toastError(err); });
     };
     document.querySelectorAll('input[name="stats-days"]').forEach(function (r) { r.addEventListener("change", loadStats); });
