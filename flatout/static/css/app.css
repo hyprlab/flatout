@@ -704,7 +704,7 @@ html[data-theme="dark"] .toast--error { background: #4E2320; color: #FFE1DD; box
 }
 
 /* ————— Auth, setup and error pages ————— */
-.auth-body { display: grid; place-items: center; min-height: 100dvh; padding: 24px; }
+.auth-body { display: grid; grid-template-rows: 1fr auto; place-items: center; min-height: 100dvh; padding: 24px; }
 .auth-wrap { width: 100%; display: grid; place-items: center; }
 .auth-card {
   width: min(400px, 100%);
@@ -715,10 +715,10 @@ html[data-theme="dark"] .toast--error { background: #4E2320; color: #FFE1DD; box
 .auth-mark { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 26px; text-align: center; }
 .auth-mark .mark { width: 64px; height: 64px; margin-bottom: 4px; }
 .auth-mark .wordmark { font-size: 26px; }
-.auth-tag { font-size: 14px; color: var(--muted); }
 .auth-form { display: flex; flex-direction: column; gap: 15px; }
 .auth-form .cf-turnstile { display: flex; justify-content: center; }
 .auth-alt { text-align: center; margin-top: 20px; font-size: 13.5px; color: var(--muted); }
+.auth-version { margin-top: 24px; font-size: 12.5px; color: var(--muted); }
 .auth-alt a { font-weight: 650; color: var(--ink); text-decoration: underline; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .flash {
   font-size: 13.5px; font-weight: 550;

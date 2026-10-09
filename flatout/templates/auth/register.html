@@ -34,6 +34,7 @@
     <p class="auth-alt">Already have an account? <a href="{{ url_for('auth.login') }}">Sign in</a></p>
   </div>
 </main>
+<p class="auth-version">Flatout {{ app_version }}</p>
 {% if turnstile_site_key %}
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 {% endif %}
