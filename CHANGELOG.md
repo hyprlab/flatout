@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.7.0] — 2026-10-11
+
 ### Added
 - AppImages update from the site: each one uploaded under Packages is told to
   check this site for new versions, so Gear Lever, AppImageLauncher and
