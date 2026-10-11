@@ -208,11 +208,12 @@ domain; until then Flatout uses the address each request arrives on.
 ## Packages
 
 Beside the Flatpak repository, Flatout keeps a dnf repository for RPMs, an apt
-repository for Debian packages, and a place for any other file people
-download, such as an AppImage or a tarball. Each has a stable and a beta
-channel, like releases. Installs that add the dnf or apt repository get every
-later version through their system's own updates: `dnf upgrade`, `apt
-upgrade`, GNOME Software or KDE Discover.
+repository for Debian packages, AppImages that update from the site, and a
+place for any other file people download, such as a tarball. Each has a stable
+and a beta channel, like releases. Installs that add the dnf or apt repository
+get every later version through their system's own updates: `dnf upgrade`,
+`apt upgrade`, GNOME Software or KDE Discover. An AppImage gets them through
+Gear Lever, AppImageLauncher or AppImageUpdate.
 
 Upload under Packages, or from CI (below). What a file is comes from its
 first bytes:
@@ -225,6 +226,8 @@ first bytes:
   `Packages` and `Release` itself and signs them (`InRelease` and
   `Release.gpg`). Each channel is a suite: `stable` and `beta`, with one
   component, `main`.
+- **An AppImage** is told where its updates are, and gets a zsync file for
+  updaters to check (see [AppImages](#appimages)).
 - **Anything else** is offered as a download, under its own name or a
   download name you give it. Its version comes from that name (or type one).
   A later upload under the same name replaces it at the same address.
@@ -238,7 +241,9 @@ first bytes:
 | `/deb/` | The apt archive: `dists/<channel>/` and `pool/<channel>/` |
 | `/deb/<remote>.gpg` | The signing key, for a `Signed-By` of your own |
 | `/download/<name>-<arch>.rpm`, `.deb` | The newest package (`<name>-beta-<arch>` for the beta) |
-| `/download/<file>`, `/download/beta/<file>` | The newest of another file |
+| `/download/<file>`, `/download/beta/<file>` | The newest AppImage or other file |
+| `/download/<file>.zsync`, `/download/beta/<file>.zsync` | The newest AppImage's zsync file, which installed copies check for updates |
+| `/appimage/<id>/<file>` | One version of an AppImage, and its own `.zsync` beside it |
 
 `<remote>` is the remote name under Repository > App. Adding the repository is
 one command, then the package installs by name:
@@ -277,11 +282,52 @@ runs `dnf downgrade`). There is no rollback like a Flatpak's: publish a
 fixed version instead.
 
 **Promote to stable** copies the newest beta of every package and file to
-stable, the same file, without uploading it again.
+stable, the same file, without uploading it again. An AppImage is the one
+exception: its copy is told to update from stable instead of beta.
 
 Changing the signing key signs every RPM and every index again with the new
 one. Installs that added the repository have to fetch the new key, as with
 Flatpak.
+
+### AppImages
+
+An AppImage carries the address it checks for updates inside the file, in its
+update information. When one is uploaded, Flatout writes that address in
+(replacing any it had) and makes a zsync file, which says the newest file's
+SHA-1, where to get it, and a checksum of each block. An installed copy
+fetches the zsync file, compares the SHA-1 with its own, and when they differ
+downloads the new version: whole with Gear Lever, only the changed blocks with
+AppImageLauncher and AppImageUpdate (`appimageupdatetool`). Nothing has to be
+set up in the AppImage when it is built, and people need nothing but the
+download.
+
+The address is `/download/<name>.zsync`, where `<name>` is the AppImage's
+name without its version: `App-1.2.0-x86_64.AppImage` is published as
+`App-x86_64.AppImage`, and the next version takes the same address over. An
+AppImage whose name says no architecture gets one added. Give a download name
+when uploading to choose another; give the same one every time.
+
+The address starts with the public address under Signing and addresses, or,
+when none is pinned, the one the upload came in on. Installed copies keep the
+address they were given, so pin the public address before the first AppImage
+goes out.
+
+A signed AppImage is left as it is: its signature covers the update
+information, and changing it would break the signature. It is still published
+with a zsync file; build it with `appimagetool -u
+'zsync|https://app.example.org/download/App-x86_64.AppImage.zsync'` before
+signing to have it update from the site.
+
+Updaters compare checksums, not versions, so for an AppImage **Withdraw** is
+a rollback: installed copies go back to the version before the next time they
+check. AppImages published before Flatout set their updates were plain
+downloads; they are listed as AppImages now, and the next upload under the
+same name supersedes them, but copies already installed from them don't know
+the site and stay as they are.
+
+AppImageLauncher and AppImageUpdate ask for many blocks in one request (a
+`Range` header with several ranges), which Flatout answers with
+`multipart/byteranges`. A proxy in front has to pass those requests through.
 
 ## Publishing from CI or an agent
 
@@ -341,6 +387,16 @@ curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
   https://app.example.org/api/v1/packages
 ```
 
+An AppImage goes the same way. Its download name defaults to the file's name
+without the version; send `name` only to choose another, and the same one
+every time:
+
+```sh
+curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
+  -F file=@MyApp-1.2.0-x86_64.AppImage -F channel=stable \
+  https://app.example.org/api/v1/packages
+```
+
 `GET /api/v1/packages/<id>` shows when it is live and its job's log.
 
 The whole API is described in OpenAPI at `/api/v1/openapi.json`, and listed
@@ -397,8 +453,9 @@ repository added fetches its index (`repomd.xml`, `InRelease`) when it
 checks for updates, which dnf does daily with the `.repo` file Flatout
 writes and apt does daily on most systems, so the Packages part of the page
 shows the installs checking each repository today and on the busiest day of
-the week. Each package and file also counts its downloads, by dnf and apt or
-from the site. They are under Packages below the chart, which appears
+the week. An AppImage fetches its zsync file when its updater checks, which
+counts the same way. Each package and file also counts its downloads, by dnf,
+apt and AppImage updaters or from the site. They are under Packages below the chart, which appears
 once there is something to show.
 
 `GET /api/v1/stats` returns the same, for scripts and agents.

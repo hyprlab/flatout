@@ -553,8 +553,10 @@ DOCUMENT = group("Site", {
                               help="Shown once an RPM is published under Packages."),
         "deb_method": boolean("Offer the apt repository", True,
                               help="Shown once a Debian package is published under Packages."),
+        "appimage_method": boolean("Offer the AppImage", True,
+                                   help="Shown once an AppImage is published under Packages."),
         "files_method": boolean("Offer other downloads", True,
-                                help="AppImages, tarballs and other files published under Packages."),
+                                help="Tarballs and other files published under Packages."),
         "flatpak_setup_url": url("Flatpak setup guide", "https://flatpak.org/setup/"),
         "footer": markdown("Small print", "Every option installs the same app and keeps it updated.", max=2000),
         # The wording of each way to install. Every default is the built-in
@@ -611,6 +613,18 @@ DOCUMENT = group("Site", {
                                    help="Empty lists each package file with its version."),
         "rpm_files_button": text("dnf: the single file's button", "Download the RPM", max=80,
                                  help="Shown under your own text, for each package file."),
+        "appimage_title": text("AppImage: name", "AppImage", max=80),
+        "appimage_desc": text("AppImage: description",
+                              "One file that runs on most distributions and updates from this site.", max=200),
+        "appimage_after": markdown("AppImage: under the downloads",
+                                   "**Open it with [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever)** "
+                                   "to add {app_name} to your applications and get its updates; AppImageLauncher "
+                                   "works too. Each AppImage already knows where its updates come from.",
+                                   max=2000),
+        "appimage_terminal": markdown("AppImage: the terminal tip",
+                                      "Make the file executable with `chmod +x` and run it. `appimageupdatetool` "
+                                      "brings it up to date from this site.", max=1000,
+                                      help="Folded under the downloads, as Prefer the terminal? Empty leaves it out."),
     }),
     "not_found": group("Page not found", {
         "title": text("Title", "There is nothing at this address", max=120),

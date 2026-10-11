@@ -361,6 +361,14 @@ def _migrate(app: Flask) -> None:
         db.session.commit()
         app.logger.info("migrated: added jobs.package_id")
 
+    # AppImages were plain files until they could update from here. The ones
+    # still published become AppImages, so a new upload of one supersedes it.
+    # Each file's first bytes are the guard: a second run finds none to move.
+    from .packages import adopt_appimages
+    moved = adopt_appimages()
+    if moved:
+        app.logger.info("migrated: %d published file%s became AppImages", moved, "s" if moved != 1 else "")
+
 
 def _start_worker(app: Flask) -> None:
     """Background thread for periodic work (worker.py).

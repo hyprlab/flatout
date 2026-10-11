@@ -34,8 +34,11 @@ and an MCP server.
   Software, KDE Discover or `flatpak update`
 - **dnf and apt repositories too.** Upload an `.rpm` or a `.deb` and it is
   signed into this site's dnf or apt repository, so installs update with the
-  rest of the system; any other file, an AppImage or a tarball, becomes a
-  download
+  rest of the system; any other file, such as a tarball, becomes a download
+- **AppImages that update from the site.** Each AppImage uploaded is told to
+  check this site for its updates, so Gear Lever, AppImageLauncher and
+  AppImageUpdate bring each new version; the last two fetch only the blocks
+  that changed
 - **Stable and beta channels.** Promote a beta to stable without uploading it
   again, bring back an earlier build, end a channel with a message to its users
 - **Install files that write themselves.** The `.flatpakref`, the

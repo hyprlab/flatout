@@ -409,7 +409,7 @@ def handle_package(job: Job, payload: dict, lines: list) -> None:
     src = packages.root() / (pkg.path or "")
     if not pkg.path or not src.exists():
         raise repo.RepoError("The uploaded file is missing.")
-    packages.publish_upload(pkg, src, payload.get("filename") or "", lines)
+    packages.publish_upload(pkg, src, payload.get("filename") or "", lines, payload.get("base") or "")
     db.session.commit()
 
 
@@ -418,7 +418,7 @@ def handle_package_promote(job: Job, payload: dict, lines: list) -> None:
     pkg = db.session.get(Package, job.package_id)
     pkg.status = "processing"
     db.session.commit()
-    packages.publish_copy(pkg, lines)
+    packages.publish_copy(pkg, lines, payload.get("base") or "")
     db.session.commit()
 
 

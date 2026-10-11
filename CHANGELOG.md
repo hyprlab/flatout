@@ -6,6 +6,23 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- AppImages update from the site: each one uploaded under Packages is told to
+  check this site for new versions, so Gear Lever, AppImageLauncher and
+  AppImageUpdate keep it current, the last two fetching only what changed
+- An AppImage is published under its file name without the version, such as
+  App-x86_64.AppImage, so each new upload takes over the address installed
+  copies check
+- The install dialog offers the AppImage as its own way to install, with how
+  to keep it updated; its wording is editable under Content > Install dialog
+- The Installs page counts AppImages checking for updates
+
+### Changed
+- AppImages already published as downloads are listed as AppImages, and the
+  next upload under the same name replaces them
+- Withdrawing an AppImage sends installed copies back to the version before
+  it the next time they check for updates
+
 ## [1.6.0] — 2026-10-09
 
 ### Changed

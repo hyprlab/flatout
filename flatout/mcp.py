@@ -137,25 +137,27 @@ TOOLS = {
                          "POST", "/releases/{id}/rollback", "*", False, True),
     "end_channel": ("Retire a channel: installed copies are told no more updates will come.",
                     _obj({"channel": CHANNEL, "message": S}, ["channel"]), "POST", "/channels/{channel}/end", "*", False, True),
-    "list_packages": ("RPM and Debian packages and other files, newest first.",
-                      _obj({"format": {"type": "string", "enum": ["rpm", "deb", "file"]}, "channel": CHANNEL, "limit": I}),
+    "list_packages": ("RPM and Debian packages, AppImages and other files, newest first.",
+                      _obj({"format": {"type": "string", "enum": ["rpm", "deb", "appimage", "file"]}, "channel": CHANNEL, "limit": I}),
                       "GET", "/packages?format={format}&channel={channel}&limit={limit}", None, True, False),
     "get_package": ("One package or file, with the log of its newest job.", _obj({"id": I}, ["id"]),
                     "GET", "/packages/{id}", None, True, False),
-    "upload_package_from_url": ("Have Flatout download an .rpm, a .deb or another file and publish it on a channel: "
-                                "an RPM in the dnf repository and a Debian package in the apt repository, signed; "
-                                "anything else as a download, under \"name\" if given. Answers at once; the job "
-                                "runs in the background (see get_package).",
+    "upload_package_from_url": ("Have Flatout download an .rpm, a .deb, an AppImage or another file and publish it "
+                                "on a channel: an RPM in the dnf repository and a Debian package in the apt "
+                                "repository, signed; an AppImage set to update from this site, under its file name "
+                                "without the version; anything else as a download, under \"name\" if given. "
+                                "Answers at once; the job runs in the background (see get_package).",
                                 _obj({"url": S, "channel": CHANNEL, "name": S, "version": S, "arch": S,
                                       "notes": {"type": "string", "description": "Markdown"}}, ["url"]),
                                 "POST", "/packages", "*", False, False),
     "update_package": ("Change a package's notes or the version label shown on the site.",
                        _obj({"id": I, "notes": S, "version": S}, ["id"]), "PATCH", "/packages/{id}", "*", False, False),
     "withdraw_package": ("Take a package out of its repository, or a file off the site, and delete it. Installed "
-                         "copies keep it; new installs get the version before.",
+                         "packages keep it; new installs get the version before. Installed AppImages go back to "
+                         "the version before when they next check for updates.",
                          _obj({"id": I}, ["id"]), "POST", "/packages/{id}/withdraw", "*", False, True),
     "promote_packages": ("Copy the newest packages and files of one channel to another, usually beta to stable.",
-                         _obj({"from": CHANNEL, "to": CHANNEL, "format": {"type": "string", "enum": ["rpm", "deb", "file"]},
+                         _obj({"from": CHANNEL, "to": CHANNEL, "format": {"type": "string", "enum": ["rpm", "deb", "appimage", "file"]},
                                "notes": S}), "POST", "/packages/promote", "*", False, False),
     "get_job": ("A repository job's status and log.", _obj({"id": I}, ["id"]), "GET", "/jobs/{id}", None, True, False),
     "get_repository": ("The repository: the app ID, install addresses, signing key and settings, and live releases "

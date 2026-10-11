@@ -19,12 +19,14 @@ flatout/
   icons.py         the icon set the editor offers
   releases.py      what the site reads about releases
   repo.py          the repository on disk and the flatpak/ostree/gpg commands
-  packages.py      the dnf and apt repositories and other downloads: on disk,
-                   rpm/createrepo_c/dpkg-deb, and which version is live
+  packages.py      the dnf and apt repositories, AppImages and other downloads:
+                   on disk, rpm/createrepo_c/dpkg-deb, and which version is live
+  appimage.py      an AppImage's update information, and its zsync file
   jobs.py          the thread that runs repository work, one job at a time
   backup.py        encrypted backups of everything, and restoring one
   chunks.py        large files sent in pieces, for proxies that cap bodies
-  serve.py         what Flatpak clients fetch: /repo, install files, bundles
+  serve.py         what clients fetch: /repo, install files, bundles, packages,
+                   AppImages and their zsync files
   stats.py         install numbers from repository traffic
   api.py           the JSON API under /api/v1, and its tokens
   openapi.py       the API's OpenAPI description, built from the code
@@ -106,6 +108,19 @@ consistent. Every RPM is signed with the repository's key on the way in, so
 one key in the `.repo` file covers packages and index alike. Package jobs go
 through the same job thread as Flatpak ones: one writer, one log.
 
+**AppImages are told where to update from.** An AppImage names its update
+source in its own runtime, a 1024-byte ELF section, as `zsync|<address>`;
+Gear Lever, AppImageLauncher and AppImageUpdate read it. Flatout writes that
+line into each upload, pointing at an address that always serves the newest
+zsync file of the AppImage's name and channel, and only then makes the zsync
+file (`zsyncmake`), so its SHA-1 is the file's as served. The section is
+plain text made for this, so nothing else in the file moves. That zsync's URL
+is rewritten on each request to the exact version, under `/appimage/<id>/`,
+which never changes, so a client between two releases fetches the blocks its
+checksums describe. A promoted AppImage is copied, not linked, and pointed at
+its new channel. A signed AppImage is left alone: the signature covers the
+section.
+
 **One gunicorn worker, eight threads.** The job thread and the housekeeping
 thread must each exist exactly once, and SQLite is happiest with one writing
 process. Threads carry the concurrency.
@@ -185,7 +200,7 @@ answer 503.
 | `DATA_DIR/staging/` | Scratch space for unpacking bundles |
 | `DATA_DIR/gnupg/` | The signing key |
 | `DATA_DIR/bundles/` | Uploaded bundles, for the download button |
-| `DATA_DIR/packages/` | The dnf repository (`rpm/`), the apt archive (`deb/`), other downloads (`files/`), and uploads waiting for their job (`incoming/`) |
+| `DATA_DIR/packages/` | The dnf repository (`rpm/`), the apt archive (`deb/`), AppImages and their zsync files (`appimage/`), other downloads (`files/`), and uploads waiting for their job (`incoming/`) |
 | `DATA_DIR/.secret_key`, `.stats_salt` | Generated secrets |
 | `DATA_DIR/backups/` | The newest backup made in Settings, waiting to be downloaded |
 | `DATA_DIR/uploads/` | Bundles arriving in pieces, until their release is made |

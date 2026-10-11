@@ -48,10 +48,12 @@
 
     <div class="stats-view" data-view="packages" hidden>
       <p class="hint">Installs with the dnf or apt repository added fetch its index when they look for updates, which
-        dnf does daily with this site's repository file and apt does daily on most systems. Counted like the
-        Flatpak installs above, once a day each.</p>
+        dnf does daily with this site's repository file and apt does daily on most systems. An AppImage fetches its
+        zsync file when Gear Lever or another updater checks it. Counted like the Flatpak installs above, once a
+        day each.</p>
       <div class="table-scroll"><table class="data-table" id="pkg-repo-stats"></table></div>
-      <p class="hint stats-subhint">Downloads of each package and file: by dnf and apt, and from the site.</p>
+      <p class="hint stats-subhint">Downloads of each package and file: by dnf, apt and AppImage updaters, and from
+        the site.</p>
       <div class="table-scroll"><table class="data-table" id="pkg-download-stats"></table></div>
     </div>
 

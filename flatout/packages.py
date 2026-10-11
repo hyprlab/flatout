@@ -1,9 +1,9 @@
 """Packages: the dnf and apt repositories, and other downloads.
 
 Beside the Flatpak repository, Flatout publishes RPMs in a dnf repository,
-Debian packages in an apt repository, and any other file (an AppImage, a
-tarball) as a plain download, each on the stable and beta channels, signed
-with the repository's own key.
+Debian packages in an apt repository, AppImages that update themselves from
+here, and any other file (a tarball) as a plain download, each on the stable
+and beta channels. Packages are signed with the repository's own key.
 
 Layout under DATA_DIR/packages:
 
@@ -12,13 +12,15 @@ Layout under DATA_DIR/packages:
     rpm/<channel>/repodata/   createrepo_c's index            } a dnf baseurl
     deb/pool/<channel>/       the Debian packages             } /deb/, an apt archive
     deb/dists/<channel>/      Packages, Release, InRelease    } with a suite per channel
+    appimage/<channel>/<id>/  an AppImage and its .zsync               } /appimage/<id>/
     files/<channel>/<id>/     everything else
 
 How an upload is published:
 
 1. Its first bytes say what it is. An RPM is read with ``rpm -qp`` and signed
    with ``rpmsign``, so dnf's gpgcheck holds whoever built it; a Debian
-   package is read with ``dpkg-deb``.
+   package is read with ``dpkg-deb``. An AppImage gets update information
+   pointing here and a zsync file (appimage.py).
 2. It moves into its channel. A version already there is refused: the
    repository would offer two different files under one name and version,
    and clients that cached one would reject the other.
@@ -35,6 +37,8 @@ How an upload is published:
 Neither dnf nor apt moves an install to an older version, so there is no
 rollback as with Flatpak: withdrawing a bad version keeps new installs from
 getting it, and installed copies stay on it until a newer one is published.
+AppImage updaters compare checksums, not versions, so for an AppImage
+withdrawing is a rollback: installed copies go back to the one before.
 
 Every function that changes something runs in the job thread (jobs.py).
 """
@@ -52,12 +56,13 @@ from urllib.parse import unquote, urlparse
 
 from flask import current_app
 
-from . import repo
-from .models import Package, db, int_setting, utcnow
+from . import appimage, repo
+from .models import Package, db, get_setting, int_setting, utcnow
 from .repo import RepoError
 
-FORMATS = ("rpm", "deb", "file")
-FORMAT_NAMES = {"rpm": "RPM", "deb": "Debian", "file": "File"}
+FORMATS = ("rpm", "deb", "appimage", "file")
+FORMAT_NAMES = {"rpm": "RPM", "deb": "Debian", "appimage": "AppImage", "file": "File"}
+DOWNLOADS = ("appimage", "file")   # served as they are, ranked by upload, not version
 IN_REPO = ("live", "superseded")
 KEPT = 3            # versions of each package kept per channel, unless set (packages_kept)
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+~-]{0,200}$")
@@ -84,15 +89,19 @@ def deb_dir() -> Path:
 
 def tools() -> dict:
     """Which formats can be published here. Plain files need nothing."""
-    have = {name: shutil.which(name) is not None for name in ("rpm", "rpmsign", "createrepo_c", "dpkg-deb", "gpg")}
+    have = {name: shutil.which(name) is not None
+            for name in ("rpm", "rpmsign", "createrepo_c", "dpkg-deb", "gpg", "zsyncmake")}
     return {"rpm": have["rpm"] and have["rpmsign"] and have["createrepo_c"] and have["gpg"],
-            "deb": have["dpkg-deb"] and have["gpg"]}
+            "deb": have["dpkg-deb"] and have["gpg"], "appimage": have["zsyncmake"]}
 
 
 def not_ready(fmt: str) -> str | None:
     """Why a format can't be published now, as a sentence, or None."""
     if fmt == "file":
         return None
+    if fmt == "appimage":
+        return None if tools()["appimage"] else \
+            "zsyncmake (from zsync) isn't installed here. Run Flatout from its Docker image."
     if not tools()[fmt]:
         need = "rpm, rpmsign and createrepo_c" if fmt == "rpm" else "dpkg-deb"
         return f"{need} and gpg aren't installed here. Run Flatout from its Docker image."
@@ -102,10 +111,12 @@ def not_ready(fmt: str) -> str | None:
 
 
 def sniff(path: Path, filename: str = "") -> str:
-    """rpm, deb, flatpak or file, from the first bytes (and, for a Flatpak
-    bundle, which has no magic number of its own, the name)."""
+    """rpm, deb, appimage, flatpak or file, from the first bytes (and, for a
+    Flatpak bundle, which has no magic number of its own, the name)."""
     with open(path, "rb") as f:
         head = f.read(24)
+    if appimage.kind(head):
+        return "appimage"
     if head[:4] == b"\xed\xab\xee\xdb":
         return "rpm"
     if head[:8] == b"!<arch>\n" and head[8:21] == b"debian-binary":
@@ -305,6 +316,21 @@ def guess_version(filename: str) -> str:
     return match.group(0) if match else ""
 
 
+def stable_name(filename: str, arch: str = "") -> str:
+    """An AppImage's download name: its file name without the version, and
+    with the architecture if it doesn't say one. Each new upload of it then
+    takes over the address its installed copies check for updates.
+    App-1.2.0-x86_64.AppImage becomes App-x86_64.AppImage."""
+    name = filename
+    version = guess_version(filename)
+    if version:
+        name = re.sub(r"[-_. ]?[vV]?" + re.escape(version), "", name, count=1).lstrip("-_. ")
+    if arch and not guess_arch(name):
+        stem, dot, ext = name.rpartition(".")
+        name = f"{stem}-{arch}.{ext}" if dot and stem else f"{name}-{arch}"
+    return name if NAME_RE.match(name) else filename
+
+
 # ———————————————————————————— Signing ————————————————————————————
 
 def _fpr() -> str:
@@ -348,11 +374,13 @@ def _target(pkg: Package, filename: str) -> str:
         return f"rpm/{pkg.channel}/packages/{filename}"
     if pkg.format == "deb":
         return f"deb/pool/{pkg.channel}/{filename}"
+    if pkg.format == "appimage":
+        return f"appimage/{pkg.channel}/{pkg.id}/{filename}"
     return f"files/{pkg.channel}/{pkg.id}/{filename}"
 
 
 def _clash(pkg: Package) -> None:
-    if pkg.format == "file":
+    if pkg.format in DOWNLOADS:
         return
     other = Package.query.filter(Package.id != pkg.id, Package.format == pkg.format, Package.channel == pkg.channel,
                                  Package.name == pkg.name, Package.arch == pkg.arch, Package.evr == pkg.evr,
@@ -362,16 +390,20 @@ def _clash(pkg: Package) -> None:
                         "Build it with a new version or release number, or withdraw the one there first.")
 
 
-def _place(pkg: Package, src: Path, relpath: str, link: bool = False) -> None:
+def _place(pkg: Package, src: Path, relpath: str, how: str = "move") -> None:
+    """Put a file where it is served: moved from incoming, or for a copy on
+    another channel, hard-linked (no more disk) or copied (to be changed)."""
     dest = root() / relpath
     dest.parent.mkdir(parents=True, exist_ok=True)
     # A file left by a job that failed half way: no row claims it (_clash).
     dest.unlink(missing_ok=True)
-    if link:
+    if how == "link":
         try:
             os.link(src, dest)
         except OSError:
             shutil.copy2(src, dest)
+    elif how == "copy":
+        shutil.copy2(src, dest)
     else:
         shutil.move(str(src), str(dest))
     pkg.path = relpath
@@ -381,16 +413,61 @@ def _remove_file(pkg: Package) -> None:
     if pkg.path:
         path = root() / pkg.path
         path.unlink(missing_ok=True)
-        if pkg.format == "file":
+        if pkg.format in DOWNLOADS:
+            path.with_name(path.name + ".zsync").unlink(missing_ok=True)
             try:
-                path.parent.rmdir()   # files/<channel>/<id>/
+                path.parent.rmdir()   # files/<channel>/<id>/, appimage/<channel>/<id>/
             except OSError:
                 pass
 
 
-def publish_upload(pkg: Package, src: Path, original: str, log: list) -> None:
+def zsync_path(pkg: Package) -> Path | None:
+    """An AppImage's zsync file, if it has one. One published while
+    AppImages were plain files has none."""
+    if pkg.format != "appimage" or not pkg.path:
+        return None
+    path = root() / (pkg.path + ".zsync")
+    return path if path.exists() else None
+
+
+def _base(given: str) -> str:
+    """The address an AppImage is told to update from: the pinned public
+    address, else the one the upload came in on (a job has no request)."""
+    from . import site
+    return (get_setting("public_url") or "").strip().rstrip("/") or given.rstrip("/") or site.base_url()
+
+
+def _point_here(pkg: Package, base: str, log: list) -> None:
+    """Write the update information into a placed AppImage, then its zsync
+    file, so that copies installed with Gear Lever, AppImageLauncher or
+    AppImageUpdate check this site for the next version on this channel."""
+    path = root() / pkg.path
+    try:
+        meta = appimage.read(path)
+        wanted = appimage.update_info(f"{_base(base)}/download/{download_name(pkg)}.zsync")
+        if meta.get("signed"):
+            log.append("The AppImage is signed, and the signature covers its update information, so that is left "
+                       f"as it is ({meta['update_info'] or 'none'}). To have it update from here, build it with "
+                       f"appimagetool -u '{wanted}' before signing.")
+        elif meta.get("update_info") == wanted:
+            log.append(f"It already looks for updates at {wanted[6:]}.")
+        else:
+            appimage.write_update_info(path, wanted)
+            log.append(f"Set its update information to {wanted}" +
+                       (f", replacing {meta['update_info']}." if meta.get("update_info") else "."))
+            if not (get_setting("public_url") or "").strip():
+                log.append("That is the address this upload came in on. Pin the public address under Signing and "
+                           "addresses if the site has another: installed copies keep the address they were given.")
+        appimage.make_zsync(path, log)
+    except Exception:
+        _remove_file(pkg)   # placed but never served; the job's rollback forgets where
+        raise
+
+
+def publish_upload(pkg: Package, src: Path, original: str, log: list, base: str = "") -> None:
     """Read, sign and place an uploaded file, then make it live (or not, if
-    a newer version is already there) and reindex its channel."""
+    a newer version is already there) and reindex its channel. ``base`` is
+    the address the upload came in on, for an AppImage's updates."""
     fmt = sniff(src, original)
     if fmt == "flatpak":
         raise RepoError("This is a Flatpak bundle. Upload it under Releases instead.")
@@ -402,6 +479,17 @@ def publish_upload(pkg: Package, src: Path, original: str, log: list) -> None:
         info = read_rpm(src)
     elif fmt == "deb":
         info = read_deb(src)
+    elif fmt == "appimage":
+        meta = appimage.read(src)
+        arch = pkg.arch or meta.get("arch") or guess_arch(original)
+        name = pkg.name or stable_name(original, arch)
+        if not NAME_RE.match(name or ""):
+            raise RepoError("Give the AppImage a name of letters, digits, dots, dashes and underscores, "
+                            "such as App-x86_64.AppImage.")
+        # Served under the name it was uploaded with, version and all; the
+        # download address uses the name without it.
+        info = {"name": name, "version": guess_version(original) or guess_version(name), "evr": "", "arch": arch,
+                "summary": "", "control": "", "filename": original if NAME_RE.match(original or "") else name}
     else:
         name = pkg.name or original
         if not NAME_RE.match(name or ""):
@@ -413,26 +501,29 @@ def publish_upload(pkg: Package, src: Path, original: str, log: list) -> None:
                 "arch": guess_arch(name) or guess_arch(original), "summary": "", "control": "", "filename": name}
     pkg.name, pkg.evr, pkg.summary, pkg.control = info["name"], info["evr"], info["summary"], info["control"]
     pkg.version = pkg.version or info["version"] or utcnow().strftime("%Y.%m.%d")
-    pkg.arch = pkg.arch if fmt == "file" and pkg.arch else info["arch"]
+    pkg.arch = pkg.arch if fmt in DOWNLOADS and pkg.arch else info["arch"]
     if not NAME_RE.match(info["filename"]):
         raise RepoError(f"{info['filename']} isn't a name Flatout can serve.")
     _clash(pkg)
     if fmt == "rpm":
         sign_rpm(src, log)
     _place(pkg, src, _target(pkg, info["filename"]))
+    log.append(f"Added {pkg.path} ({FORMAT_NAMES[fmt]}, {pkg.name} {pkg.evr or pkg.version}, "
+               f"{pkg.arch or 'any architecture'}).")
+    if fmt == "appimage":
+        _point_here(pkg, base, log)
     pkg.size, pkg.sha256 = _hash(root() / pkg.path)
     pkg.published_at = utcnow()
     pkg.status = "superseded"   # in the repository; settle says whether it is the newest
     pkg.error = ""
-    log.append(f"Added {pkg.path} ({FORMAT_NAMES[fmt]}, {pkg.name} {pkg.evr or pkg.version}, "
-               f"{pkg.arch or 'any architecture'}).")
     settle(pkg, log)
     index(pkg.format, pkg.channel, log)
 
 
-def publish_copy(pkg: Package, log: list) -> None:
+def publish_copy(pkg: Package, log: list, base: str = "") -> None:
     """Promotion: the source's file, in this row's channel. Hard-linked, so
-    a promoted package takes no more disk."""
+    a promoted package takes no more disk; an AppImage is copied, to be told
+    to update from this channel instead."""
     source = db.session.get(Package, pkg.origin_package_id)
     if source is None or source.status not in IN_REPO or not source.path or not (root() / source.path).exists():
         raise RepoError("The package to copy is no longer published.")
@@ -443,7 +534,11 @@ def publish_copy(pkg: Package, log: list) -> None:
         setattr(pkg, field, getattr(source, field))
     pkg.version = pkg.version or source.version
     _clash(pkg)
-    _place(pkg, root() / source.path, _target(pkg, Path(source.path).name), link=True)
+    _place(pkg, root() / source.path, _target(pkg, Path(source.path).name),
+           how="copy" if pkg.format == "appimage" else "link")
+    if pkg.format == "appimage":
+        _point_here(pkg, base, log)
+        pkg.size, pkg.sha256 = _hash(root() / pkg.path)
     pkg.published_at = utcnow()
     pkg.status = "superseded"
     log.append(f"Copied {source.path} to {pkg.path}.")
@@ -460,7 +555,11 @@ def withdraw(pkg: Package, log: list) -> None:
     log.append(f"Withdrew {pkg.path}.")
     head = settle(pkg, log)
     index(pkg.format, pkg.channel, log)
-    if was_live and pkg.format != "file":
+    if was_live and pkg.format == "appimage":
+        log.append(f"Installed copies that check for updates go back to {head.version}: AppImage updaters follow "
+                   "the file, not its version." if head else
+                   "Installed copies find no update address now, and stay as they are.")
+    elif was_live and pkg.format != "file":
         tool = "dnf" if pkg.format == "rpm" else "apt"
         log.append(f"Installed copies keep {pkg.version} until a newer version is published; {tool} doesn't "
                    "go back to an older one on its own." + (f" New installs get {head.version}." if head else ""))
@@ -471,7 +570,7 @@ def settle(pkg: Package, log: list) -> Package | None:
     next few stay for a downgrade, the rest are pruned. Returns the live one."""
     query = Package.query.filter(Package.format == pkg.format, Package.channel == pkg.channel,
                                  Package.name == pkg.name, Package.status.in_(IN_REPO))
-    if pkg.format != "file":
+    if pkg.format not in DOWNLOADS:
         query = query.filter(Package.arch == pkg.arch)
     rows = newest_first(query.all())
     kept = int_setting("packages_kept", KEPT)
@@ -594,7 +693,7 @@ def download_name(pkg: Package) -> str:
     """The address under /download/ that always gives the newest of a
     package, for a link that never needs changing."""
     beta = "-beta" if pkg.channel == "beta" else ""
-    if pkg.format == "file":
+    if pkg.format in DOWNLOADS:
         return f"beta/{pkg.name}" if beta else pkg.name
     return f"{pkg.name}{beta}-{pkg.arch}.{pkg.format}"
 
@@ -603,8 +702,9 @@ def find_download(name: str) -> Package | None:
     """The live package a /download/ address names, or None."""
     live = Package.query.filter(Package.status == "live")
     if name.startswith("beta/"):
-        return live.filter(Package.format == "file", Package.channel == "beta", Package.name == name[5:]).first()
-    found = live.filter(Package.format == "file", Package.channel == "stable", Package.name == name).first()
+        return live.filter(Package.format.in_(DOWNLOADS), Package.channel == "beta",
+                           Package.name == name[5:]).first()
+    found = live.filter(Package.format.in_(DOWNLOADS), Package.channel == "stable", Package.name == name).first()
     if found:
         return found
     stem, dot, fmt = name.rpartition(".")
@@ -646,11 +746,17 @@ def public_info(base: str, remote: str) -> dict:
     def rows(fmt, channel):
         return [r for r in live if r.format == fmt and r.channel == channel]
 
-    def files(channel):
-        return [{"name": r.name, "version": r.version, "arch": r.arch, "size": r.size,
-                 "url": f"{base}/download/{download_name(r)}",
-                 "published_at": (r.published_at or r.created_at).isoformat() + "Z"}
-                for r in sorted(rows("file", channel), key=lambda r: (_arch_key(r.arch), r.name))]
+    def files(channel, fmt="file"):
+        out = []
+        for r in sorted(rows(fmt, channel), key=lambda r: (_arch_key(r.arch), r.name)):
+            url = f"{base}/download/{download_name(r)}"
+            out.append({"name": r.name, "version": r.version, "arch": r.arch, "size": r.size, "url": url,
+                        "published_at": (r.published_at or r.created_at).isoformat() + "Z"})
+            if fmt == "appimage":
+                # What Gear Lever and AppImageUpdate read, for one that was
+                # published before Flatout wrote it in.
+                out[-1]["zsync_url"] = f"{url}.zsync" if zsync_path(r) else None
+        return out
 
     return {
         "rpm": {
@@ -665,5 +771,25 @@ def public_info(base: str, remote: str) -> dict:
             "sources_url": f"{base}/deb/{remote}.sources", "beta_sources_url": f"{base}/deb/{remote}-beta.sources",
             "key_url": f"{base}/deb/{remote}.gpg",
         },
+        "appimage": {"stable": files("stable", "appimage"), "beta": files("beta", "appimage")},
         "files": {"stable": files("stable"), "beta": files("beta")},
     }
+
+
+def adopt_appimages() -> int:
+    """AppImages published while they were plain files become AppImages, so
+    that the next upload of one supersedes it instead of standing beside it.
+    Told apart by their first bytes, so running this again changes nothing."""
+    count = 0
+    for pkg in Package.query.filter(Package.format == "file", Package.status.in_(IN_REPO)):
+        try:
+            meta = appimage.read(root() / (pkg.path or ""))
+        except OSError:
+            continue
+        if meta:
+            pkg.format = "appimage"
+            pkg.arch = pkg.arch or meta["arch"]
+            count += 1
+    if count:
+        db.session.commit()
+    return count

@@ -846,13 +846,14 @@ def _package_json(p, with_log: bool = False) -> dict:
     from . import packages
     from .models import Job
     job = Job.query.filter_by(package_id=p.id).order_by(Job.id.desc()).first()
+    url = f"{site.base_url()}/download/{packages.download_name(p)}" if p.status == "live" and p.format else None
     return {
         "id": p.id, "format": p.format or None, "channel": p.channel, "name": p.name or None,
         "version": p.version, "evr": p.evr or None, "arch": p.arch or None, "summary": p.summary,
         "notes": p.notes, "status": p.status, "origin": p.origin, "from_package": p.origin_package_id,
-        "file": {"size": p.size, "sha256": p.sha256,
-                 "url": f"{site.base_url()}/download/{packages.download_name(p)}"
-                 if p.status == "live" and p.format else None},
+        "file": {"size": p.size, "sha256": p.sha256, "url": url,
+                 # What an installed AppImage checks for updates.
+                 "zsync_url": f"{url}.zsync" if url and packages.zsync_path(p) else None},
         "error": p.error or None, "created_by": p.created_by,
         "created_at": p.created_at.isoformat() + "Z",
         "published_at": p.published_at.isoformat() + "Z" if p.published_at else None,
@@ -863,14 +864,14 @@ def _package_json(p, with_log: bool = False) -> dict:
 def _format_filter(value) -> str:
     from .packages import FORMATS
     if value not in FORMATS:
-        raise ApiError(400, "format is rpm, deb or file.")
+        raise ApiError(400, "format is rpm, deb, appimage or file.")
     return value
 
 
 @bp.route("/packages")
 @needs("read")
 def packages_list():
-    """Packages and files, newest first. Filter with ?format=rpm|deb|file,
+    """Packages and files, newest first. Filter with ?format=rpm|deb|appimage|file,
     ?channel= and ?status=."""
     from .models import Package
     query = Package.query
@@ -905,9 +906,11 @@ def _store_package(save) -> tuple[str, int]:
 def packages_create():
     """Upload a package or a file: multipart with "file", "channel" and
     optional "notes". An .rpm goes into the dnf repository and a .deb into
-    the apt repository, signed; anything else becomes a download, named by
-    "name" (default: the file's own name), with an optional "version" and
-    "arch". Or JSON with "upload" (an id from POST /uploads, with "filename")
+    the apt repository, signed. An AppImage is told to update from this site
+    and gets a zsync file; its "name" defaults to the file's name without the
+    version, so each upload takes over the address installed copies check.
+    Anything else becomes a download, named by "name" (default: the file's
+    own name). Both take an optional "version" and "arch". Or JSON with "upload" (an id from POST /uploads, with "filename")
     or "url", and the same fields. Answers 202 at once; a job publishes it."""
     from . import chunks, jobs, packages
     from .models import Package
@@ -935,7 +938,7 @@ def packages_create():
                   version=str(fields.get("version") or "").strip()[:120],
                   arch=str(fields.get("arch") or "").strip()[:20],
                   notes=str(fields.get("notes") or "")[:20000])
-    payload = {"filename": original}
+    payload = {"filename": original, "base": site.base_url()}
     if upload is not None:
         pkg.path, pkg.size = _store_package(upload.save)
     elif fields.get("upload"):
@@ -958,7 +961,7 @@ def packages_create():
             stored.unlink(missing_ok=True)
             raise ApiError(409 if "signing key" in problem else 400 if fmt == "flatpak" else 503, problem)
         pkg.format = fmt
-        if fmt == "file" and not (name or original):
+        if fmt in packages.DOWNLOADS and not (name or original):
             stored.unlink(missing_ok=True)
             raise ApiError(400, 'Say what the file is called: "filename" or "name".')
     db.session.add(pkg)
@@ -1021,9 +1024,12 @@ def packages_promote():
     heads = Package.query.filter_by(channel=source, status="live").all()
     if data.get("format"):
         heads = [h for h in heads if h.format == _format_filter(data["format"])]
-    there = {(p.format, p.name, p.arch, p.evr) for p in Package.query.filter(
-        Package.channel == dest, Package.status.in_(packages.IN_REPO), Package.format != "file")}
-    heads = [h for h in heads if (h.format, h.name, h.arch, h.evr) not in there]
+    in_dest = Package.query.filter(Package.channel == dest, Package.status.in_(packages.IN_REPO)).all()
+    there = {(p.format, p.name, p.arch, p.evr) for p in in_dest if p.format not in packages.DOWNLOADS}
+    # An AppImage is changed on the way (it updates from its new channel),
+    # so the one already promoted is known by where it came from.
+    copied = {p.origin_package_id for p in in_dest if p.format == "appimage"}
+    heads = [h for h in heads if (h.format, h.name, h.arch, h.evr) not in there and h.id not in copied]
     if not heads:
         raise ApiError(409, f"The {source} channel has nothing to promote that {dest} doesn't have.")
     for fmt in {h.format for h in heads}:
@@ -1041,7 +1047,7 @@ def packages_promote():
     db.session.commit()
     out = []
     for pkg in created:
-        job = jobs.enqueue("package-promote", None, {}, g.actor, package_id=pkg.id)
+        job = jobs.enqueue("package-promote", None, {"base": site.base_url()}, g.actor, package_id=pkg.id)
         out.append({"package": _package_json(pkg), "job": _job_json(job)})
     return jsonify(promoted=out), 202
 

@@ -8,10 +8,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # flatpak and ostree import, sign and serve the repository; gpg holds the
 # signing key. rpm (rpmsign) and createrepo-c make the dnf repository;
 # dpkg-deb, already in the base image, reads Debian packages for the apt one.
-# No recommended packages: the repository tools need none of the desktop
-# integration that would come with them.
+# zsync's zsyncmake makes the files AppImage updaters check. No recommended
+# packages: the repository tools need none of the desktop integration that
+# would come with them.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends flatpak ostree gnupg rpm createrepo-c \
+    && apt-get install -y --no-install-recommends flatpak ostree gnupg rpm createrepo-c zsync \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

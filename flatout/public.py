@@ -169,11 +169,11 @@ def not_found_page():
 
 
 # Addresses that aren't the website: the admin and the API, and everything
-# Flatpak clients fetch. A missing repository file must stay a plain 404,
-# never the site's page or a maintenance 503: clients probe for optional
-# files, and a 503 would fail their update.
+# Flatpak, dnf, apt and AppImage clients fetch. A missing repository file
+# must stay a plain 404, never the site's page or a maintenance 503: clients
+# probe for optional files, and a 503 would fail their update.
 NOT_THE_SITE = ("/admin", "/api/", "/mcp", "/setup", "/login", "/register", "/logout",
-                "/repo/", "/flatpak/", "/rpm/", "/deb/", "/download/", "/media/", "/static/")
+                "/repo/", "/flatpak/", "/rpm/", "/deb/", "/download/", "/appimage/", "/media/", "/static/")
 
 
 def is_public_path() -> bool:

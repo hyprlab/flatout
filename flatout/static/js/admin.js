@@ -470,7 +470,7 @@
   /* ————— Packages ————— */
   var packagesPage = document.getElementById("packages-page");
   if (packagesPage) {
-    var FORMAT = { rpm: "RPM", deb: "Debian", file: "File" };
+    var FORMAT = { rpm: "RPM", deb: "Debian", appimage: "AppImage", file: "File" };
     var PKG_STATUS = {
       queued: "Waiting", processing: "Publishing", live: "Live", superseded: "Earlier",
       withdrawn: "Withdrawn", pruned: "Pruned", failed: "Failed"
@@ -572,12 +572,18 @@
       var pairs = [];
       if (p.rpm.stable || p.rpm.beta) pairs.push(["dnf repository", p.rpm.stable ? p.rpm.repo_url : p.rpm.beta_repo_url], ["Its key", p.rpm.key_url]);
       if (p.deb.stable || p.deb.beta) pairs.push(["apt archive", p.deb.repo_url], ["Its key", p.deb.key_url]);
+      // What each AppImage carries as its update information.
+      [["stable", ""], ["beta", ", beta"]].forEach(function (c) {
+        p.appimage[c[0]].forEach(function (f) {
+          if (f.zsync_url) pairs.push(["Updates for " + f.name + c[1], f.zsync_url]);
+        });
+      });
       pairs.forEach(function (pair) {
         dl.appendChild(el("dt", { text: pair[0] }));
         dl.appendChild(el("dd", {}, [el("code", { text: pair[1] }), " ",
           el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Copy", onclick: function () { copy(pair[1]); } })]));
       });
-      document.getElementById("pkg-repos").hidden = !box.childNodes.length;
+      document.getElementById("pkg-repos").hidden = !box.childNodes.length && !pairs.length;
     };
 
     var pkgRow = function (r) {
@@ -586,6 +592,7 @@
         actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Withdraw", title: "Take it out and delete it", onclick: function () {
           var what = (r.name || "This file") + " " + r.version;
           var after = r.format === "file" ? " It stops being offered for download." :
+            r.format === "appimage" ? " The version before it is offered again, and installed copies go back to it when they next check for updates." :
             " New installs get the version before it; installed copies keep this one until a newer version is published.";
           if (!confirm("Withdraw " + what + " from " + r.channel + "?" + after + " The file is deleted.")) return;
           call("POST", "/api/v1/packages/" + r.id + "/withdraw", {}).then(function () {
@@ -625,7 +632,7 @@
         var facts = el("dl", { class: "addresses" });
         [["Type", FORMAT[r.format]], ["Status", PKG_STATUS[r.status] || r.status], ["Version", r.evr],
          ["Architecture", r.arch], ["Summary", r.summary], ["SHA-256", r.file.sha256],
-         ["Download", r.file.url], ["Published", when(r.published_at)]].forEach(function (p) {
+         ["Download", r.file.url], ["Updates from", r.file.zsync_url], ["Published", when(r.published_at)]].forEach(function (p) {
           if (!p[1]) return;
           facts.appendChild(el("dt", { text: p[0] }));
           facts.appendChild(el("dd", {}, [el("code", { text: p[1] })]));
@@ -660,6 +667,7 @@
         var cant = [];
         if (!p.tools.rpm) cant.push("RPMs (rpm, rpmsign and createrepo_c)");
         if (!p.tools.deb) cant.push("Debian packages (dpkg-deb)");
+        if (!p.tools.appimage) cant.push("AppImages (zsyncmake)");
         if (cant.length) {
           blocker.appendChild(el("p", { text: "This server can't publish " + cant.join(" or ") + ": the tools aren't installed where Flatout runs. Run Flatout from its Docker image. Other files work." }));
         } else if (!repoInfo.signing_key) {
@@ -670,7 +678,7 @@
         document.getElementById("pkg-kept").value = repoInfo.settings.packages_kept;
 
         pkgTiles.innerHTML = "";
-        var any = list.some(function (r) { return r.format === "rpm" || r.format === "deb"; });
+        var any = list.some(function (r) { return r.format === "rpm" || r.format === "deb" || r.format === "appimage"; });
         [["rpm", "RPM"], ["deb", "Debian"]].forEach(function (f) {
           var has = list.some(function (r) { return r.format === f[0]; });
           if (!has && any) return;   // show only the kinds in use, or both while there are none
@@ -679,6 +687,16 @@
             pkgTiles.appendChild(pkgTile(f[1] + (c === "beta" ? " · beta" : ""), p[f[0]][c],
               "Upload " + (f[0] === "rpm" ? "an .rpm" : "a .deb") + " to start the " + (f[0] === "rpm" ? "dnf" : "apt") + " repository."));
           });
+        });
+        ["stable", "beta"].forEach(function (c) {
+          var ai = p.appimage[c];
+          if (!ai.length) return;
+          var newest = ai.reduce(function (a, b) { return a.published_at > b.published_at ? a : b; });
+          pkgTiles.appendChild(pkgTile("AppImage" + (c === "beta" ? " · beta" : ""), {
+            version: newest.version, published_at: newest.published_at,
+            name: ai.length === 1 ? newest.name : ai.length + " AppImages",
+            arches: ai.map(function (f) { return f.arch || "any"; }).filter(function (a, i, all) { return all.indexOf(a) === i; })
+          }));
         });
         var betaLive = list.some(function (r) { return r.channel === "beta" && r.status === "live"; });
         if (betaLive) {
@@ -1093,11 +1111,11 @@
 
         var pk = s.packages;
         document.getElementById("pkg-view").hidden = !pk.repositories.length && !pk.downloads.length;
-        var REPO = { rpm: "dnf", deb: "apt" };
+        var REPO = { rpm: "dnf", deb: "apt", appimage: "AppImage updates" };
         table("pkg-repo-stats", ["Repository", "Installs checking today", "Busiest day, last 7 days"],
           pk.repositories.map(function (r) { return [REPO[r.format] + " · " + r.channel, fmt(r.today), fmt(r.peak_7_days)]; }),
           "No installs have checked the repositories in the last 7 days.");
-        var KIND = { rpm: "RPM", deb: "Debian", file: "File" };
+        var KIND = { rpm: "RPM", deb: "Debian", appimage: "AppImage", file: "File" };
         table("pkg-download-stats", ["Package", "Version", "Type", "Channel", "Architecture", "Installs", "Downloads", "Seen"],
           pk.downloads.map(function (d) {
             return [d.name, d.version, KIND[d.format] || d.format, d.channel, d.arch || "", fmt(d.installs), fmt(d.downloads),

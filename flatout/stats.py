@@ -250,9 +250,9 @@ def snapshot(days: int = 30) -> dict:
 
 
 def _packages(today: str, week_start: str) -> dict:
-    """The dnf and apt repositories: installs checking each one (distinct
-    requesters of its index per day, today and at the busiest this week),
-    and each package's downloads."""
+    """The dnf and apt repositories and the AppImages: installs checking
+    each (distinct requesters of its index or zsync file per day, today and
+    at the busiest this week), and each package's downloads."""
     repositories: dict[str, dict] = {}
     for row in StatDay.query.filter(StatDay.metric == "pkgcheck", StatDay.day >= week_start):
         fmt, _, channel = row.target.partition("-")
@@ -277,6 +277,6 @@ def _packages(today: str, week_start: str) -> dict:
             "published_at": (pkg.published_at or pkg.created_at).isoformat() + "Z",
         })
     downloads.sort(key=lambda d: (d["published_at"], d["installs"]), reverse=True)
-    order = {"rpm-stable": 0, "rpm-beta": 1, "deb-stable": 2, "deb-beta": 3}
+    order = {"rpm-stable": 0, "rpm-beta": 1, "deb-stable": 2, "deb-beta": 3, "appimage-stable": 4, "appimage-beta": 5}
     return {"repositories": sorted(repositories.values(), key=lambda r: order.get(f"{r['format']}-{r['channel']}", 9)),
             "downloads": downloads}

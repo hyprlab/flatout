@@ -20,16 +20,28 @@ And what dnf and apt fetch (packages.py):
     /deb/<remote>.gpg               the signing key, for a Signed-By of your own
     /download/<name>-<arch>.rpm, /download/<name>-<arch>.deb (-beta- for the beta)
     /download/<file>, /download/beta/<file>
-                                    the newest package, or another file
+                                    the newest package, AppImage or other file
+
+And what AppImage updaters fetch (appimage.py):
+
+    /download/<name>.AppImage.zsync, /download/beta/<name>.AppImage.zsync
+                                    the newest AppImage's zsync file, which
+                                    every AppImage uploaded names in its
+                                    update information
+    /appimage/<id>/<file>, /appimage/<id>/<file>.zsync
+                                    one version, which that zsync file names
 
 The install files are written on each request from the site's settings, so
 they always match the current key, address and app.
 """
+import secrets
 from pathlib import Path
 
-from flask import Blueprint, Response, abort, current_app, request, send_from_directory
+from flask import Blueprint, Response, abort, current_app, request, send_file, send_from_directory
+from werkzeug.http import parse_range_header
 
-from . import packages, releases, repo, site, stats
+from . import appimage, packages, releases, repo, site, stats
+from .models import db
 
 bp = Blueprint("serve", __name__)
 
@@ -162,12 +174,108 @@ def download_beta(name):
 
 def _package_download(name: str):
     pkg = packages.find_download(name)
+    if pkg is None and name.endswith(".zsync"):
+        return _latest_zsync(name[:-len(".zsync")])
     if pkg is None or not pkg.path:
         abort(404)
     stats.count("pkgpull", str(pkg.id), client_address())
-    resp = send_from_directory(packages.root(), pkg.path, as_attachment=True, download_name=Path(pkg.path).name)
+    resp = send_from_directory(packages.root(), pkg.path, as_attachment=True, download_name=Path(pkg.path).name,
+                               mimetype=_mimetype(pkg))
     resp.headers["Cache-Control"] = "no-cache"   # the next version takes this address over
     resp.headers.pop("Content-Encoding", None)
+    return resp
+
+
+def _mimetype(pkg) -> str | None:
+    return "application/vnd.appimage" if pkg.format == "appimage" else None
+
+
+def _latest_zsync(name: str) -> Response:
+    """The zsync file of the newest AppImage of a name and channel: what
+    every copy installed from here asks for when it checks for updates. Its
+    URL is made absolute, to the version it describes, so a client between
+    two releases gets the file its checksums are for."""
+    pkg = packages.find_download(name)
+    zsync = packages.zsync_path(pkg) if pkg is not None else None
+    if zsync is None:
+        abort(404)
+    stats.count("pkgcheck", f"appimage-{pkg.channel}", client_address())
+    url = f"{site.base_url()}/appimage/{pkg.id}/{Path(pkg.path).name}"
+    resp = Response(appimage.with_url(zsync.read_bytes(), url), mimetype="application/x-zsync")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@bp.route("/appimage/<int:package_id>/<filename>")
+def appimage_file(package_id, filename):
+    """One version of an AppImage, and its own zsync file. A version's file
+    never changes, so it may be cached for good."""
+    pkg = db.session.get(packages.Package, package_id)
+    if pkg is None or pkg.format != "appimage" or pkg.status not in packages.IN_REPO or not pkg.path:
+        abort(404)
+    served = Path(pkg.path).name
+    if filename == served:
+        # A delta update asks for the blocks that changed, in ranges; only
+        # a whole download, or one starting at the top, counts as one.
+        ranges = parse_range_header(request.headers.get("Range"))
+        if ranges is None or ranges.ranges[0][0] == 0:
+            stats.count("pkgpull", str(pkg.id), client_address())
+        resp = _byteranges(packages.root() / pkg.path, ranges, _mimetype(pkg)) or \
+            send_from_directory(packages.root(), pkg.path, as_attachment=True, mimetype=_mimetype(pkg))
+    elif filename == served + ".zsync" and packages.zsync_path(pkg):
+        resp = send_from_directory(packages.root(), pkg.path + ".zsync", mimetype="application/x-zsync")
+    else:
+        abort(404)
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    resp.headers.pop("Content-Encoding", None)
+    return resp
+
+
+MAX_RANGES = 256
+
+
+def _byteranges(path: Path, ranges, mimetype: str) -> Response | None:
+    """Several ranges of a file in one multipart/byteranges answer, which is
+    how zsync (AppImageUpdate, AppImageLauncher) fetches the blocks that
+    changed; Werkzeug serves one range at a time and refuses more. None for
+    a request Werkzeug handles. Werkzeug's parser only accepts ranges in
+    order and apart, so the answer is never much more than the file."""
+    if ranges is None or ranges.units != "bytes" or len(ranges.ranges) < 2:
+        return None
+    size = path.stat().st_size
+    spans = []
+    for start, stop in ranges.ranges:
+        if start < 0:
+            start, stop = max(size + start, 0), size
+        stop = size if stop is None else min(stop, size)
+        if start < stop:
+            spans.append((start, stop))
+    if not spans or len(spans) > MAX_RANGES:
+        # Nothing satisfiable, or a request built to be expensive: the
+        # whole file, which a client asking for ranges also accepts.
+        return send_file(path, mimetype=mimetype, conditional=False)
+    boundary = secrets.token_hex(16)
+    heads = [f"\r\n--{boundary}\r\nContent-Type: {mimetype}\r\nContent-Range: bytes {a}-{b - 1}/{size}\r\n\r\n"
+             .encode() for a, b in spans]
+    tail = f"\r\n--{boundary}--\r\n".encode()
+
+    def body():
+        with open(path, "rb") as f:
+            for head, (start, stop) in zip(heads, spans):
+                yield head
+                f.seek(start)
+                left = stop - start
+                while left > 0:
+                    chunk = f.read(min(left, 1 << 16))
+                    if not chunk:
+                        return
+                    left -= len(chunk)
+                    yield chunk
+            yield tail
+
+    resp = Response(body(), 206, mimetype=f"multipart/byteranges; boundary={boundary}")
+    resp.headers["Content-Length"] = str(sum(map(len, heads)) + sum(b - a for a, b in spans) + len(tail))
+    resp.headers["Accept-Ranges"] = "bytes"
     return resp
 
 
