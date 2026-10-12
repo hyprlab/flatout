@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.8.0] — 2026-10-12
+
 ### Added
 - Withdraw a version in every format with one click: its Flatpak builds,
   packages, AppImages and other files all come off the channel at once
