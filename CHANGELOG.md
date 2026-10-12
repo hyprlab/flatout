@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- The release history's filters no longer carry counts; how many releases are
+  shown, out of how many, is beside the History title
+
 ### Added
 - Filter the release history by channel, status (live, earlier, withdrawn,
   failed) and format, or find a version by typing it; each filter says how

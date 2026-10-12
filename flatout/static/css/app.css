@@ -1139,13 +1139,12 @@ input.switch:checked::after { transform: translateX(14px); }
 /* Filter bars: segmented filters in one row above what they filter. */
 .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 6px; }
 .seg--filter span { padding: 5px 11px; font-size: 12.5px; }
-.seg--filter .seg-count { display: inline; padding: 0; margin-left: 6px; font-size: 11.5px; font-weight: 650; color: var(--faint); font-variant-numeric: tabular-nums; }
-.seg--filter input:checked + span .seg-count { color: var(--muted); }
 .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
 .filter-search { margin-left: auto; width: 130px; padding: 6px 10px; font: inherit; font-size: 13px; color: var(--ink);
   background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .filter-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--wash); }
 .release-empty { padding: 14px 0; }
+.history-meta { display: flex; gap: 12px; font-variant-numeric: tabular-nums; }
 #stats-detail .filter-bar { margin: 0 0 10px; }
 .stats-checks { color: var(--ink); }
 .format-list { list-style: none; margin: 4px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; }

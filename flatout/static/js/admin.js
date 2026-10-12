@@ -664,9 +664,9 @@
       document.getElementById("pkg-repos").hidden = !box.childNodes.length && !pairs.length;
     };
 
-    // The history's filters: channel, status and format, each option counted
-    // with the other filters applied, and a version search. Options nothing
-    // has are left out; the address keeps the choice over a reload.
+    // The history's filters: channel, status and format, and a version
+    // search. Options nothing has are left out; the address keeps the choice
+    // over a reload. How many releases show is beside the title.
     var FILTERS = {
       channel: [["", "All"], ["stable", "Stable"], ["beta", "Beta"]],
       status: [["", "All"], ["publishing", "Publishing"], ["live", "Live"], ["earlier", "Earlier"],
@@ -679,6 +679,7 @@
     var filters = { channel: query.get("channel") || "", status: query.get("status") || "", format: query.get("format") || "",
                     q: query.get("q") || "" };
     var versions = [];
+    var HISTORY_LIMIT = 100;
     var matches = function (v, f) {
       if (f.channel && v.channel !== f.channel) return false;
       if (f.status && STATUS_GROUP[v.status] !== f.status) return false;
@@ -708,17 +709,13 @@
         seg.innerHTML = "";
         seg.hidden = options.length < 3 && !filters[name];   // "All" and one option filter nothing
         options.forEach(function (o) {
-          var probe = {};
-          Object.keys(filters).forEach(function (k) { probe[k] = filters[k]; });
-          probe[name] = o[0];
-          var n = versions.filter(function (v) { return matches(v, probe); }).length;
           seg.appendChild(el("label", {}, [
             el("input", { type: "radio", name: "filter-" + name, value: o[0], checked: filters[name] === o[0], onchange: function () {
               filters[name] = o[0];
               keepFilters();
               drawHistory();
             } }),
-            el("span", {}, [o[1], el("span", { class: "seg-count", text: fmt(n) })])
+            el("span", { text: o[1] })
           ]));
         });
       });
@@ -727,8 +724,16 @@
     var drawHistory = function () {
       drawFilters();
       rows.innerHTML = "";
+      var count = document.getElementById("history-count");
+      count.textContent = "";
       if (!versions.length) { rows.appendChild(el("li", { class: "hint", text: "Nothing uploaded yet." })); return; }
       var shown = versions.filter(function (v) { return matches(v, filters); });
+      // The page loads the newest HISTORY_LIMIT; at the limit there may be more.
+      var all = versions.length >= HISTORY_LIMIT ? "the newest " + fmt(versions.length) : fmt(versions.length);
+      var filtered = filters.channel || filters.status || filters.format || filters.q;
+      count.textContent = filtered ? fmt(shown.length) + " of " + all + " releases"
+        : versions.length >= HISTORY_LIMIT ? "The newest " + fmt(versions.length) + " releases"
+        : fmt(versions.length) + (versions.length === 1 ? " release" : " releases");
       shown.forEach(function (v) { rows.appendChild(versionRow(v)); });
       if (!shown.length) {
         rows.appendChild(el("li", { class: "hint release-empty" }, ["No releases match these filters. ",
@@ -762,7 +767,7 @@
 
     var refresh = function () {
       clearTimeout(pollTimer);
-      Promise.all([call("GET", "/api/v1/repo"), call("GET", "/api/v1/versions?limit=100")]).then(function (res) {
+      Promise.all([call("GET", "/api/v1/repo"), call("GET", "/api/v1/versions?limit=" + HISTORY_LIMIT)]).then(function (res) {
         var repoInfo = res[0], list = res[1].versions, p = repoInfo.packages;
         drawBlocker(repoInfo);
         showMismatch(repoInfo);
