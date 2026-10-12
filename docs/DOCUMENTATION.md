@@ -132,8 +132,8 @@ format belongs. The page's history lists each version on each channel once,
 with every file uploaded for it; **Files** opens the list, with each file's
 details, job log and actions. The bar above the history filters it by
 channel, by status (live, earlier, withdrawn, failed, or publishing while a
-job runs) and by format, each option counting what it would show, and finds
-a version by what you type. The page's address keeps the filters, so a
+job runs) and by format, and finds a version by what you type; beside the
+title, how many releases it shows. The page's address keeps the filters, so a
 filtered view can be bookmarked.
 
 **Withdraw** on a version takes it off its channel in every format at once,

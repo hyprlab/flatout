@@ -42,6 +42,10 @@ def enqueue(kind: str, release_id: int | None = None, payload: dict | None = Non
             secret: str | None = None, package_id: int | None = None) -> Job:
     """Queue a job. ``secret`` (a backup's passphrase) is never stored: it
     waits in memory for its job, and a restart loses it with the job."""
+    if not (db.session.new or db.session.dirty or db.session.deleted):
+        # A request that has only read so far: end that read, or the insert
+        # below can't follow a write the job thread made meanwhile.
+        db.session.commit()
     job = Job(kind=kind, release_id=release_id, package_id=package_id, payload=json.dumps(payload or {}),
               created_by=who)
     db.session.add(job)

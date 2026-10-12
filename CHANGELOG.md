@@ -10,8 +10,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ### Added
 - Filter the release history by channel, status (live, earlier, withdrawn,
-  failed) and format, or find a version by typing it; each filter says how
-  many releases it would show
+  failed) and format, or find a version by typing it; beside the History
+  title, how many releases show out of how many
 - Installs by format, on the Installs page: how many installs use the
   Flatpak, the dnf and apt repositories and the AppImages, as shares of all
   of them, with today's update checks
@@ -21,6 +21,10 @@ All notable changes to Flatout are documented here. The format follows
 ### Changed
 - The Installs page's Releases and Packages views are one Releases view, and
   the estimated installs count every format
+
+### Fixed
+- Uploading several files in a row no longer fails for some of them with a
+  server error while the one before is still being published
 
 ## [1.8.0] — 2026-10-12
 
