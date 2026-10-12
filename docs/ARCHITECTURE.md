@@ -90,7 +90,9 @@ it into the served one under its channel's ref, and `flatpak build-update-repo`
 signs the summary, writes static deltas and prunes. Promotion and rollback are
 `build-commit-from` again from a different source. Every commit is stamped
 with the current time, because Flatpak refuses an update older than what is
-installed, which a rollback would otherwise be.
+installed, which a rollback would otherwise be. Withdrawing a live build is a
+rollback to the build before it; with none, the ref is deleted and the next
+summary prunes its commits.
 
 **Packages are what dnf and apt say they are.** An RPM or a Debian package
 carries its own name, version and architecture, and the package manager

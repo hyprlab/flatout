@@ -188,3 +188,64 @@ def test_the_beta_is_the_same_app_by_default(client, csrf, live_release, monkeyp
     repo_info = settings(client, csrf, app_id="org.example.App").get_json()
     assert repo_info["beta_app_id"] == "org.example.App" and repo_info["beta"]["version"] == "1.1.0-beta.1"
     assert "Name=org.example.App\n" in client.get("/flatpak/org.example.App-beta.flatpakref").data.decode()
+
+
+def test_a_version_is_every_format_at_once(app, client, csrf, admin):
+    from flatout.models import Package
+    with app.app_context():
+        for arch, commit in (("x86_64", "a"), ("aarch64", "b")):
+            db.session.add(Release(app_id="org.example.App", arch=arch, channel="beta", version="1.4.0-beta.1",
+                                   status="live", commit=commit * 64, published_at=utcnow()))
+        # RPM spells a pre-release with a tilde; it is the same version.
+        db.session.add(Package(format="rpm", channel="beta", name="app", version="1.4.0~beta.1",
+                               evr="1.4.0~beta.1-1", arch="x86_64", status="live", published_at=utcnow()))
+        db.session.add(Release(app_id="org.example.App", arch="x86_64", channel="stable", version="1.3.0",
+                               status="live", commit="c" * 64, published_at=utcnow()))
+        db.session.commit()
+
+    versions = client.get("/api/v1/versions").get_json()["versions"]
+    assert [(v["channel"], v["version"]) for v in versions] == [("stable", "1.3.0"), ("beta", "1.4.0-beta.1")]
+    beta = versions[1]
+    assert (len(beta["releases"]), len(beta["packages"])) == (2, 1)
+    assert beta["status"] == "live" and beta["withdrawable"]
+    only = client.get("/api/v1/versions?channel=beta").get_json()["versions"]
+    assert [v["version"] for v in only] == ["1.4.0-beta.1"]
+
+
+def test_withdrawing_a_version_takes_every_file_of_it(app, client, csrf, admin):
+    import io
+    from flatout import jobs
+    from flatout.models import Package
+    with app.app_context():
+        db.session.add(Release(app_id="org.example.App", arch="x86_64", channel="beta", version="2.0.0",
+                               status="superseded", commit="d" * 64, published_at=utcnow()))
+        db.session.add(Release(app_id="org.example.App", arch="x86_64", channel="stable", version="2.0.0",
+                               status="superseded", commit="e" * 64, published_at=utcnow()))
+        db.session.commit()
+    resp = client.post("/api/v1/packages", data={"file": (io.BytesIO(b"tarball"), "app-2.0.0.tar.gz"),
+                                                  "channel": "beta"},
+                       headers=h(csrf), content_type="multipart/form-data")
+    assert resp.status_code == 202
+    jobs.run_all_queued(app)
+    assert client.get("/download/beta/app-2.0.0.tar.gz").status_code == 200
+
+    resp = client.post("/api/v1/versions/withdraw", json={"channel": "beta", "version": "2.0.0"}, headers=h(csrf))
+    assert resp.status_code == 202, resp.get_json()
+    assert len(resp.get_json()["withdrawn"]) == 2
+    jobs.run_all_queued(app)
+    with app.app_context():
+        assert {r.channel: r.status for r in Release.query} == {"beta": "withdrawn", "stable": "superseded"}
+        assert Package.query.one().status == "withdrawn"
+    assert client.get("/download/beta/app-2.0.0.tar.gz").status_code == 404
+    versions = client.get("/api/v1/versions?channel=beta").get_json()["versions"]
+    assert versions[0]["status"] == "withdrawn" and not versions[0]["withdrawable"]
+    again = client.post("/api/v1/versions/withdraw", json={"channel": "beta", "version": "2.0.0"}, headers=h(csrf))
+    assert again.status_code == 409
+
+
+def test_packages_live_on_the_releases_page(client, admin):
+    resp = client.get("/admin/packages")
+    assert resp.status_code == 301 and resp.headers["Location"].endswith("/admin/releases")
+    page = client.get("/admin/releases").data.decode()
+    assert "Upload a release" in page and "Versions kept" in page
+    assert 'href="/admin/packages"' not in page

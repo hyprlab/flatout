@@ -125,6 +125,21 @@ updating during maintenance. Scripts and agents switch it with
 
 ## Releases
 
+Releases holds every format Flatout publishes: Flatpak bundles here, and RPM
+and Debian packages, AppImages and other files ([Packages](#packages)). Drop
+all the files of a version at once, on one channel; each goes where its
+format belongs. The page's history lists each version on each channel once,
+with every file uploaded for it; **Files** opens the list, with each file's
+details, job log and actions.
+
+**Withdraw** on a version takes it off its channel in every format at once,
+and deletes its files: withdrawing a beta that went wrong is one click (and a
+confirmation). Each file can also be withdrawn on its own from the version's
+files. What happens to installed copies depends on the format: a Flatpak or
+an AppImage goes back to the version before it, and a package stays where it
+is (see each section below). A withdrawn version can't be brought back;
+upload it again instead.
+
 Flatout keeps a signed Flatpak repository at `/repo/` and the files that
 install from it:
 
@@ -159,6 +174,12 @@ under the release's Details.
   as a new commit, since Flatpak won't update to an older one.
 - **End the beta** tells installed betas, with your message, that no more
   updates are coming.
+- **Withdraw** takes a build out. A live build gives its place to the build
+  before it on its channel, as a new commit, so installed copies go back to
+  that one the next time they update. With no build before it, as with a
+  first beta, the channel's branch for that architecture is removed: new
+  installs can't get it, and installed copies keep it without updates until a
+  new build is uploaded.
 
 An app built for more than one architecture, say x86_64 and aarch64, is one
 upload per architecture. Each is its own branch in the repository, and each
@@ -215,8 +236,8 @@ get every later version through their system's own updates: `dnf upgrade`,
 `apt upgrade`, GNOME Software or KDE Discover. An AppImage gets them through
 Gear Lever, AppImageLauncher or AppImageUpdate.
 
-Upload under Packages, or from CI (below). What a file is comes from its
-first bytes:
+Upload under Releases, beside the bundles, or from CI (below). What a file
+is comes from its first bytes:
 
 - **An RPM** is read with `rpm`, signed with the repository's key
   (`rpmsign`, replacing any signature it came with) and indexed with
@@ -270,7 +291,7 @@ and apt use (`1.10` after `1.9`, `1.0~rc1` before `1.0`, epochs first), not
 the newest upload, because that is what they install. An older version
 uploaded later stays behind it, available to anyone who asks for it by
 version. Each channel keeps the three newest versions of every package and
-architecture, for a downgrade (Packages > Versions kept); older ones are
+architecture, for a downgrade (Releases > Versions kept); older ones are
 deleted. A version already in the channel is refused: build it again with a
 new version or release number.
 
@@ -399,6 +420,20 @@ curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
 
 `GET /api/v1/packages/<id>` shows when it is live and its job's log.
 
+`GET /api/v1/versions` lists releases the way the admin does: each version on
+each channel, newest first, with every Flatpak build, package and file of it.
+Versions are matched the way people read them, so `1.4.0~beta.1` from an RPM
+and `1.4.0-beta.1` from a bundle are one. To withdraw one in every format:
+
+```sh
+curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" -H "Content-Type: application/json" \
+  -d '{"channel": "beta", "version": "1.4.0-beta.1"}' \
+  https://app.example.org/api/v1/versions/withdraw
+```
+
+`POST /api/v1/releases/<id>/withdraw` and `POST /api/v1/packages/<id>/withdraw`
+withdraw one build or file.
+
 The whole API is described in OpenAPI at `/api/v1/openapi.json`, and listed
 in the admin under API and agents > Reference. Errors are
 `{"error": "a sentence"}`; a site change that doesn't validate also lists
@@ -410,7 +445,7 @@ AI agents that speak the Model Context Protocol can connect to `/mcp` with a
 token in the `Authorization` header. The server's tools cover the same ground
 as the API: reading and changing the site, sections one at a time, media,
 previewing the draft as text, publishing, releases, promotion, rollback,
-packages, and install numbers. With Claude Code:
+withdrawing, packages, and install numbers. With Claude Code:
 
 ```sh
 claude mcp add --transport http flatout https://app.example.org/mcp \

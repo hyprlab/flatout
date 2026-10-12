@@ -6,6 +6,17 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- Withdraw a version in every format with one click: its Flatpak builds,
+  packages, AppImages and other files all come off the channel at once
+- Flatpak builds can be withdrawn too: installed copies go back to the build
+  before it the next time they update
+
+### Changed
+- Releases and Packages are one Releases page: upload a version's bundles,
+  packages and files together, and see each version once in the history with
+  all its files
+
 ## [1.7.0] — 2026-10-11
 
 ### Added

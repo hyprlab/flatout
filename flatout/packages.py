@@ -470,7 +470,7 @@ def publish_upload(pkg: Package, src: Path, original: str, log: list, base: str 
     the address the upload came in on, for an AppImage's updates."""
     fmt = sniff(src, original)
     if fmt == "flatpak":
-        raise RepoError("This is a Flatpak bundle. Upload it under Releases instead.")
+        raise RepoError("This is a Flatpak bundle. Upload it as a release instead (POST /releases).")
     problem = not_ready(fmt)
     if problem:
         raise RepoError(problem)

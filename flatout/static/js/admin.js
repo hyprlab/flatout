@@ -66,7 +66,7 @@
   }
   var STATUS = {
     queued: "Waiting", processing: "Publishing", live: "Live", superseded: "Earlier",
-    failed: "Failed", ended: "Ended"
+    failed: "Failed", ended: "Ended", withdrawn: "Withdrawn", pruned: "Pruned"
   };
 
   // Live builds of another app than the site's: the site, its install files
@@ -140,7 +140,7 @@
     });
   }
 
-  /* ————— Uploads, for Releases and Packages ————— */
+  /* ————— Uploads ————— */
 
   // A dropzone and the files waiting under it. They upload one after
   // another, and each becomes its own release or package, as if uploaded
@@ -287,19 +287,29 @@
   }
 
   /* ————— Releases ————— */
+
+  // One page for every format. A release is a version on a channel: every
+  // Flatpak build, package and file uploaded for it, withdrawn together or
+  // one by one. The API's /versions groups them; bundles still go to
+  // /releases and everything else to /packages.
   var releasesPage = document.getElementById("releases-page");
   if (releasesPage) {
+    var FORMAT = { flatpak: "Flatpak", rpm: "RPM", deb: "Debian", appimage: "AppImage", file: "File" };
     var rows = document.getElementById("release-rows");
     var tiles = document.getElementById("channel-tiles");
     var pollTimer = null;
+    var isBundle = function (name) { return /\.flatpak$/i.test(name); };
+    // Versions as people read them: 1.4.0~beta.1 and 1.4.0-beta.1 are one
+    // (releases.version_key on the server).
+    var sameVersion = function (a, b) {
+      var key = function (v) { return (String(v || "").toLowerCase().match(/\d+|[a-z]+/g) || []).map(function (t) { return /^\d/.test(t) ? String(+t) : t; }).join("."); };
+      return key(a) === key(b);
+    };
     var queue = fileQueue({
-      input: document.getElementById("bundle-file"), drop: document.getElementById("bundle-drop"),
-      list: document.getElementById("bundle-list"), label: document.getElementById("bundle-name"),
-      empty: "Choose .flatpak bundles", unit: "bundle", error: "upload-error",
-      refuse: function (file) {
-        if (/\.(rpm|deb)$/i.test(file.name)) return "packages go under Packages";
-        return /\.flatpak$/i.test(file.name) ? "" : "not a .flatpak bundle";
-      }
+      input: document.getElementById("upload-file"), drop: document.getElementById("upload-drop"),
+      list: document.getElementById("upload-list"), label: document.getElementById("upload-name"),
+      empty: "Choose files", unit: "file", error: "upload-error",
+      refuse: function () { return ""; }
     });
 
     document.getElementById("upload-form").addEventListener("submit", function (e) {
@@ -310,211 +320,36 @@
       var fields = {
         channel: document.querySelector('input[name="channel"]:checked').value,
         version: document.getElementById("upload-version").value.trim(),
-        notes: document.getElementById("upload-notes").value
+        notes: document.getElementById("upload-notes").value,
+        name: document.getElementById("upload-filename").value.trim()
       };
       var url = document.getElementById("upload-url").value.trim();
       var clearFields = function () {
-        ["upload-version", "upload-notes", "upload-url"].forEach(function (id) { document.getElementById(id).value = ""; });
+        ["upload-version", "upload-notes", "upload-filename", "upload-url"].forEach(function (id) { document.getElementById(id).value = ""; });
       };
-      if (!queue.items.length && !url) { showError("upload-error", new Error("Choose a bundle, or give the address to fetch one from.")); return; }
-      if (queue.items.length && url) { showError("upload-error", new Error("Upload the chosen bundles or fetch one from the address, not both at once.")); return; }
+      var named = queue.items.filter(function (i) { return !isBundle(i.file.name); }).length;
+      if (!queue.items.length && !url) { showError("upload-error", new Error("Choose files, or give the address to fetch one from.")); return; }
+      if (queue.items.length && url) { showError("upload-error", new Error("Upload the chosen files or fetch one from the address, not both at once.")); return; }
+      if (fields.name && named > 1) { showError("upload-error", new Error("A download name is for one file at a time.")); return; }
+      // What a file is decides where it goes: a bundle is a Flatpak build,
+      // anything else a package or a download.
+      var create = function (file, extra) {
+        var body = { channel: fields.channel, version: fields.version, notes: fields.notes };
+        Object.keys(extra).forEach(function (k) { body[k] = extra[k]; });
+        if (isBundle(file)) return call("POST", "/api/v1/releases", body);
+        body.name = fields.name;
+        return call("POST", "/api/v1/packages", body);
+      };
       F.setBusy(btn, true);
       if (!queue.items.length) {
-        fields.url = url;
-        call("POST", "/api/v1/releases", fields)
+        create(url.split(/[?#]/)[0], { url: url })
           .then(function () { clearFields(); F.toast("Fetching it. It's published once it's in."); refresh(); })
           .catch(function (err) { showError("upload-error", err); })
           .finally(function () { F.setBusy(btn, false); });
         return;
       }
       sendQueue(queue, document.getElementById("upload-progress"), function (item, uploadId) {
-        return call("POST", "/api/v1/releases", { upload: uploadId, channel: fields.channel, version: fields.version, notes: fields.notes });
-      }).then(function (r) {
-        F.setBusy(btn, false);
-        if (r.sent) refresh();
-        if (!r.failed) {
-          clearFields();
-          F.toast(r.sent === 1 ? "Uploaded. Publishing it now." : "Uploaded " + r.sent + " bundles. Publishing them now.");
-        } else {
-          showError("upload-error", new Error((r.failed === 1 ? "One bundle" : r.failed + " bundles") + " didn't upload" +
-            (r.sent ? " (" + r.sent + " did)" : "") + ". The list says why; upload again to retry them."));
-        }
-      });
-    });
-
-    var tile = function (label, info, actions) {
-      var behind = info && info.behind && info.behind.length ? info.behind : [];
-      return el("section", { class: "panel tile" }, [
-        el("p", { class: "tile-label", text: label }),
-        el("p", { class: "tile-big", text: info ? info.version : "None" }),
-        el("p", { class: "hint", text: info ? info.arches.join(", ") + " · " + when(info.published_at) : (label === "Beta" ? "Upload to the beta channel to start one." : "Upload a bundle to publish the first version.") }),
-        behind.length ? el("p", { class: "hint tile-warn", text: behind.map(function (a) { return a + " is still on " + info.builds[a].version; }).join("; ") + ". Upload its " + info.version + " build to match." }) : null,
-        actions && actions.length ? el("div", { class: "tile-actions" }, actions) : null
-      ]);
-    };
-
-    var releaseRow = function (r) {
-      var actions = [];
-      if (r.status === "superseded" && r.commit) {
-        actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Bring back", title: "Make this build the live one again", onclick: function () {
-          call("POST", "/api/v1/releases/" + r.id + "/rollback", {}).then(function () {
-            F.toast("Rolling " + r.channel + " back to " + r.version);
-            refresh();
-          }).catch(F.toastError);
-        } }));
-      }
-      actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Details", onclick: function () { openRelease(r.id); } }));
-      var what = r.origin === "promote" ? "promoted" : r.origin === "rollback" ? "brought back" : "uploaded";
-      return el("li", { class: "release-row is-" + r.status }, [
-        el("div", { class: "release-main" }, [
-          el("span", { class: "release-version", text: r.version || "Reading the bundle…" }),
-          el("span", { class: "chip chip--muted", text: r.channel }),
-          r.arch ? el("span", { class: "chip chip--muted", text: r.arch }) : null,
-          el("span", { class: "status status--" + r.status, text: STATUS[r.status] || r.status })
-        ]),
-        el("div", { class: "release-sub" }, [
-          (r.created_by ? what.charAt(0).toUpperCase() + what.slice(1) + " by " + r.created_by + " · " : "") + when(r.published_at || r.created_at) +
-          (r.bundle.size ? " · " + size(r.bundle.size) : "")
-        ]),
-        r.error ? el("p", { class: "form-error", text: r.error }) : null,
-        el("div", { class: "release-actions" }, actions)
-      ]);
-    };
-
-    var openRelease = function (id) {
-      var body = document.getElementById("release-modal-body");
-      body.innerHTML = "";
-      body.appendChild(el("p", { class: "hint", text: "Loading…" }));
-      document.getElementById("release-modal").showModal();
-      call("GET", "/api/v1/releases/" + id).then(function (data) {
-        var r = data.release;
-        document.getElementById("release-modal-title").textContent = (r.version || "Release") + " · " + r.channel + (r.arch ? " · " + r.arch : "");
-        body.innerHTML = "";
-        var facts = el("dl", { class: "addresses" });
-        [["App", r.app_id], ["Status", STATUS[r.status] || r.status], ["Commit", r.commit], ["Runtime", r.runtime],
-         ["Bundle SHA-256", r.bundle.sha256], ["Published", when(r.published_at)]].forEach(function (p) {
-          if (!p[1]) return;
-          facts.appendChild(el("dt", { text: p[0] }));
-          facts.appendChild(el("dd", {}, [el("code", { text: p[1] })]));
-        });
-        body.appendChild(facts);
-        var notes = el("textarea", { rows: 6, class: "field-input" });
-        notes.value = r.notes || "";
-        var version = el("input", { value: r.version || "", maxlength: 60 });
-        body.appendChild(el("label", { class: "field" }, [el("span", { class: "field-label", text: "Version shown on the site" }), version]));
-        body.appendChild(el("label", { class: "field" }, [el("span", { class: "field-label", text: "Release notes (Markdown)" }), notes]));
-        body.appendChild(el("div", {}, [el("button", { type: "button", class: "btn btn--primary", text: "Save", onclick: function () {
-          call("PATCH", "/api/v1/releases/" + r.id, { notes: notes.value, version: version.value }).then(function () {
-            F.toast("Saved");
-            refresh();
-          }).catch(F.toastError);
-        } })]));
-        if (r.job && r.job.log) {
-          body.appendChild(el("details", { class: "term-like" }, [
-            el("summary", { text: "What the job did" }),
-            el("pre", { class: "joblog", text: r.job.log })
-          ]));
-        }
-      }).catch(function (err) { body.innerHTML = ""; body.appendChild(el("p", { class: "form-error", text: err.message })); });
-    };
-
-    var refresh = function () {
-      clearTimeout(pollTimer);
-      Promise.all([call("GET", "/api/v1/repo"), call("GET", "/api/v1/releases?limit=100")]).then(function (res) {
-        var repoInfo = res[0], list = res[1].releases;
-        var blocker = document.getElementById("releases-blocker");
-        var missing = Object.keys(repoInfo.tools).filter(function (k) { return !repoInfo.tools[k]; });
-        blocker.innerHTML = "";
-        if (missing.length) {
-          blocker.appendChild(el("p", { text: missing.join(", ") + " isn't installed where Flatout runs, so releases can't be published. Run Flatout from its Docker image." }));
-        } else if (!repoInfo.signing_key) {
-          blocker.appendChild(el("p", {}, ["The repository needs a signing key before the first release. ",
-            el("a", { class: "link", href: "/admin/repository", text: "Create one under Signing and addresses." })]));
-        }
-        blocker.hidden = !blocker.childNodes.length;
-        showMismatch(repoInfo);
-
-        tiles.innerHTML = "";
-        var betaActions = [];
-        if (repoInfo.beta) {
-          betaActions.push(el("button", { type: "button", class: "btn btn--primary btn--xs", text: "Promote to stable", onclick: function () {
-            call("POST", "/api/v1/releases/promote", { from: "beta", to: "stable" }).then(function () {
-              F.toast("Promoting " + repoInfo.beta.version + " to stable");
-              refresh();
-            }).catch(F.toastError);
-          } }));
-          betaActions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "End the beta", onclick: function () {
-            var msg = prompt("Installed betas will be told no more updates are coming. The message they see:",
-                             "This beta has ended. Install the stable version instead.");
-            if (msg === null) return;
-            call("POST", "/api/v1/channels/beta/end", { message: msg }).then(function () {
-              F.toast("Ending the beta");
-              refresh();
-            }).catch(F.toastError);
-          } }));
-        }
-        tiles.appendChild(tile("Stable", repoInfo.stable));
-        tiles.appendChild(tile("Beta", repoInfo.beta, betaActions));
-
-        rows.innerHTML = "";
-        if (!list.length) rows.appendChild(el("li", { class: "hint", text: "Nothing uploaded yet." }));
-        list.forEach(function (r) { rows.appendChild(releaseRow(r)); });
-        var busy = list.some(function (r) { return r.status === "queued" || r.status === "processing"; });
-        document.getElementById("jobs-state").textContent = busy ? "Publishing…" : "";
-        if (busy) pollTimer = setTimeout(refresh, 2000);
-      }).catch(F.toastError);
-    };
-    refresh();
-  }
-
-  /* ————— Packages ————— */
-  var packagesPage = document.getElementById("packages-page");
-  if (packagesPage) {
-    var FORMAT = { rpm: "RPM", deb: "Debian", appimage: "AppImage", file: "File" };
-    var PKG_STATUS = {
-      queued: "Waiting", processing: "Publishing", live: "Live", superseded: "Earlier",
-      withdrawn: "Withdrawn", pruned: "Pruned", failed: "Failed"
-    };
-    var pkgTimer = null;
-    var pkgQueue = fileQueue({
-      input: document.getElementById("pkg-file"), drop: document.getElementById("pkg-drop"),
-      list: document.getElementById("pkg-list"), label: document.getElementById("pkg-name"),
-      empty: "Choose packages or files", unit: "file", error: "pkg-error",
-      refuse: function (file) { return /\.flatpak$/i.test(file.name) ? "Flatpak bundles go under Releases" : ""; }
-    });
-
-    document.getElementById("pkg-form").addEventListener("submit", function (e) {
-      e.preventDefault();
-      if (pkgQueue.busy) return;
-      showError("pkg-error", null);
-      var btn = document.getElementById("pkg-btn");
-      var fields = {
-        channel: document.querySelector('input[name="pkg-channel"]:checked').value,
-        notes: document.getElementById("pkg-notes").value,
-        version: document.getElementById("pkg-version").value.trim(),
-        name: document.getElementById("pkg-filename").value.trim()
-      };
-      var url = document.getElementById("pkg-url").value.trim();
-      var clearFields = function () {
-        ["pkg-notes", "pkg-version", "pkg-filename", "pkg-url"].forEach(function (id) { document.getElementById(id).value = ""; });
-      };
-      if (!pkgQueue.items.length && !url) { showError("pkg-error", new Error("Choose a package or a file, or give the address to fetch one from.")); return; }
-      if (pkgQueue.items.length && url) { showError("pkg-error", new Error("Upload the chosen files or fetch one from the address, not both at once.")); return; }
-      if (fields.name && pkgQueue.items.length > 1) { showError("pkg-error", new Error("A download name is for one file at a time.")); return; }
-      F.setBusy(btn, true);
-      if (!pkgQueue.items.length) {
-        fields.url = url;
-        call("POST", "/api/v1/packages", fields)
-          .then(function () { clearFields(); F.toast("Fetching it. It's published once it's in."); refresh(); })
-          .catch(function (err) { showError("pkg-error", err); })
-          .finally(function () { F.setBusy(btn, false); });
-        return;
-      }
-      sendQueue(pkgQueue, document.getElementById("pkg-progress"), function (item, uploadId) {
-        return call("POST", "/api/v1/packages", {
-          upload: uploadId, filename: item.file.name, channel: fields.channel, notes: fields.notes,
-          version: fields.version, name: fields.name
-        });
+        return create(item.file.name, isBundle(item.file.name) ? { upload: uploadId } : { upload: uploadId, filename: item.file.name });
       }).then(function (r) {
         F.setBusy(btn, false);
         if (r.sent) refresh();
@@ -522,18 +357,261 @@
           clearFields();
           F.toast(r.sent === 1 ? "Uploaded. Publishing it now." : "Uploaded " + r.sent + " files. Publishing them now.");
         } else {
-          showError("pkg-error", new Error((r.failed === 1 ? "One file" : r.failed + " files") + " didn't upload" +
+          showError("upload-error", new Error((r.failed === 1 ? "One file" : r.failed + " files") + " didn't upload" +
             (r.sent ? " (" + r.sent + " did)" : "") + ". The list says why; upload again to retry them."));
         }
       });
     });
 
-    var pkgTile = function (label, info, note) {
+    // A Flatpak build or a package, in one shape: fmt, what to call it,
+    // its architecture, and where its API lives.
+    var asItem = function (r, kind) {
+      var fmt = kind === "release" ? "flatpak" : r.format;
+      var name = kind === "release" ? "Flatpak" :
+        r.format === "rpm" || r.format === "deb" ? (r.name ? r.name + " (" + FORMAT[r.format] + ")" : FORMAT[r.format]) :
+        r.name || FORMAT[r.format] || "File";
+      return { kind: kind, fmt: fmt, name: name, arch: r.arch, r: r,
+               url: "/api/v1/" + (kind === "release" ? "releases/" : "packages/") + r.id,
+               size: kind === "release" ? r.bundle.size : r.file.size };
+    };
+    var itemsOf = function (v) {
+      return v.releases.map(function (r) { return asItem(r, "release"); })
+        .concat(v.packages.map(function (p) { return asItem(p, "package"); }));
+    };
+    var published = function (it) { return it.r.status === "live" || it.r.status === "superseded"; };
+
+    // What withdrawing does, said for the formats it touches.
+    var consequences = function (items) {
+      var live = items.filter(function (it) { return it.r.status === "live"; });
+      var has = function (f) { return live.some(function (it) { return it.fmt === f; }); };
+      var out = [];
+      if (has("flatpak")) out.push("Flatpak installs go back to the build before it when they next update; a channel with no build before it loses that architecture.");
+      if (has("rpm") || has("deb")) out.push("Installed packages keep this version until a newer one is published, since dnf and apt don't go back on their own; new installs get the one before.");
+      if (has("appimage")) out.push("AppImages go back to the version before when they next check for updates.");
+      if (has("file")) out.push("Its downloads stop being offered.");
+      if (!live.length) out.push("It isn't live, so nothing installed changes.");
+      return out.join(" ");
+    };
+
+    var withdrawItem = function (it, done) {
+      var what = it.name + " " + (it.r.version || "") + (it.arch ? " (" + it.arch + ")" : "");
+      if (!confirm("Withdraw " + what + " from " + it.r.channel + "? " + consequences([it]) + " The file is deleted, and it can't be brought back.")) return;
+      call("POST", it.url + "/withdraw", {}).then(function () {
+        F.toast("Withdrawing " + what);
+        refresh();
+        if (done) done();
+      }).catch(F.toastError);
+    };
+    var withdrawVersion = function (v, done) {
+      var items = itemsOf(v).filter(published);
+      if (!confirm("Withdraw " + v.version + " from " + v.channel + ", in every format (" + items.length +
+                   (items.length === 1 ? " file" : " files") + ")? " + consequences(items) +
+                   " The files are deleted, and they can't be brought back.")) return;
+      call("POST", "/api/v1/versions/withdraw", { channel: v.channel, version: v.version }).then(function () {
+        F.toast("Withdrawing " + v.version + " from " + v.channel);
+        refresh();
+        if (done) done();
+      }).catch(F.toastError);
+    };
+    // The newest earlier build of each architecture, for a version whose
+    // Flatpak builds are no longer live.
+    var bringBackable = function (v) {
+      if (v.releases.some(function (r) { return r.status === "live"; })) return [];
+      var seen = {};
+      return v.releases.filter(function (r) {
+        if (r.status !== "superseded" || !r.commit || seen[r.arch]) return false;
+        seen[r.arch] = true;
+        return true;
+      });
+    };
+    var bringBack = function (builds, label, channel) {
+      Promise.all(builds.map(function (r) { return call("POST", "/api/v1/releases/" + r.id + "/rollback", {}); }))
+        .then(function () { F.toast("Bringing back " + label + " on " + channel); refresh(); })
+        .catch(function (err) { F.toastError(err); refresh(); });
+    };
+
+    var tile = function (label, channel, repoInfo, actions) {
+      var flat = repoInfo[channel], p = repoInfo.packages;
+      var lines = [];
+      if (flat) lines.push({ name: "Flatpak", version: flat.version, arches: flat.arches, at: flat.published_at });
+      [["rpm", "RPM"], ["deb", "Debian"]].forEach(function (f) {
+        var s = p[f[0]][channel];
+        if (s) lines.push({ name: f[1], version: s.version, arches: s.arches, at: s.published_at });
+      });
+      [["appimage", "AppImage"], ["files", "Files"]].forEach(function (f) {
+        var list = p[f[0]][channel];
+        if (!list.length) return;
+        var newest = list.reduce(function (a, b) { return a.published_at > b.published_at ? a : b; });
+        lines.push({ name: f[1], version: newest.version, at: newest.published_at,
+          arches: list.map(function (x) { return x.arch || "any"; }).filter(function (a, i, all) { return all.indexOf(a) === i; }) });
+      });
+      // The site's version is the Flatpak one when there is one.
+      var top = flat ? lines[0] : lines.reduce(function (a, b) { return !a || b.at > a.at ? b : a; }, null);
+      var behind = flat && flat.behind && flat.behind.length ? flat.behind : [];
       return el("section", { class: "panel tile" }, [
         el("p", { class: "tile-label", text: label }),
-        el("p", { class: "tile-big", text: info ? info.version : "None" }),
-        el("p", { class: "hint", text: info ? info.name + " · " + info.arches.join(", ") + " · " + when(info.published_at) : note })
+        el("p", { class: "tile-big", text: top ? top.version : "None" }),
+        top ? null : el("p", { class: "hint", text: channel === "beta" ? "Upload to the beta channel to start one." : "Upload a release to publish the first version." }),
+        lines.length ? el("ul", { class: "tile-formats" }, lines.map(function (l) {
+          return el("li", {}, [el("span", { class: "tile-format", text: l.name }),
+            " " + l.arches.join(", ") + (sameVersion(l.version, top.version) ? "" : " · still " + l.version)]);
+        })) : null,
+        top ? el("p", { class: "hint", text: "Published " + when(top.at) }) : null,
+        behind.length ? el("p", { class: "hint tile-warn", text: behind.map(function (a) { return a + " is still on " + flat.builds[a].version; }).join("; ") + ". Upload its " + flat.version + " build to match." }) : null,
+        actions && actions.length ? el("div", { class: "tile-actions" }, actions) : null
       ]);
+    };
+
+    var promote = function (repoInfo) {
+      var p = repoInfo.packages;
+      var urls = [];
+      if (repoInfo.beta) urls.push("/api/v1/releases/promote");
+      if (p.rpm.beta || p.deb.beta || p.appimage.beta.length || p.files.beta.length) urls.push("/api/v1/packages/promote");
+      // One after the other. Each kind promotes on its own; one with
+      // nothing new for stable says so, which only matters when none had.
+      var errors = [];
+      urls.reduce(function (chain, url) {
+        return chain.then(function () {
+          return call("POST", url, { from: "beta", to: "stable" }).catch(function (err) { errors.push(err); });
+        });
+      }, Promise.resolve()).then(function () {
+        if (errors.length === urls.length) F.toastError(errors[0]);
+        else F.toast("Promoting the beta to stable");
+        refresh();
+      });
+    };
+
+    var statusChip = function (status) {
+      return el("span", { class: "status status--" + status, text: STATUS[status] || status });
+    };
+
+    var versionRow = function (v) {
+      var items = itemsOf(v);
+      var newest = items.reduce(function (a, b) { return (b.r.published_at || b.r.created_at) > (a.r.published_at || a.r.created_at) ? b : a; });
+      // Flatpak x86_64, aarch64 · RPM x86_64 · Debian amd64
+      var formats = [];
+      items.forEach(function (it) {
+        var f = formats.filter(function (x) { return x.fmt === it.fmt; })[0];
+        if (!f) formats.push(f = { fmt: it.fmt, arches: [] });
+        if (it.arch && f.arches.indexOf(it.arch) === -1) f.arches.push(it.arch);
+      });
+      var order = Object.keys(FORMAT);
+      formats.sort(function (a, b) { return order.indexOf(a.fmt) - order.indexOf(b.fmt); });
+      var what = newest.r.origin === "promote" ? "Promoted" : newest.r.origin === "rollback" ? "Brought back" : "Uploaded";
+      var actions = [];
+      var back = bringBackable(v);
+      if (back.length) {
+        actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Bring back", title: "Make this version's Flatpak builds the live ones again",
+          onclick: function () { bringBack(back, v.version, v.channel); } }));
+      }
+      if (v.withdrawable) {
+        actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Withdraw", title: "Take this version out in every format and delete its files",
+          onclick: function () { withdrawVersion(v); } }));
+      }
+      actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: items.length === 1 ? "Details" : "Files",
+        onclick: function () { if (items.length === 1) openItem(items[0]); else openVersion(v); } }));
+      var errors = items.filter(function (it) { return it.r.error; });
+      return el("li", { class: "release-row is-" + v.status }, [
+        el("div", { class: "release-main" }, [
+          el("span", { class: "release-version", text: v.version || (items[0].kind === "release" ? "Reading the bundle…" : "Reading the file…") }),
+          el("span", { class: "chip chip--muted", text: v.channel }),
+          statusChip(v.status)
+        ]),
+        el("div", { class: "release-sub" }, [
+          formats.map(function (f) { return FORMAT[f.fmt] + (f.arches.length ? " " + f.arches.join(", ") : ""); }).join(" · ") + " · " +
+          (newest.r.created_by ? what + " by " + newest.r.created_by + " · " : "") + when(v.published_at)
+        ]),
+        errors.length ? el("p", { class: "form-error", text: errors.map(function (it) { return (items.length > 1 ? it.name + (it.arch ? " " + it.arch : "") + ": " : "") + it.r.error; }).join(" ") }) : null,
+        el("div", { class: "release-actions" }, actions)
+      ]);
+    };
+
+    // The dialog shows a version's files, or one file; from a version, a
+    // file's details lead back to the list.
+    var modal = document.getElementById("release-modal");
+    var modalBody = document.getElementById("release-modal-body");
+    var modalTitle = document.getElementById("release-modal-title");
+    var openVersion = function (v) {
+      modalTitle.textContent = (v.version || "Release") + " · " + v.channel;
+      modalBody.innerHTML = "";
+      var items = itemsOf(v);
+      var list = el("ul", { class: "release-rows" });
+      items.forEach(function (it) {
+        var actions = [];
+        if (it.kind === "release" && it.r.status === "superseded" && it.r.commit) {
+          actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Bring back", title: "Make this build the live one again",
+            onclick: function () { bringBack([it.r], it.r.version, it.r.channel); modal.close(); } }));
+        }
+        if (published(it)) {
+          actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Withdraw", title: "Take it out and delete it",
+            onclick: function () { withdrawItem(it, function () { modal.close(); }); } }));
+        }
+        actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Details", onclick: function () { openItem(it, v); } }));
+        list.appendChild(el("li", { class: "release-row is-" + it.r.status }, [
+          el("div", { class: "release-main" }, [
+            el("span", { class: "release-file", text: it.name }),
+            it.arch ? el("span", { class: "chip chip--muted", text: it.arch }) : null,
+            statusChip(it.r.status)
+          ]),
+          el("div", { class: "release-sub" }, [
+            when(it.r.published_at || it.r.created_at) + (it.size ? " · " + size(it.size) : "") +
+            (it.r.evr && it.r.evr !== it.r.version ? " · " + it.r.evr : "")
+          ]),
+          it.r.error ? el("p", { class: "form-error", text: it.r.error }) : null,
+          el("div", { class: "release-actions" }, actions)
+        ]));
+      });
+      modalBody.appendChild(list);
+      if (v.withdrawable) {
+        modalBody.appendChild(el("div", {}, [el("button", { type: "button", class: "btn btn--ghost", text: "Withdraw " + (v.version || "this version") + " in every format",
+          onclick: function () { withdrawVersion(v, function () { modal.close(); }); } })]));
+      }
+      if (!modal.open) modal.showModal();
+    };
+
+    var openItem = function (it, fromVersion) {
+      modalBody.innerHTML = "";
+      modalBody.appendChild(el("p", { class: "hint", text: "Loading…" }));
+      if (!modal.open) modal.showModal();
+      call("GET", it.url).then(function (data) {
+        var r = data.release || data.package;
+        modalTitle.textContent = it.name + " " + (r.version || "") + " · " + r.channel + (r.arch ? " · " + r.arch : "");
+        modalBody.innerHTML = "";
+        if (fromVersion) {
+          modalBody.appendChild(el("div", {}, [el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "All files of " + (fromVersion.version || "this version"),
+            onclick: function () { openVersion(fromVersion); } })]));
+        }
+        var facts = el("dl", { class: "addresses" });
+        var pairs = it.kind === "release"
+          ? [["App", r.app_id], ["Status", STATUS[r.status] || r.status], ["Commit", r.commit], ["Runtime", r.runtime],
+             ["Bundle SHA-256", r.bundle.sha256], ["Published", when(r.published_at)]]
+          : [["Type", FORMAT[r.format]], ["Status", STATUS[r.status] || r.status], ["Version", r.evr],
+             ["Architecture", r.arch], ["Summary", r.summary], ["SHA-256", r.file.sha256],
+             ["Download", r.file.url], ["Updates from", r.file.zsync_url], ["Published", when(r.published_at)]];
+        pairs.forEach(function (p) {
+          if (!p[1]) return;
+          facts.appendChild(el("dt", { text: p[0] }));
+          facts.appendChild(el("dd", {}, [el("code", { text: p[1] })]));
+        });
+        modalBody.appendChild(facts);
+        var notes = el("textarea", { rows: 6, class: "field-input" });
+        notes.value = r.notes || "";
+        var version = el("input", { value: r.version || "", maxlength: it.kind === "release" ? 60 : 120 });
+        modalBody.appendChild(el("label", { class: "field" }, [el("span", { class: "field-label", text: "Version shown on the site" }), version]));
+        modalBody.appendChild(el("label", { class: "field" }, [el("span", { class: "field-label", text: "Release notes (Markdown)" }), notes]));
+        modalBody.appendChild(el("div", {}, [el("button", { type: "button", class: "btn btn--primary", text: "Save", onclick: function () {
+          call("PATCH", it.url, { notes: notes.value, version: version.value }).then(function () {
+            F.toast("Saved");
+            refresh();
+          }).catch(F.toastError);
+        } })]));
+        if (r.job && r.job.log) {
+          modalBody.appendChild(el("details", { class: "term-like" }, [
+            el("summary", { text: "What the job did" }),
+            el("pre", { class: "joblog", text: r.job.log })
+          ]));
+        }
+      }).catch(function (err) { modalBody.innerHTML = ""; modalBody.appendChild(el("p", { class: "form-error", text: err.message })); });
     };
 
     // Each command with its own Copy button: what people run once to add a
@@ -586,144 +664,63 @@
       document.getElementById("pkg-repos").hidden = !box.childNodes.length && !pairs.length;
     };
 
-    var pkgRow = function (r) {
-      var actions = [];
-      if (r.status === "live" || r.status === "superseded") {
-        actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Withdraw", title: "Take it out and delete it", onclick: function () {
-          var what = (r.name || "This file") + " " + r.version;
-          var after = r.format === "file" ? " It stops being offered for download." :
-            r.format === "appimage" ? " The version before it is offered again, and installed copies go back to it when they next check for updates." :
-            " New installs get the version before it; installed copies keep this one until a newer version is published.";
-          if (!confirm("Withdraw " + what + " from " + r.channel + "?" + after + " The file is deleted.")) return;
-          call("POST", "/api/v1/packages/" + r.id + "/withdraw", {}).then(function () {
-            F.toast("Withdrawing " + what);
-            refresh();
-          }).catch(F.toastError);
-        } }));
+    var drawBlocker = function (repoInfo) {
+      var blocker = document.getElementById("releases-blocker");
+      var p = repoInfo.packages;
+      blocker.innerHTML = "";
+      var missing = Object.keys(repoInfo.tools).filter(function (k) { return !repoInfo.tools[k]; });
+      var cant = [];
+      if (missing.length) cant.push("Flatpak bundles (" + missing.join(", ") + ")");
+      if (!p.tools.rpm) cant.push("RPMs (rpm, rpmsign and createrepo_c)");
+      if (!p.tools.deb) cant.push("Debian packages (dpkg-deb)");
+      if (!p.tools.appimage) cant.push("AppImages (zsyncmake)");
+      if (cant.length) {
+        blocker.appendChild(el("p", { text: "This server can't publish " + cant.join(" or ") + ": the tools aren't installed where Flatout runs. Run Flatout from its Docker image." }));
+      } else if (!repoInfo.signing_key) {
+        blocker.appendChild(el("p", {}, ["The repository needs a signing key before the first release: bundles and packages are signed with it. ",
+          el("a", { class: "link", href: "/admin/repository", text: "Create one under Signing and addresses." })]));
       }
-      actions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Details", onclick: function () { openPackage(r.id); } }));
-      return el("li", { class: "release-row is-" + r.status }, [
-        el("div", { class: "release-main" }, [
-          el("span", { class: "release-version", text: r.name ? r.name + " " + r.version : "Reading the file…" }),
-          r.format ? el("span", { class: "chip chip--muted", text: FORMAT[r.format] }) : null,
-          el("span", { class: "chip chip--muted", text: r.channel }),
-          r.arch ? el("span", { class: "chip chip--muted", text: r.arch }) : null,
-          el("span", { class: "status status--" + r.status, text: PKG_STATUS[r.status] || r.status })
-        ]),
-        el("div", { class: "release-sub" }, [
-          (r.created_by ? (r.origin === "promote" ? "Promoted" : "Uploaded") + " by " + r.created_by + " · " : "") +
-          when(r.published_at || r.created_at) + (r.file.size ? " · " + size(r.file.size) : "") +
-          (r.evr && r.evr !== r.version ? " · " + r.evr : "")
-        ]),
-        r.error ? el("p", { class: "form-error", text: r.error }) : null,
-        el("div", { class: "release-actions" }, actions)
-      ]);
-    };
-
-    var openPackage = function (id) {
-      var body = document.getElementById("pkg-modal-body");
-      body.innerHTML = "";
-      body.appendChild(el("p", { class: "hint", text: "Loading…" }));
-      document.getElementById("pkg-modal").showModal();
-      call("GET", "/api/v1/packages/" + id).then(function (data) {
-        var r = data.package;
-        document.getElementById("pkg-modal-title").textContent = (r.name || "Package") + " " + r.version + " · " + r.channel;
-        body.innerHTML = "";
-        var facts = el("dl", { class: "addresses" });
-        [["Type", FORMAT[r.format]], ["Status", PKG_STATUS[r.status] || r.status], ["Version", r.evr],
-         ["Architecture", r.arch], ["Summary", r.summary], ["SHA-256", r.file.sha256],
-         ["Download", r.file.url], ["Updates from", r.file.zsync_url], ["Published", when(r.published_at)]].forEach(function (p) {
-          if (!p[1]) return;
-          facts.appendChild(el("dt", { text: p[0] }));
-          facts.appendChild(el("dd", {}, [el("code", { text: p[1] })]));
-        });
-        body.appendChild(facts);
-        var notes = el("textarea", { rows: 6, class: "field-input" });
-        notes.value = r.notes || "";
-        var version = el("input", { value: r.version || "", maxlength: 120 });
-        body.appendChild(el("label", { class: "field" }, [el("span", { class: "field-label", text: "Version shown on the site" }), version]));
-        body.appendChild(el("label", { class: "field" }, [el("span", { class: "field-label", text: "Release notes (Markdown)" }), notes]));
-        body.appendChild(el("div", {}, [el("button", { type: "button", class: "btn btn--primary", text: "Save", onclick: function () {
-          call("PATCH", "/api/v1/packages/" + r.id, { notes: notes.value, version: version.value }).then(function () {
-            F.toast("Saved");
-            refresh();
-          }).catch(F.toastError);
-        } })]));
-        if (r.job && r.job.log) {
-          body.appendChild(el("details", { class: "term-like" }, [
-            el("summary", { text: "What the job did" }),
-            el("pre", { class: "joblog", text: r.job.log })
-          ]));
-        }
-      }).catch(function (err) { body.innerHTML = ""; body.appendChild(el("p", { class: "form-error", text: err.message })); });
+      blocker.hidden = !blocker.childNodes.length;
     };
 
     var refresh = function () {
-      clearTimeout(pkgTimer);
-      Promise.all([call("GET", "/api/v1/repo"), call("GET", "/api/v1/packages?limit=100")]).then(function (res) {
-        var repoInfo = res[0], list = res[1].packages, p = repoInfo.packages;
-        var blocker = document.getElementById("packages-blocker");
-        blocker.innerHTML = "";
-        var cant = [];
-        if (!p.tools.rpm) cant.push("RPMs (rpm, rpmsign and createrepo_c)");
-        if (!p.tools.deb) cant.push("Debian packages (dpkg-deb)");
-        if (!p.tools.appimage) cant.push("AppImages (zsyncmake)");
-        if (cant.length) {
-          blocker.appendChild(el("p", { text: "This server can't publish " + cant.join(" or ") + ": the tools aren't installed where Flatout runs. Run Flatout from its Docker image. Other files work." }));
-        } else if (!repoInfo.signing_key) {
-          blocker.appendChild(el("p", {}, ["RPM and Debian packages are signed with the repository's key, which doesn't exist yet. ",
-            el("a", { class: "link", href: "/admin/repository", text: "Create one under Signing and addresses." })]));
-        }
-        blocker.hidden = !blocker.childNodes.length;
+      clearTimeout(pollTimer);
+      Promise.all([call("GET", "/api/v1/repo"), call("GET", "/api/v1/versions?limit=60")]).then(function (res) {
+        var repoInfo = res[0], list = res[1].versions, p = repoInfo.packages;
+        drawBlocker(repoInfo);
+        showMismatch(repoInfo);
         document.getElementById("pkg-kept").value = repoInfo.settings.packages_kept;
 
-        pkgTiles.innerHTML = "";
-        var any = list.some(function (r) { return r.format === "rpm" || r.format === "deb" || r.format === "appimage"; });
-        [["rpm", "RPM"], ["deb", "Debian"]].forEach(function (f) {
-          var has = list.some(function (r) { return r.format === f[0]; });
-          if (!has && any) return;   // show only the kinds in use, or both while there are none
-          ["stable", "beta"].forEach(function (c) {
-            if (c === "beta" && !p[f[0]].beta) return;
-            pkgTiles.appendChild(pkgTile(f[1] + (c === "beta" ? " · beta" : ""), p[f[0]][c],
-              "Upload " + (f[0] === "rpm" ? "an .rpm" : "a .deb") + " to start the " + (f[0] === "rpm" ? "dnf" : "apt") + " repository."));
-          });
-        });
-        ["stable", "beta"].forEach(function (c) {
-          var ai = p.appimage[c];
-          if (!ai.length) return;
-          var newest = ai.reduce(function (a, b) { return a.published_at > b.published_at ? a : b; });
-          pkgTiles.appendChild(pkgTile("AppImage" + (c === "beta" ? " · beta" : ""), {
-            version: newest.version, published_at: newest.published_at,
-            name: ai.length === 1 ? newest.name : ai.length + " AppImages",
-            arches: ai.map(function (f) { return f.arch || "any"; }).filter(function (a, i, all) { return all.indexOf(a) === i; })
-          }));
-        });
-        var betaLive = list.some(function (r) { return r.channel === "beta" && r.status === "live"; });
+        tiles.innerHTML = "";
+        var betaActions = [];
+        var betaLive = repoInfo.beta || p.rpm.beta || p.deb.beta || p.appimage.beta.length || p.files.beta.length;
         if (betaLive) {
-          pkgTiles.appendChild(el("section", { class: "panel tile" }, [
-            el("p", { class: "tile-label", text: "Beta to stable" }),
-            el("p", { class: "hint", text: "Copy the newest beta of every package and file to stable, as they are." }),
-            el("div", { class: "tile-actions" }, [el("button", { type: "button", class: "btn btn--primary btn--xs", text: "Promote to stable", onclick: function () {
-              call("POST", "/api/v1/packages/promote", { from: "beta", to: "stable" }).then(function (d) {
-                F.toast("Promoting " + d.promoted.length + (d.promoted.length === 1 ? " package" : " packages") + " to stable");
-                refresh();
-              }).catch(F.toastError);
-            } })])
-          ]));
+          betaActions.push(el("button", { type: "button", class: "btn btn--primary btn--xs", text: "Promote to stable",
+            title: "Copy the beta's newest build of every format to stable, as it is", onclick: function () { promote(repoInfo); } }));
         }
+        if (repoInfo.beta) {
+          betaActions.push(el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "End the beta", onclick: function () {
+            var msg = prompt("Installed Flatpak betas will be told no more updates are coming. The message they see:",
+                             "This beta has ended. Install the stable version instead.");
+            if (msg === null) return;
+            call("POST", "/api/v1/channels/beta/end", { message: msg }).then(function () {
+              F.toast("Ending the beta");
+              refresh();
+            }).catch(F.toastError);
+          } }));
+        }
+        tiles.appendChild(tile("Stable", "stable", repoInfo));
+        tiles.appendChild(tile("Beta", "beta", repoInfo, betaActions));
         drawRepos(repoInfo);
 
-        pkgRows.innerHTML = "";
-        if (!list.length) pkgRows.appendChild(el("li", { class: "hint", text: "Nothing uploaded yet." }));
-        list.forEach(function (r) { pkgRows.appendChild(pkgRow(r)); });
-        var busy = list.some(function (r) { return r.status === "queued" || r.status === "processing"; }) ||
-          list.some(function (r) { return r.job && (r.job.status === "queued" || r.job.status === "running"); });
-        document.getElementById("pkg-state").textContent = busy ? "Publishing…" : "";
-        if (busy) pkgTimer = setTimeout(refresh, 2000);
+        rows.innerHTML = "";
+        if (!list.length) rows.appendChild(el("li", { class: "hint", text: "Nothing uploaded yet." }));
+        list.forEach(function (v) { rows.appendChild(versionRow(v)); });
+        var busy = res[1].busy || list.some(function (v) { return v.status === "queued" || v.status === "processing"; });
+        document.getElementById("jobs-state").textContent = busy ? "Publishing…" : "";
+        if (busy) pollTimer = setTimeout(refresh, 2000);
       }).catch(F.toastError);
     };
-    var pkgRows = document.getElementById("pkg-rows");
-    var pkgTiles = document.getElementById("pkg-tiles");
 
     document.getElementById("pkg-kept-form").addEventListener("submit", function (e) {
       e.preventDefault();

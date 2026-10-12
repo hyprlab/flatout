@@ -121,8 +121,9 @@ def releases():
 
 
 @bp.route("/packages")
-def packages():
-    return _page("admin/packages.html", "packages", "Packages")
+def packages_redirect():
+    # Packages and files are releases too now, on the one page.
+    return redirect(url_for("admin.releases"), 301)
 
 
 @bp.route("/repository")

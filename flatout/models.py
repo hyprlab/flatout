@@ -170,7 +170,9 @@ class Release(db.Model):
     A release is ``queued`` when its bundle is stored, ``processing`` while the
     job imports and signs it, then ``live`` as the newest build of its
     channel and architecture. The build it replaced becomes ``superseded``; it
-    stays in the repository's history, so a rollback can bring it back.
+    stays in the repository's history, so a rollback can bring it back. Taken
+    out by hand it is ``withdrawn``: the build before it goes live again, and
+    it can't be brought back.
     """
     __tablename__ = "releases"
     __table_args__ = (db.Index("ix_releases_head", "channel", "arch", "status"),)

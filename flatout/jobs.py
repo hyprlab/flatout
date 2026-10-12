@@ -53,6 +53,24 @@ def enqueue(kind: str, release_id: int | None = None, payload: dict | None = Non
     return job
 
 
+def enqueue_many(specs: list[tuple], who: str = "") -> list[int]:
+    """Queue several jobs, (kind, release_id, package_id[, payload]) each,
+    in one transaction, and return their ids. What the request wrote or read
+    before is committed first: the job thread may start on the first job
+    while the rest are written, and a transaction that read before that
+    write couldn't write after it."""
+    db.session.commit()
+    jobs = [Job(kind=spec[0], release_id=spec[1], package_id=spec[2],
+                payload=json.dumps(spec[3] if len(spec) > 3 else {}), created_by=who)
+            for spec in specs]
+    db.session.add_all(jobs)
+    db.session.flush()
+    ids = [job.id for job in jobs]
+    db.session.commit()
+    _wake.set()
+    return ids
+
+
 def start(app: Flask) -> None:
     global _started
     with _lock:
@@ -388,6 +406,61 @@ def handle_end(job: Job, payload: dict, lines: list) -> None:
     _summary(lines)
 
 
+def _drop_bundle(rel: Release) -> None:
+    """A withdrawn build's download goes, unless another row (a promoted
+    copy, a rollback) still offers the same file."""
+    if not rel.bundle_file:
+        return
+    shared = Release.query.filter(Release.bundle_file == rel.bundle_file, Release.id != rel.id,
+                                  Release.status != "withdrawn").count()
+    if not shared:
+        (repo.bundles_dir() / rel.bundle_file).unlink(missing_ok=True)
+    rel.bundle_file = None
+
+
+def handle_withdraw(job: Job, payload: dict, lines: list) -> None:
+    """Take a build out. A live one gives its place to the build before it,
+    as a new commit, so installed copies go back to that one when they next
+    update; with nothing before it, its channel loses that architecture."""
+    rel = db.session.get(Release, job.release_id)
+    if rel is None or rel.status not in ("live", "superseded"):
+        raise repo.RepoError("Only a published build can be withdrawn.")
+    label = f"{rel.channel} {rel.version} ({rel.arch})"
+    if rel.status == "superseded":
+        rel.status = "withdrawn"
+        _drop_bundle(rel)
+        db.session.commit()
+        lines.append(f"Withdrew {label}. It was no longer live, so nothing installed changes; it can't be "
+                     "brought back now.")
+        return
+    target = f"app/{rel.app_id}/{rel.arch}/{rel.channel}"
+    earlier = (Release.query.filter(Release.app_id == rel.app_id, Release.arch == rel.arch,
+                                    Release.channel == rel.channel, Release.status == "superseded",
+                                    Release.commit.isnot(None), Release.id != rel.id)
+               .order_by(Release.published_at.desc(), Release.id.desc()).all())
+    previous = next((r for r in earlier if repo.has_commit(r.commit)), None)
+    if previous is not None:
+        commit = repo.recommit(previous.commit, target, lines)
+        # Written once the commit exists, so a failure leaves no row behind.
+        back = Release(app_id=previous.app_id, arch=previous.arch, channel=rel.channel, version=previous.version,
+                       notes=previous.notes, origin="rollback", origin_release_id=previous.id, commit=commit,
+                       bundle_file=previous.bundle_file, bundle_size=previous.bundle_size,
+                       bundle_sha256=previous.bundle_sha256, runtime=previous.runtime,
+                       source_ref=previous.source_ref, created_by=job.created_by)
+        db.session.add(back)
+        _go_live(back)
+        lines.append(f"Withdrew {label}; {previous.version} is live again as commit {back.commit[:12]}. "
+                     "Installed copies go back to it when they next update.")
+    else:
+        repo.delete_ref(target, lines)
+        lines.append(f"Withdrew {label}. Nothing came before it, so {target} is gone: new installs can't get it, "
+                     "and installed copies keep it without updates until a new build is uploaded.")
+    rel.status = "withdrawn"
+    _drop_bundle(rel)
+    db.session.commit()
+    _summary(lines)
+
+
 def handle_summary(job: Job, payload: dict, lines: list) -> None:
     from . import packages
     _summary(lines)
@@ -453,6 +526,7 @@ HANDLERS = {
     "promote": handle_recommit,
     "rollback": handle_recommit,
     "end": handle_end,
+    "withdraw": handle_withdraw,
     "summary": handle_summary,
     "keygen": handle_keygen,
     "backup": handle_backup,

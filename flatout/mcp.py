@@ -42,7 +42,9 @@ address it returns. preview_site shows the draft's text before publishing.
 Releases: upload_release_from_url imports a .flatpak bundle into a channel
 (stable or beta) as a background job; poll get_release or get_job until its
 status is live or failed. promote_release copies the live beta to stable.
-rollback_release makes an earlier build live again.
+rollback_release makes an earlier build live again; withdraw_release takes one out
+for good. list_versions shows each version with all its formats together, and
+withdraw_version takes a version off a channel in every format at once.
 
 Packages: upload_package_from_url publishes an .rpm in the dnf repository or a .deb in
 the apt repository, signed, or any other file as a download, on a channel; poll
@@ -135,6 +137,17 @@ TOOLS = {
                         _obj({"from": CHANNEL, "to": CHANNEL, "arch": S, "notes": S}), "POST", "/releases/promote", "*", False, False),
     "rollback_release": ("Make an earlier build of a channel live again (as a new commit).", _obj({"id": I}, ["id"]),
                          "POST", "/releases/{id}/rollback", "*", False, True),
+    "withdraw_release": ("Take a Flatpak build out and delete its download. A live build gives its place to the "
+                         "build before it, which installed copies go back to when they next update; with nothing "
+                         "before it, the channel loses that architecture. It can't be brought back.",
+                         _obj({"id": I}, ["id"]), "POST", "/releases/{id}/withdraw", "*", False, True),
+    "list_versions": ("Releases by version, newest first: each version on each channel with every Flatpak build, "
+                      "package and file of it.", _obj({"channel": CHANNEL, "limit": I}),
+                      "GET", "/versions?channel={channel}&limit={limit}", None, True, False),
+    "withdraw_version": ("Withdraw a version from a channel in every format at once: each Flatpak build as "
+                         "withdraw_release does, each package and file as withdraw_package does.",
+                         _obj({"channel": CHANNEL, "version": S}, ["channel", "version"]),
+                         "POST", "/versions/withdraw", "*", False, True),
     "end_channel": ("Retire a channel: installed copies are told no more updates will come.",
                     _obj({"channel": CHANNEL, "message": S}, ["channel"]), "POST", "/channels/{channel}/end", "*", False, True),
     "list_packages": ("RPM and Debian packages, AppImages and other files, newest first.",

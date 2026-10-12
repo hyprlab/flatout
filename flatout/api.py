@@ -548,6 +548,11 @@ def _release_json(r, with_log: bool = False) -> dict:
     return out
 
 
+def _latest_job(**by):
+    from .models import Job
+    return Job.query.filter_by(**by).order_by(Job.id.desc()).first()
+
+
 def _job_json(j, with_log: bool = True) -> dict:
     out = {"id": j.id, "kind": j.kind, "status": j.status, "release_id": j.release_id, "package_id": j.package_id,
            "created_by": j.created_by, "created_at": j.created_at.isoformat() + "Z",
@@ -789,6 +794,24 @@ def release_rollback(release_id):
     return jsonify(release=_release_json(rel), job=_job_json(job)), 202
 
 
+@bp.route("/releases/<int:release_id>/withdraw", methods=["POST"])
+@needs("releases")
+def release_withdraw(release_id):
+    """Take a build out and delete its download. A live build gives its
+    place to the one before it, which installed copies go back to when they
+    next update; with nothing before it, the channel loses that
+    architecture. A withdrawn build can't be brought back."""
+    from . import jobs
+    from .models import Release
+    rel = db.session.get(Release, release_id) or _missing("release")
+    if rel.status not in ("live", "superseded"):
+        raise ApiError(409, "Only a published build can be withdrawn.")
+    if rel.status == "live":
+        _ready_for_releases()
+    job = jobs.enqueue("withdraw", rel.id, {}, g.actor)
+    return jsonify(release=_release_json(rel), job=_job_json(job)), 202
+
+
 @bp.route("/releases/promote", methods=["POST"])
 @needs("releases")
 def releases_promote():
@@ -816,12 +839,9 @@ def releases_promote():
         db.session.add(rel)
         db.session.flush()
         created.append(rel)
-    db.session.commit()
-    out = []
-    for rel in created:
-        job = jobs.enqueue("promote", rel.id, {}, g.actor)
-        out.append({"release": _release_json(rel), "job": _job_json(job)})
-    return jsonify(promoted=out), 202
+    jobs.enqueue_many([("promote", rel.id, None) for rel in created], g.actor)
+    return jsonify(promoted=[{"release": _release_json(rel), "job": _job_json(_latest_job(release_id=rel.id))}
+                             for rel in created]), 202
 
 
 @bp.route("/channels/<channel>/end", methods=["POST"])
@@ -1044,12 +1064,104 @@ def packages_promote():
         db.session.add(pkg)
         db.session.flush()
         created.append(pkg)
-    db.session.commit()
+    base = site.base_url()
+    jobs.enqueue_many([("package-promote", None, pkg.id, {"base": base}) for pkg in created], g.actor)
+    return jsonify(promoted=[{"package": _package_json(pkg), "job": _job_json(_latest_job(package_id=pkg.id))}
+                             for pkg in created]), 202
+
+
+# ———— Versions: a release in every format at once ————
+# A version on a channel is every Flatpak build, package and file uploaded
+# for it. Versions are matched the way people read them (releases.version_key),
+# so 1.4.0~beta.1 from an RPM and 1.4.0-beta.1 from a bundle are one.
+
+PUBLISHED = ("live", "superseded")
+# Which status a version shows when its files differ: the first one any has.
+VERSION_STATUS = ("processing", "queued", "live", "superseded", "ended", "failed", "withdrawn", "pruned")
+
+
+def _versions(channel: str | None = None, limit: int = 50) -> list[dict]:
+    from .models import Package, Release
+    from .releases import version_key
+    rq, pq = Release.query, Package.query
+    if channel:
+        rq, pq = rq.filter_by(channel=channel), pq.filter_by(channel=channel)
+    fetch = min(limit * 8, 1000)
+    items = [("releases", r) for r in rq.order_by(Release.id.desc()).limit(fetch)] + \
+            [("packages", p) for p in pq.order_by(Package.id.desc()).limit(fetch)]
+    groups: dict[tuple, dict] = {}
+    for kind, row in items:
+        # Not read yet: its own entry until the job says what version it is.
+        key = (row.channel, version_key(row.version)) if row.version else (row.channel, kind, row.id)
+        when = row.published_at or row.created_at
+        group = groups.setdefault(key, {"channel": row.channel, "version": row.version, "notes": "",
+                                        "when": when, "releases": [], "packages": []})
+        group[kind].append(row)
+        group["when"] = max(group["when"], when)
+        if kind == "releases" and row.version:
+            group["version"] = row.version   # the bundle's spelling, the one the site shows
     out = []
-    for pkg in created:
-        job = jobs.enqueue("package-promote", None, {"base": site.base_url()}, g.actor, package_id=pkg.id)
-        out.append({"package": _package_json(pkg), "job": _job_json(job)})
-    return jsonify(promoted=out), 202
+    for group in sorted(groups.values(), key=lambda v: v["when"], reverse=True)[:limit]:
+        rows = group["releases"] + group["packages"]
+        statuses = {r.status for r in rows}
+        notes = next((r.notes for r in rows if r.notes and r.status in PUBLISHED), "") or \
+            next((r.notes for r in rows if r.notes), "")
+        out.append({
+            "channel": group["channel"], "version": group["version"], "notes": notes,
+            "status": next((s for s in VERSION_STATUS if s in statuses), rows[0].status),
+            "published_at": group["when"].isoformat() + "Z",
+            "withdrawable": bool(statuses & set(PUBLISHED)),
+            "releases": [_release_json(r) for r in group["releases"]],
+            "packages": [_package_json(p) for p in group["packages"]],
+        })
+    return out
+
+
+@bp.route("/versions")
+@needs("read")
+def versions_list():
+    """Releases by version, newest first: each version on each channel with
+    every Flatpak build, package and file of it. ?channel= and ?limit=
+    (versions, default 50). "busy" is true while repository jobs wait or run."""
+    from .models import Job
+    limit = min(max(request.args.get("limit", 50, type=int), 1), 200)
+    channel = _channel(request.args["channel"]) if request.args.get("channel") else None
+    busy = Job.query.filter(Job.status.in_(("queued", "running"))).first() is not None
+    return jsonify(versions=_versions(channel, limit), busy=busy)
+
+
+@bp.route("/versions/withdraw", methods=["POST"])
+@needs("releases")
+def versions_withdraw():
+    """Withdraw a version from a channel in every format at once:
+    {"channel": "beta", "version": "1.4.0-beta.2"}. Each Flatpak build gives
+    its place to the build before it, and each package and file is taken out
+    and deleted, as their own withdraw endpoints do."""
+    from . import jobs
+    from .models import Package, Release
+    from .releases import version_key
+    data = body()
+    channel = _channel(data.get("channel"))
+    version = str(data.get("version") or "").strip()
+    if not version:
+        raise ApiError(400, "Say which version to withdraw.")
+    key = version_key(version)
+    builds = [r for r in Release.query.filter(Release.channel == channel, Release.status.in_(PUBLISHED))
+              if version_key(r.version) == key]
+    files = [p for p in Package.query.filter(Package.channel == channel, Package.status.in_(PUBLISHED))
+             if version_key(p.version) == key]
+    if not builds and not files:
+        raise ApiError(409, f"{version} has nothing published on {channel}.")
+    if any(r.status == "live" for r in builds):
+        _ready_for_releases()
+    # Earlier builds of the version first, so none of them is what a live
+    # one falls back to.
+    builds.sort(key=lambda r: r.status == "live")
+    specs = [("withdraw", r.id, None) for r in builds] + [("package-withdraw", None, p.id) for p in files]
+    ids = jobs.enqueue_many(specs, g.actor)
+    out = [({"release": rid} if kind == "withdraw" else {"package": pid}) | {"job": jid}
+           for (kind, rid, pid), jid in zip(specs, ids)]
+    return jsonify(withdrawn=out), 202
 
 
 @bp.route("/jobs")

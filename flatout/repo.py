@@ -313,6 +313,12 @@ def recommit(source: str, target_ref: str, log: list, end_of_life: str = "") -> 
     return _commit_from_output(out, target_ref)
 
 
+def delete_ref(ref: str, log: list) -> None:
+    """Take a branch out of the repository. Its commits go with the next
+    summary's prune; installed copies keep what they have."""
+    run(["ostree", "refs", f"--repo={repo_dir()}", "--delete", ref], log)
+
+
 def _commit_from_output(out: str, target: str) -> str:
     match = re.search(re.escape(target) + r": ([0-9a-f]{64})", out)
     if match:

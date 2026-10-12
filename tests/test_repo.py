@@ -194,3 +194,41 @@ def test_a_bundle_sent_in_pieces_is_published(app, client, csrf, admin, run_jobs
     rel = release(client, made.get_json()["release"]["id"])
     assert rel["status"] == "live" and rel["version"] == "4.0", rel
     assert client.get(f"/download/{APP}-{rel['arch']}.flatpak").data == data
+
+
+def test_a_withdrawn_build_gives_way_to_the_one_before(app, client, csrf, admin, run_jobs, tmp_path):
+    from flatout import repo as flatrepo
+    h = {"X-CSRF": csrf}
+    client.post("/api/v1/repo/key", json={"action": "generate", "name": "Test"}, headers=h)
+    run_jobs()
+    first = upload(client, csrf, build_bundle(tmp_path, "1.0.0"), "stable")
+    run_jobs()
+    second = upload(client, csrf, build_bundle(tmp_path, "1.0.1"), "stable")
+    run_jobs()
+    assert release(client, second)["status"] == "live"
+
+    # The newest goes; the one before is live again, as a new commit.
+    assert client.post(f"/api/v1/releases/{second}/withdraw", headers=h).status_code == 202
+    run_jobs()
+    gone = release(client, second)
+    assert gone["status"] == "withdrawn" and not gone["bundle"]["available"], gone
+    assert client.get("/api/v1/repo").get_json()["stable"]["version"] == "1.0.0"
+    live = client.get("/api/v1/releases?channel=stable&status=live").get_json()["releases"]
+    assert [(r["version"], r["origin"], r["from_release"]) for r in live] == [("1.0.0", "rollback", first)]
+    with app.app_context():
+        ref = f"app/{APP}/x86_64/stable"
+        assert flatrepo.refs()[ref] == live[0]["commit"] != release(client, first)["commit"]
+    # A withdrawn build can't come back.
+    assert client.post(f"/api/v1/releases/{second}/rollback", headers=h).status_code == 409
+
+    # A beta with nothing before it: withdrawing its version takes the branch away.
+    beta = upload(client, csrf, build_bundle(tmp_path, "1.1.0"), "beta")
+    run_jobs()
+    resp = client.post("/api/v1/versions/withdraw", json={"channel": "beta", "version": "1.1.0"}, headers=h)
+    assert resp.status_code == 202, resp.get_json()
+    run_jobs()
+    assert release(client, beta)["status"] == "withdrawn"
+    assert client.get("/api/v1/repo").get_json()["beta"] is None
+    with app.app_context():
+        assert f"app/{APP}/x86_64/beta" not in flatrepo.refs()
+        assert f"app/{APP}/x86_64/stable" in flatrepo.refs()

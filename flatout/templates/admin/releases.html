@@ -9,13 +9,16 @@
     <h3 class="panel-title">Upload a release</h3>
     <form id="upload-form" class="upload" autocomplete="off">
       <div class="upload-pick">
-        <label class="dropzone" id="bundle-drop" data-dropzone>
-          <input type="file" id="bundle-file" accept=".flatpak,application/vnd.flatpak" multiple hidden>
+        <label class="dropzone" id="upload-drop" data-dropzone>
+          <input type="file" id="upload-file" multiple hidden>
           <svg viewBox="0 0 24 24"><path d="M12 3 4 7v10l8 4 8-4V7l-8-4ZM4 7l8 4 8-4M12 11v10"/></svg>
-          <span class="dropzone-text" id="bundle-name"><strong>Choose .flatpak bundles</strong> or drop them here</span>
-          <span class="hint">Made with <code>flatpak build-bundle</code>, one per architecture. Choose them all at once.</span>
+          <span class="dropzone-text" id="upload-name"><strong>Choose files</strong> or drop them here</span>
+          <span class="hint">A <code>.flatpak</code> bundle goes into the Flatpak repository, an <code>.rpm</code>
+            into the dnf repository and a <code>.deb</code> into the apt repository, all signed. An AppImage is set
+            to update from this site. Anything else, such as a tarball, is offered as a download. Choose every file
+            of a version at once.</span>
         </label>
-        <ul class="upload-files" id="bundle-list" aria-live="polite" hidden></ul>
+        <ul class="upload-files" id="upload-list" aria-live="polite" hidden></ul>
       </div>
       <div class="upload-fields">
         <div class="field">
@@ -26,12 +29,20 @@
           </div>
         </div>
         <label class="field"><span class="field-label">Version</span>
-          <input id="upload-version" maxlength="60" placeholder="Read from each bundle's metainfo if left empty"></label>
+          <input id="upload-version" maxlength="60" placeholder="Read from each file if left empty"></label>
         <label class="field"><span class="field-label">Release notes (Markdown)</span>
           <textarea id="upload-notes" rows="4" placeholder="What changed, from the user's side."></textarea></label>
         <details class="term-like">
-          <summary>Or fetch the bundle from an address</summary>
-          <label class="field"><span class="field-label">Bundle address</span>
+          <summary>One AppImage or other file: a fixed name</summary>
+          <label class="field"><span class="field-label">Download name</span>
+            <input id="upload-filename" maxlength="200" spellcheck="false" placeholder="App-x86_64.AppImage"></label>
+          <p class="hint">With a fixed name, each upload replaces the last at the same address. An AppImage's name is
+            its file's name without the version unless you give one; installed copies check that address for
+            updates. Bundles and packages take their name from inside the file.</p>
+        </details>
+        <details class="term-like">
+          <summary>Or fetch a file from an address</summary>
+          <label class="field"><span class="field-label">File address</span>
             <input id="upload-url" type="url" placeholder="https://github.com/…/releases/download/v1.2.0/app-x86_64.flatpak"></label>
         </details>
         <p class="form-error" id="upload-error" hidden></p>
@@ -51,6 +62,28 @@
       <span class="hint" id="jobs-state" role="status" aria-live="polite"></span>
     </div>
     <ul class="release-rows" id="release-rows"><li class="hint">Loading…</li></ul>
+  </section>
+
+  <section class="panel" id="pkg-repos" hidden>
+    <h3 class="panel-title">Package repositories and updates</h3>
+    <p class="hint">What people run once; their system's own updates bring every version after. The install
+      dialog on the site shows the same commands. An AppImage carries the address it checks for updates inside
+      it.</p>
+    <div id="pkg-commands"></div>
+    <dl class="addresses" id="pkg-addresses"></dl>
+  </section>
+
+  <section class="panel">
+    <h3 class="panel-title">Versions kept</h3>
+    <form id="pkg-kept-form" class="stack" autocomplete="off">
+      <label class="field field--narrow"><span class="field-label">Versions of each package kept, per channel</span>
+        <input id="pkg-kept" type="number" min="1" max="50"></label>
+      <p class="hint">For RPM and Debian packages, AppImages and other files. The newest is the one installed; the
+        ones before it stay for a downgrade. Older versions are deleted. Flatpak builds kept for rollback are set
+        under App.</p>
+      <p class="form-error" id="pkg-kept-error" hidden></p>
+      <div><button class="btn btn--primary" type="submit">Save</button></div>
+    </form>
   </section>
 </div>
 {% endblock %}
