@@ -1135,3 +1135,29 @@ input.switch:checked::after { transform: translateX(14px); }
 .status-option input:focus-visible + .status-option-face { outline: 2px solid var(--accent); outline-offset: 2px; }
 .status-page-fields { border: 0; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .status-page-fields .field input, .status-page-fields .field textarea { width: 100%; }
+
+/* Filter bars: segmented filters in one row above what they filter. */
+.filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 6px; }
+.seg--filter span { padding: 5px 11px; font-size: 12.5px; }
+.seg--filter .seg-count { display: inline; padding: 0; margin-left: 6px; font-size: 11.5px; font-weight: 650; color: var(--faint); font-variant-numeric: tabular-nums; }
+.seg--filter input:checked + span .seg-count { color: var(--muted); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.filter-search { margin-left: auto; width: 130px; padding: 6px 10px; font: inherit; font-size: 13px; color: var(--ink);
+  background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.filter-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--wash); }
+.release-empty { padding: 14px 0; }
+#stats-detail .filter-bar { margin: 0 0 10px; }
+.stats-checks { color: var(--ink); }
+.format-list { list-style: none; margin: 4px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.format-row { display: grid; grid-template-columns: 90px minmax(0, 1fr) 96px 210px; align-items: center; gap: 14px; font-size: 13px; }
+.format-name { font-weight: 650; }
+.format-bar { grid-column: auto; height: 8px; border-radius: 4px; }
+.format-bar span { border-radius: 4px; }
+.format-num { color: var(--muted); font-variant-numeric: tabular-nums; }
+.format-num strong { color: var(--ink); font-weight: 750; }
+.format-sub { color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) {
+  .format-row { grid-template-columns: 1fr auto; row-gap: 4px; }
+  .format-bar { grid-column: 1 / -1; grid-row: 2; }
+  .format-sub { grid-column: 1 / -1; }
+}

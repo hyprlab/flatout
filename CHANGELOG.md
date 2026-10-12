@@ -6,6 +6,20 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- Filter the release history by channel, status (live, earlier, withdrawn,
+  failed) and format, or find a version by typing it; each filter says how
+  many releases it would show
+- Installs by format, on the Installs page: how many installs use the
+  Flatpak, the dnf and apt repositories and the AppImages, as shares of all
+  of them, with today's update checks
+- The Installs page's release numbers can be shown for every format together
+  or for one format
+
+### Changed
+- The Installs page's Releases and Packages views are one Releases view, and
+  the estimated installs count every format
+
 ## [1.8.0] — 2026-10-12
 
 ### Added

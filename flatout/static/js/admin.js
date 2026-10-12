@@ -664,6 +664,83 @@
       document.getElementById("pkg-repos").hidden = !box.childNodes.length && !pairs.length;
     };
 
+    // The history's filters: channel, status and format, each option counted
+    // with the other filters applied, and a version search. Options nothing
+    // has are left out; the address keeps the choice over a reload.
+    var FILTERS = {
+      channel: [["", "All"], ["stable", "Stable"], ["beta", "Beta"]],
+      status: [["", "All"], ["publishing", "Publishing"], ["live", "Live"], ["earlier", "Earlier"],
+               ["withdrawn", "Withdrawn"], ["failed", "Failed"]],
+      format: [["", "All"], ["flatpak", "Flatpak"], ["rpm", "RPM"], ["deb", "Debian"], ["appimage", "AppImage"], ["file", "File"]]
+    };
+    var STATUS_GROUP = { queued: "publishing", processing: "publishing", live: "live", superseded: "earlier",
+                         ended: "earlier", pruned: "earlier", withdrawn: "withdrawn", failed: "failed" };
+    var query = new URLSearchParams(location.search);
+    var filters = { channel: query.get("channel") || "", status: query.get("status") || "", format: query.get("format") || "",
+                    q: query.get("q") || "" };
+    var versions = [];
+    var matches = function (v, f) {
+      if (f.channel && v.channel !== f.channel) return false;
+      if (f.status && STATUS_GROUP[v.status] !== f.status) return false;
+      if (f.format && !itemsOf(v).some(function (it) { return it.fmt === f.format; })) return false;
+      if (f.q && (v.version || "").toLowerCase().indexOf(f.q.toLowerCase()) === -1) return false;
+      return true;
+    };
+    var keepFilters = function () {
+      var q = new URLSearchParams();
+      Object.keys(filters).forEach(function (k) { if (filters[k]) q.set(k, filters[k]); });
+      history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash);
+    };
+    var searchBox = document.getElementById("release-search");
+    searchBox.value = filters.q;
+    searchBox.addEventListener("input", function () { filters.q = searchBox.value.trim(); keepFilters(); drawHistory(); });
+
+    var drawFilters = function () {
+      document.getElementById("release-filters").hidden = !versions.length;
+      Object.keys(FILTERS).forEach(function (name) {
+        var seg = document.querySelector('#release-filters [data-filter="' + name + '"]');
+        var has = function (value) {
+          var only = { channel: "", status: "", format: "", q: "" };
+          only[name] = value;
+          return versions.some(function (v) { return matches(v, only); });
+        };
+        var options = FILTERS[name].filter(function (o) { return !o[0] || o[0] === filters[name] || has(o[0]); });
+        seg.innerHTML = "";
+        seg.hidden = options.length < 3 && !filters[name];   // "All" and one option filter nothing
+        options.forEach(function (o) {
+          var probe = {};
+          Object.keys(filters).forEach(function (k) { probe[k] = filters[k]; });
+          probe[name] = o[0];
+          var n = versions.filter(function (v) { return matches(v, probe); }).length;
+          seg.appendChild(el("label", {}, [
+            el("input", { type: "radio", name: "filter-" + name, value: o[0], checked: filters[name] === o[0], onchange: function () {
+              filters[name] = o[0];
+              keepFilters();
+              drawHistory();
+            } }),
+            el("span", {}, [o[1], el("span", { class: "seg-count", text: fmt(n) })])
+          ]));
+        });
+      });
+    };
+
+    var drawHistory = function () {
+      drawFilters();
+      rows.innerHTML = "";
+      if (!versions.length) { rows.appendChild(el("li", { class: "hint", text: "Nothing uploaded yet." })); return; }
+      var shown = versions.filter(function (v) { return matches(v, filters); });
+      shown.forEach(function (v) { rows.appendChild(versionRow(v)); });
+      if (!shown.length) {
+        rows.appendChild(el("li", { class: "hint release-empty" }, ["No releases match these filters. ",
+          el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Show every release", onclick: function () {
+            filters = { channel: "", status: "", format: "", q: "" };
+            searchBox.value = "";
+            keepFilters();
+            drawHistory();
+          } })]));
+      }
+    };
+
     var drawBlocker = function (repoInfo) {
       var blocker = document.getElementById("releases-blocker");
       var p = repoInfo.packages;
@@ -685,7 +762,7 @@
 
     var refresh = function () {
       clearTimeout(pollTimer);
-      Promise.all([call("GET", "/api/v1/repo"), call("GET", "/api/v1/versions?limit=60")]).then(function (res) {
+      Promise.all([call("GET", "/api/v1/repo"), call("GET", "/api/v1/versions?limit=100")]).then(function (res) {
         var repoInfo = res[0], list = res[1].versions, p = repoInfo.packages;
         drawBlocker(repoInfo);
         showMismatch(repoInfo);
@@ -713,9 +790,8 @@
         tiles.appendChild(tile("Beta", "beta", repoInfo, betaActions));
         drawRepos(repoInfo);
 
-        rows.innerHTML = "";
-        if (!list.length) rows.appendChild(el("li", { class: "hint", text: "Nothing uploaded yet." }));
-        list.forEach(function (v) { rows.appendChild(versionRow(v)); });
+        versions = list;
+        drawHistory();
         var busy = res[1].busy || list.some(function (v) { return v.status === "queued" || v.status === "processing"; });
         document.getElementById("jobs-state").textContent = busy ? "Publishing…" : "";
         if (busy) pollTimer = setTimeout(refresh, 2000);
@@ -1043,14 +1119,134 @@
       ]);
     };
 
+    // Installs by format: each format's busiest day of update checks this
+    // week, as a share of all of them. One hue: the label names each bar.
+    var FORMAT_NAMES = { flatpak: "Flatpak", rpm: "RPM", deb: "Debian", appimage: "AppImage", file: "File" };
+    var CHECKS_BY = { flatpak: "the Flatpak repository", rpm: "the dnf repository", deb: "the apt repository", appimage: "their zsync file" };
+    var drawFormats = function (s) {
+      var panel = document.getElementById("stats-formats");
+      var list = document.getElementById("format-list");
+      var formats = s.formats;
+      panel.hidden = !formats.length;
+      list.innerHTML = "";
+      var total = formats.reduce(function (n, f) { return n + f.installs; }, 0);
+      formats.forEach(function (f) {
+        var share = total ? f.installs / total : 0;
+        var pct = !total ? "" : share >= 0.01 || !f.installs ? Math.round(share * 100) + "%" : "Under 1%";
+        var split = s.packages.repositories.filter(function (r) { return r.format === f.format; });
+        list.appendChild(el("li", { class: "format-row", title: fmt(f.installs) + " installs" + (pct ? ", " + pct + " of all" : "") }, [
+          el("span", { class: "format-name", text: FORMAT_NAMES[f.format] }),
+          el("span", { class: "arch-bar format-bar", "aria-hidden": "true" }, [
+            el("span", { style: "width:" + (f.installs ? Math.max(share * 100, 1) : 0) + "%" })
+          ]),
+          el("span", { class: "format-num" }, [el("strong", { text: fmt(f.installs) }), pct ? " " + pct : ""]),
+          el("span", { class: "format-sub", text: fmt(f.today) + " today" +
+            (split.length > 1 ? " · " + split.map(function (r) { return r.channel + " " + fmt(r.peak_7_days); }).join(", ") : "") })
+        ]));
+      });
+    };
+
+    // Releases, in every format or one: every format together is a row per
+    // version; one format is that format's own numbers, a row per file for
+    // packages. The address keeps the choice over a reload.
+    var statsFormat = new URLSearchParams(location.search).get("format") || "";
+    var lastStats = null;
+    var VKEY = function (v) { return (String(v || "").toLowerCase().match(/\d+|[a-z]+/g) || []).map(function (t) { return /^\d/.test(t) ? String(+t) : t; }).join("."); };
+    var seenRange = function (a, b) { return a === b ? a : a + " to " + b; };
+    var RELEASE_HINTS = {
+      "": "Distinct installs that downloaded each version, in every format and architecture, and the downloads in all. " +
+          "Flatpak installs count once for each day they pulled the release, which in practice is once; packages and files " +
+          "count downloads by dnf, apt and AppImage updaters and from the site.",
+      flatpak: "Distinct installs that downloaded each version, every architecture together, and the downloads in all. An " +
+               "install counts once for each day it pulled the release, which in practice is once.",
+      pkg: "Downloads of each file: by dnf, apt and AppImage updaters, and from the site. Each requester counts once a day."
+    };
+    var drawReleaseStats = function (s) {
+      var pk = s.packages;
+      var present = [];
+      if (s.releases.length || s.formats.some(function (f) { return f.format === "flatpak"; })) present.push("flatpak");
+      ["rpm", "deb", "appimage", "file"].forEach(function (f) {
+        if (pk.downloads.some(function (d) { return d.format === f; }) || s.formats.some(function (x) { return x.format === f; })) present.push(f);
+      });
+      if (statsFormat && present.indexOf(statsFormat) === -1) statsFormat = "";
+      var bar = document.getElementById("release-format-bar");
+      var seg = document.getElementById("release-format");
+      bar.hidden = present.length < 2;
+      seg.innerHTML = "";
+      [""].concat(present).forEach(function (f) {
+        var input = el("input", { type: "radio", name: "release-format", value: f, checked: f === statsFormat, onchange: function () {
+          statsFormat = f;
+          var q = new URLSearchParams(location.search);
+          if (f) q.set("format", f); else q.delete("format");
+          history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash);
+          drawReleaseStats(lastStats);
+        } });
+        seg.appendChild(el("label", {}, [input, el("span", { text: f ? FORMAT_NAMES[f] : "All formats" })]));
+      });
+
+      var pkgFormat = statsFormat && statsFormat !== "flatpak";
+      document.getElementById("release-stats-hint").textContent = RELEASE_HINTS[pkgFormat ? "pkg" : statsFormat];
+      // One format: what is checking it for updates, beside its downloads.
+      var checks = document.getElementById("release-format-checks");
+      var picked = s.formats.filter(function (f) { return f.format === statsFormat; })[0];
+      checks.hidden = !picked;
+      if (picked) {
+        var split = pk.repositories.filter(function (r) { return r.format === statsFormat; });
+        checks.textContent = fmt(picked.today) + " installs checked " + CHECKS_BY[statsFormat] + " today, " + fmt(picked.installs) +
+          " on the busiest day of the last 7" + (split.length > 1 ? " (" + split.map(function (r) { return r.channel + " " + fmt(r.peak_7_days); }).join(", ") + ")" : "") + ".";
+      }
+
+      if (pkgFormat) {
+        table("release-stats", ["File", "Version", "Channel", "Architecture", "Installs", "Downloads", "Seen"],
+          pk.downloads.filter(function (d) { return d.format === statsFormat; }).map(function (d) {
+            return [d.name, d.version, d.channel, d.arch || "", fmt(d.installs), fmt(d.downloads), seenRange(d.first_seen, d.last_seen)];
+          }), "No downloads counted yet.", ROWS);
+        return;
+      }
+      if (statsFormat === "flatpak") {
+        table("release-stats", ["Version", "Channel", "Installs", "Downloads", "By architecture", "Seen"],
+          s.releases.map(function (r) {
+            return [r.version, r.channel, fmt(r.installs), fmt(r.downloads), archChips(r.arches).join(", "), seenRange(r.first_seen, r.last_seen)];
+          }), "No downloads counted yet.", ROWS);
+        return;
+      }
+      // Every format: one row per version and channel.
+      var rows = {}, order = [];
+      var add = function (fmtName, version, channel, installs, downloads, first, last, published) {
+        var key = channel + " " + VKEY(version);
+        var r = rows[key];
+        if (!r) {
+          r = rows[key] = { version: version, channel: channel, installs: 0, downloads: 0, by: {}, first: first, last: last, published: published };
+          order.push(r);
+        }
+        if (fmtName === "flatpak") r.version = version;   // the spelling the site shows
+        r.installs += installs;
+        r.downloads += downloads;
+        r.by[fmtName] = (r.by[fmtName] || 0) + installs;
+        if (first < r.first) r.first = first;
+        if (last > r.last) r.last = last;
+        if (published > r.published) r.published = published;
+      };
+      s.releases.forEach(function (r) { add("flatpak", r.version, r.channel, r.installs, r.downloads, r.first_seen, r.last_seen, r.published_at); });
+      pk.downloads.forEach(function (d) { add(d.format, d.version, d.channel, d.installs, d.downloads, d.first_seen, d.last_seen, d.published_at); });
+      order.sort(function (a, b) { return a.published < b.published ? 1 : a.published > b.published ? -1 : 0; });
+      table("release-stats", ["Version", "Channel", "Installs", "Downloads", "By format", "Seen"],
+        order.map(function (r) {
+          return [r.version, r.channel, fmt(r.installs), fmt(r.downloads),
+                  present.filter(function (f) { return f in r.by; }).map(function (f) { return FORMAT_NAMES[f] + " " + fmt(r.by[f]); }).join(", "),
+                  seenRange(r.first, r.last)];
+        }), "No downloads counted yet.", ROWS);
+    };
+
     // The detail panel shows one view at a time; the address keeps it over a reload.
     var views = document.querySelectorAll('input[name="stats-view"]');
     var showView = function (name) {
+      if (name === "packages") name = "releases";   // a view of its own before 1.9
       var input = document.querySelector('input[name="stats-view"][value="' + name + '"]');
       if (!input || input.closest("label").hidden) input = views[0];
       input.checked = true;
       document.querySelectorAll(".stats-view").forEach(function (v) { v.hidden = v.dataset.view !== input.value; });
-      history.replaceState(null, "", input === views[0] ? location.pathname + location.search : "#" + input.value);
+      history.replaceState(null, "", location.pathname + location.search + (input === views[0] ? "" : "#" + input.value));
     };
     views.forEach(function (r) { r.addEventListener("change", function () { showView(r.value); }); });
     var BASIS = {
@@ -1070,7 +1266,12 @@
 
         var summary = document.getElementById("stats-summary");
         summary.innerHTML = "";
-        summary.appendChild(tileOf("Estimated installs", fmt(s.install_base), BASIS[s.install_base_basis]));
+        // With packages beside the Flatpak, the estimate is every format's together.
+        var several = s.formats.length > 1;
+        var everyFormat = s.formats.reduce(function (n, f) { return n + f.installs; }, 0);
+        summary.appendChild(several
+          ? tileOf("Estimated installs", fmt(everyFormat), "Every format together: the busiest day of update checks in the last 7 days for each.")
+          : tileOf("Estimated installs", fmt(s.install_base), BASIS[s.install_base_basis]));
         [["Latest stable", s.latest_stable, "No stable release yet."], ["Latest beta", s.latest_beta, "No beta running."]].forEach(function (p) {
           var r = p[1];
           summary.appendChild(r
@@ -1083,7 +1284,9 @@
         t.innerHTML = "";
         t.appendChild(tileOf("Active today", fmt(s.today), "Installs that checked for updates today, so far."));
         t.appendChild(tileOf("Seven-day average", fmt(s.average_7_days), "Installs checking for updates per day."));
-        t.appendChild(tileOf("On an older release", fmt(s.older_installs), "Estimated installs minus those on the latest stable or beta."));
+        t.appendChild(several
+          ? tileOf("On an older Flatpak release", fmt(s.older_installs), "Estimated Flatpak installs minus those on the latest stable or beta.")
+          : tileOf("On an older release", fmt(s.older_installs), "Estimated installs minus those on the latest stable or beta."));
         var shipped = s.releases_30_days;
         t.appendChild(tileOf("Releases, last 30 days", fmt(shipped.total), fmt(shipped.stable) + " stable, " + fmt(shipped.beta) + " beta."));
 
@@ -1096,28 +1299,13 @@
         table("stats-table", ["Day", "Installs", "Checks"],
           s.days.slice().reverse().map(function (d) { return [d.day, fmt(d.installs), fmt(d.checks)]; }), "");
 
-        table("release-stats", ["Version", "Channel", "Installs", "Downloads", "By architecture", "Seen"],
-          s.releases.map(function (r) {
-            return [r.version, r.channel, fmt(r.installs), fmt(r.downloads), archChips(r.arches).join(", "),
-                    r.first_seen + " to " + r.last_seen];
-          }), "No downloads counted yet.", ROWS);
+        lastStats = s;
+        drawFormats(s);
+        drawReleaseStats(s);
 
         table("arch-stats", ["Architecture", "Installs, last 30 days", "Installs, all time", "Downloads, all time"],
           s.arches.map(function (a) { return [a.arch, fmt(a.installs_30_days), fmt(a.installs), fmt(a.downloads)]; }),
           "No downloads counted yet.");
-
-        var pk = s.packages;
-        document.getElementById("pkg-view").hidden = !pk.repositories.length && !pk.downloads.length;
-        var REPO = { rpm: "dnf", deb: "apt", appimage: "AppImage updates" };
-        table("pkg-repo-stats", ["Repository", "Installs checking today", "Busiest day, last 7 days"],
-          pk.repositories.map(function (r) { return [REPO[r.format] + " · " + r.channel, fmt(r.today), fmt(r.peak_7_days)]; }),
-          "No installs have checked the repositories in the last 7 days.");
-        var KIND = { rpm: "RPM", deb: "Debian", appimage: "AppImage", file: "File" };
-        table("pkg-download-stats", ["Package", "Version", "Type", "Channel", "Architecture", "Installs", "Downloads", "Seen"],
-          pk.downloads.map(function (d) {
-            return [d.name, d.version, KIND[d.format] || d.format, d.channel, d.arch || "", fmt(d.installs), fmt(d.downloads),
-                    d.first_seen + " to " + d.last_seen];
-          }), "No downloads counted yet.", ROWS);
 
         var ORIGIN = { upload: "uploaded", promote: "promoted", rollback: "brought back" };
         table("build-stats", ["Version", "Channel", "Architecture", "Commit", "Installs", "Downloads", "First seen", "Last seen"],

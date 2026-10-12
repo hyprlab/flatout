@@ -61,6 +61,12 @@
       <h3 class="panel-title">History</h3>
       <span class="hint" id="jobs-state" role="status" aria-live="polite"></span>
     </div>
+    <div class="filter-bar" id="release-filters" role="group" aria-label="Filter the history" hidden>
+      <div class="seg seg--filter" role="radiogroup" aria-label="Channel" data-filter="channel"></div>
+      <div class="seg seg--filter" role="radiogroup" aria-label="Status" data-filter="status"></div>
+      <div class="seg seg--filter" role="radiogroup" aria-label="Format" data-filter="format"></div>
+      <input type="search" class="filter-search" id="release-search" placeholder="Version" aria-label="Find a version" spellcheck="false">
+    </div>
     <ul class="release-rows" id="release-rows"><li class="hint">Loading…</li></ul>
   </section>
 

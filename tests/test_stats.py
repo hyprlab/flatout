@@ -100,3 +100,20 @@ def test_nothing_yet(client, admin):
     assert (s["install_base"], s["install_base_basis"], s["latest_stable"]) == (0, "none", None)
     assert s["builds"] == [] and s["counting_since"] is None and s["peak_day"] is None
     assert client.get("/admin/stats").status_code == 200
+
+
+def test_installs_per_format(app, client, history):
+    from flatout.models import Package
+    with app.app_context():
+        db.session.add(Package(format="rpm", channel="stable", name="hello", version="1.1", evr="1.1-1",
+                               arch="x86_64", status="live", published_at=when(2)))
+        # Each format's estimate is its busiest day, both channels together.
+        for target, ago, n in (("rpm-stable", 0, 4), ("rpm-beta", 0, 2), ("rpm-stable", 2, 5), ("deb-stable", 9, 7)):
+            db.session.add(StatDay(day=day(ago), metric="pkgcheck", target=target, uniques=n, hits=n))
+        db.session.commit()
+    s = client.get("/api/v1/stats").get_json()
+    assert s["formats"] == [
+        {"format": "flatpak", "installs": s["install_base"], "today": 10},
+        {"format": "rpm", "installs": 6, "today": 6},
+    ]
+    assert "check_formats" not in s["packages"]

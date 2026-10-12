@@ -225,8 +225,11 @@ def snapshot(days: int = 30) -> dict:
         Release.published_at >= month_ago, Release.origin != "rollback",
         Release.status.in_(("live", "superseded", "ended")))}
 
+    packages = _packages(today.isoformat(), week_start)
+    formats = _formats(packages, base, series[-1]["installs"] if series else 0)
     return {
-        "packages": _packages(today.isoformat(), week_start),
+        "packages": packages,
+        "formats": formats,
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "counting_since": counting_since,
         "days": series,
@@ -254,12 +257,20 @@ def _packages(today: str, week_start: str) -> dict:
     each (distinct requesters of its index or zsync file per day, today and
     at the busiest this week), and each package's downloads."""
     repositories: dict[str, dict] = {}
+    per_day: dict[tuple, int] = {}   # (format, day) -> installs checking, both channels
     for row in StatDay.query.filter(StatDay.metric == "pkgcheck", StatDay.day >= week_start):
         fmt, _, channel = row.target.partition("-")
         entry = repositories.setdefault(row.target, {"format": fmt, "channel": channel, "today": 0, "peak_7_days": 0})
         entry["peak_7_days"] = max(entry["peak_7_days"], row.uniques)
         if row.day == today:
             entry["today"] = row.uniques
+        per_day[(fmt, row.day)] = per_day.get((fmt, row.day), 0) + row.uniques
+    formats = {}
+    for (fmt, d), n in per_day.items():
+        entry = formats.setdefault(fmt, {"today": 0, "peak_7_days": 0})
+        entry["peak_7_days"] = max(entry["peak_7_days"], n)
+        if d == today:
+            entry["today"] = n
     pulls = (db.session.query(StatDay.target, func.sum(StatDay.uniques), func.sum(StatDay.hits),
                               func.min(StatDay.day), func.max(StatDay.day))
              .filter(StatDay.metric == "pkgpull").group_by(StatDay.target).all())
@@ -279,4 +290,23 @@ def _packages(today: str, week_start: str) -> dict:
     downloads.sort(key=lambda d: (d["published_at"], d["installs"]), reverse=True)
     order = {"rpm-stable": 0, "rpm-beta": 1, "deb-stable": 2, "deb-beta": 3, "appimage-stable": 4, "appimage-beta": 5}
     return {"repositories": sorted(repositories.values(), key=lambda r: order.get(f"{r['format']}-{r['channel']}", 9)),
-            "downloads": downloads}
+            "downloads": downloads, "check_formats": formats}
+
+
+def _formats(packages: dict, flatpak_installs: int, flatpak_today: int) -> list[dict]:
+    """Estimated installs per format, each the busiest day of its update
+    checks in the last 7 days: the Flatpak summary, the dnf and apt indexes,
+    the AppImages' zsync files. Other files never check, so only their
+    downloads count, under the releases. A format shows once it has anything
+    published or counted."""
+    published = {f for (f,) in db.session.query(Package.format).filter(Package.status.in_(("live", "superseded")))
+                 .distinct()}
+    checks = packages.pop("check_formats")
+    out = []
+    if flatpak_installs or Release.query.filter(Release.status.in_(("live", "superseded"))).first():
+        out.append({"format": "flatpak", "installs": flatpak_installs, "today": flatpak_today})
+    for fmt in ("rpm", "deb", "appimage"):
+        if fmt in checks or fmt in published:
+            c = checks.get(fmt, {})
+            out.append({"format": fmt, "installs": c.get("peak_7_days", 0), "today": c.get("today", 0)})
+    return out

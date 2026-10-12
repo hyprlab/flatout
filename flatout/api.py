@@ -532,9 +532,13 @@ def tokens_revoke(token_id):
 
 # ———————————————————————————— Releases ————————————————————————————
 
-def _release_json(r, with_log: bool = False) -> dict:
+_LOOK_UP = object()
+
+
+def _release_json(r, with_log: bool = False, job=_LOOK_UP) -> dict:
     from .models import Job
-    job = Job.query.filter_by(release_id=r.id).order_by(Job.id.desc()).first()
+    if job is _LOOK_UP:
+        job = Job.query.filter_by(release_id=r.id).order_by(Job.id.desc()).first()
     out = {
         "id": r.id, "app_id": r.app_id, "arch": r.arch, "channel": r.channel,
         "version": r.version, "notes": r.notes, "status": r.status, "commit": r.commit,
@@ -862,10 +866,11 @@ def channel_end(channel):
 
 # ———— Packages: RPM, Debian, other files ————
 
-def _package_json(p, with_log: bool = False) -> dict:
+def _package_json(p, with_log: bool = False, job=_LOOK_UP) -> dict:
     from . import packages
     from .models import Job
-    job = Job.query.filter_by(package_id=p.id).order_by(Job.id.desc()).first()
+    if job is _LOOK_UP:
+        job = Job.query.filter_by(package_id=p.id).order_by(Job.id.desc()).first()
     url = f"{site.base_url()}/download/{packages.download_name(p)}" if p.status == "live" and p.format else None
     return {
         "id": p.id, "format": p.format or None, "channel": p.channel, "name": p.name or None,
@@ -1081,7 +1086,8 @@ VERSION_STATUS = ("processing", "queued", "live", "superseded", "ended", "failed
 
 
 def _versions(channel: str | None = None, limit: int = 50) -> list[dict]:
-    from .models import Package, Release
+    from sqlalchemy import func
+    from .models import Job, Package, Release
     from .releases import version_key
     rq, pq = Release.query, Package.query
     if channel:
@@ -1100,8 +1106,21 @@ def _versions(channel: str | None = None, limit: int = 50) -> list[dict]:
         group["when"] = max(group["when"], when)
         if kind == "releases" and row.version:
             group["version"] = row.version   # the bundle's spelling, the one the site shows
+    chosen = sorted(groups.values(), key=lambda v: v["when"], reverse=True)[:limit]
+    # Each row's newest job, in two queries rather than one per row.
+    newest = {}
+    for column, kind in ((Job.release_id, "releases"), (Job.package_id, "packages")):
+        ids = [r.id for group in chosen for r in group[kind]]
+        if ids:
+            newest[kind] = dict(db.session.query(column, func.max(Job.id)).filter(column.in_(ids)).group_by(column))
+    wanted = [j for found in newest.values() for j in found.values()]
+    by_id = {j.id: j for j in Job.query.filter(Job.id.in_(wanted))} if wanted else {}
+
+    def job_of(kind, row):
+        return by_id.get(newest.get(kind, {}).get(row.id))
+
     out = []
-    for group in sorted(groups.values(), key=lambda v: v["when"], reverse=True)[:limit]:
+    for group in chosen:
         rows = group["releases"] + group["packages"]
         statuses = {r.status for r in rows}
         notes = next((r.notes for r in rows if r.notes and r.status in PUBLISHED), "") or \
@@ -1111,8 +1130,8 @@ def _versions(channel: str | None = None, limit: int = 50) -> list[dict]:
             "status": next((s for s in VERSION_STATUS if s in statuses), rows[0].status),
             "published_at": group["when"].isoformat() + "Z",
             "withdrawable": bool(statuses & set(PUBLISHED)),
-            "releases": [_release_json(r) for r in group["releases"]],
-            "packages": [_package_json(p) for p in group["packages"]],
+            "releases": [_release_json(r, job=job_of("releases", r)) for r in group["releases"]],
+            "packages": [_package_json(p, job=job_of("packages", p)) for p in group["packages"]],
         })
     return out
 

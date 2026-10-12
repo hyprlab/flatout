@@ -130,7 +130,11 @@ and Debian packages, AppImages and other files ([Packages](#packages)). Drop
 all the files of a version at once, on one channel; each goes where its
 format belongs. The page's history lists each version on each channel once,
 with every file uploaded for it; **Files** opens the list, with each file's
-details, job log and actions.
+details, job log and actions. The bar above the history filters it by
+channel, by status (live, earlier, withdrawn, failed, or publishing while a
+job runs) and by format, each option counting what it would show, and finds
+a version by what you type. The page's address keeps the filters, so a
+filtered view can be bookmarked.
 
 **Withdraw** on a version takes it off its channel in every format at once,
 and deletes its files: withdrawing a beta that went wrong is one click (and a
@@ -467,31 +471,40 @@ days. Install files, bundle downloads and page visits aren't counted.
 From those two signals the page shows:
 
 - **Estimated installs**: the busiest day of update checks in the last 7
-  days; until checks build up, the most-downloaded release of the last 14
+  days; until checks build up, the most-downloaded release of the last 14.
+  With packages or AppImages published too, every format's together
 - **Latest stable** and **Latest beta**: the installs that downloaded the
   current version since it came out, by architecture
 - **Machines by architecture**: each architecture's share of release
   downloads in the last 30 days
 - **Active today**, the **seven-day average**, and how many installs are **on
-  an older release** than the latest stable or beta
+  an older release** than the latest stable or beta (Flatpak installs only:
+  they are the ones whose version is known)
 - **Releases in the last 30 days**, stable and beta
+- **Installs by format**: each format's busiest day of update checks in the
+  last 7 days, its share of all of them, how many checked today, and the
+  stable and beta split
 - Update checks per day over 30 days, 90 days or a year, as a chart or a
   table, with the busiest day
 - Below the chart, one view at a time: installs and downloads **by
-  release**, **by architecture** (the last 30 days and all time), the
-  **packages**, and **each build**: every signed commit, uploaded, promoted
-  or brought back, with when it was first and last downloaded. Long tables
-  show their first 10 rows until you ask for all of them
+  release**, **by architecture** (the last 30 days and all time), and **each
+  build**: every signed commit, uploaded, promoted or brought back, with when
+  it was first and last downloaded. Long tables show their first 10 rows
+  until you ask for all of them
+
+The releases view shows every format together, a row per version with its
+installs in each format, or one format at a time: Flatpak by version, or each
+package and file of one format with its downloads and the installs checking
+its repository.
 
 Packages are counted the same way. An install with the dnf or apt
 repository added fetches its index (`repomd.xml`, `InRelease`) when it
 checks for updates, which dnf does daily with the `.repo` file Flatout
-writes and apt does daily on most systems, so the Packages part of the page
-shows the installs checking each repository today and on the busiest day of
-the week. An AppImage fetches its zsync file when its updater checks, which
-counts the same way. Each package and file also counts its downloads, by dnf,
-apt and AppImage updaters or from the site. They are under Packages below the chart, which appears
-once there is something to show.
+writes and apt does daily on most systems, so Installs by format shows the
+installs checking each repository today and on the busiest day of the week.
+An AppImage fetches its zsync file when its updater checks, which counts the
+same way. Each package and file also counts its downloads, by dnf, apt and
+AppImage updaters or from the site, in the releases view below the chart.
 
 `GET /api/v1/stats` returns the same, for scripts and agents.
 

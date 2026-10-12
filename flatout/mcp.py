@@ -185,7 +185,7 @@ TOOLS = {
                                    "PATCH", "/repo/settings", "*", False, False),
     "create_signing_key": ("Create the repository's signing key, if it has none yet.", _obj({"name": S, "email": S}),
                            "POST", "/repo/key", "generate", False, False),
-    "get_install_stats": ("Installs checking for updates per day, and downloads per release.", _obj({"days": I}),
+    "get_install_stats": ("Installs checking for updates per day, installs per format, and downloads per release and package.", _obj({"days": I}),
                           "GET", "/stats?days={days}", None, True, False),
 }
 

@@ -249,3 +249,13 @@ def test_packages_live_on_the_releases_page(client, admin):
     page = client.get("/admin/releases").data.decode()
     assert "Upload a release" in page and "Versions kept" in page
     assert 'href="/admin/packages"' not in page
+
+
+def test_each_file_of_a_version_brings_its_newest_job(app, client, csrf, admin):
+    import io
+    resp = client.post("/api/v1/packages", data={"file": (io.BytesIO(b"tarball"), "app-3.0.0.tar.gz"),
+                                                  "channel": "stable"},
+                       headers=h(csrf), content_type="multipart/form-data")
+    job_id = resp.get_json()["job"]["id"]
+    version = client.get("/api/v1/versions").get_json()["versions"][0]
+    assert version["packages"][0]["job"]["id"] == job_id
