@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.9.0-beta.1] — 2026-10-12
+
 ### Added
 - Filter the release history by channel, status (live, earlier, withdrawn,
   failed) and format, or find a version by typing it; each filter says how
