@@ -139,6 +139,9 @@ at once. So the job thread begins its transactions with `BEGIN IMMEDIATE`
 `repo.run()` and before a download (`models.end_worker_transaction`). A
 request that takes in a large file does the same by hand: the upload endpoint
 ends its read before receiving the bundle and writes its row after storing it.
+Any request that queues a job or writes rows for one ends its read first too
+(`jobs.enqueue`, `api._write_fresh`): the job thread is often still publishing
+the file uploaded just before.
 
 **No migration framework.** Schema changes are steps in `_migrate()`: an
 `ALTER TABLE` guarded by a column check, run at every boot, safe to run twice.

@@ -535,6 +535,17 @@ def tokens_revoke(token_id):
 _LOOK_UP = object()
 
 
+def _write_fresh(rows: list) -> None:
+    """Write new rows in a transaction of their own. In WAL mode a
+    transaction that read before the job thread wrote can't write after it:
+    SQLite refuses at once ("database is locked") instead of waiting, and the
+    job thread is often busy publishing the file uploaded just before. So the
+    read ends first, and the rows get their ids before anything reads again."""
+    db.session.commit()
+    db.session.add_all(rows)
+    db.session.flush()
+
+
 def _release_json(r, with_log: bool = False, job=_LOOK_UP) -> dict:
     from .models import Job
     if job is _LOOK_UP:
@@ -747,8 +758,7 @@ def releases_create():
         _store_bundle(rel, lambda dest: chunks.take(_uploads_dir(), upload_id, dest))
     else:
         payload["url"] = str(fields["url"])
-    db.session.add(rel)
-    db.session.commit()
+    _write_fresh([rel])
     job = jobs.enqueue("import", rel.id, payload, g.actor)
     return jsonify(release=_release_json(rel), job=_job_json(job)), 202
 
@@ -792,8 +802,7 @@ def release_rollback(release_id):
                   notes=target.notes, status="queued", origin="rollback", origin_release_id=target.id,
                   bundle_file=target.bundle_file, bundle_size=target.bundle_size,
                   bundle_sha256=target.bundle_sha256, created_by=g.actor)
-    db.session.add(rel)
-    db.session.commit()
+    _write_fresh([rel])
     job = jobs.enqueue("rollback", rel.id, {}, g.actor)
     return jsonify(release=_release_json(rel), job=_job_json(job)), 202
 
@@ -840,9 +849,8 @@ def releases_promote():
                       status="queued", origin="promote", origin_release_id=head.id,
                       bundle_file=head.bundle_file, bundle_size=head.bundle_size,
                       bundle_sha256=head.bundle_sha256, created_by=g.actor)
-        db.session.add(rel)
-        db.session.flush()
         created.append(rel)
+    _write_fresh(created)
     jobs.enqueue_many([("promote", rel.id, None) for rel in created], g.actor)
     return jsonify(promoted=[{"release": _release_json(rel), "job": _job_json(_latest_job(release_id=rel.id))}
                              for rel in created]), 202
@@ -989,8 +997,7 @@ def packages_create():
         if fmt in packages.DOWNLOADS and not (name or original):
             stored.unlink(missing_ok=True)
             raise ApiError(400, 'Say what the file is called: "filename" or "name".')
-    db.session.add(pkg)
-    db.session.commit()
+    _write_fresh([pkg])
     job = jobs.enqueue("package", None, payload, g.actor, package_id=pkg.id)
     return jsonify(package=_package_json(pkg), job=_job_json(job)), 202
 
@@ -1066,10 +1073,9 @@ def packages_promote():
         pkg = Package(format=head.format, channel=dest, name=head.name, version=head.version, arch=head.arch,
                       notes=str(data["notes"]) if data.get("notes") is not None else head.notes,
                       status="queued", origin="promote", origin_package_id=head.id, created_by=g.actor)
-        db.session.add(pkg)
-        db.session.flush()
         created.append(pkg)
     base = site.base_url()
+    _write_fresh(created)
     jobs.enqueue_many([("package-promote", None, pkg.id, {"base": base}) for pkg in created], g.actor)
     return jsonify(promoted=[{"package": _package_json(pkg), "job": _job_json(_latest_job(package_id=pkg.id))}
                              for pkg in created]), 202

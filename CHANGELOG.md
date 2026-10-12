@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Fixed
+- Uploading several files in a row no longer fails for some of them with a
+  server error while the one before is still being published
+
 ### Changed
 - The release history's filters no longer carry counts; how many releases are
   shown, out of how many, is beside the History title
