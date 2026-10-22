@@ -41,6 +41,8 @@ def repo_state(monkeypatch):
         out["stable"], out["beta"] = build("1.0.0"), build("1.1.0-beta.1")
         out["packages"]["rpm"]["stable"] = {"name": "gnomish", "version": "1.0.0",
                                             "downloads": {"x86_64": base + "/download/gnomish-x86_64.rpm"}}
+        out["packages"]["deb"]["stable"] = {"name": "gnomish", "version": "1.0.0",
+                                            "downloads": {"amd64": base + "/download/gnomish-amd64.deb"}}
         return out
     monkeypatch.setattr(releases, "public_info", info)
 
@@ -172,6 +174,9 @@ def test_the_install_dialog_s_wording(client, csrf, admin, repo_state):
     assert "The whole app in one .flatpak file." not in page        # emptied, so left out
     # The RPM: greyed out on ARM, and its own download button.
     assert 'data-arches="x86_64"' in page and "Intel/AMD only</span>" in page
+    # The Debian package's amd64 is the picker's x86_64, so it is offered on Intel/AMD.
+    deb = page[page.index('value="deb"') - 400:page.index('value="deb"')]
+    assert 'data-arches="x86_64"' in deb and "amd64" not in deb
     assert 'class="btn btn--ghost" href="http://localhost/download/gnomish-x86_64.rpm"' in page
     assert ">rpm</span>" in page
 

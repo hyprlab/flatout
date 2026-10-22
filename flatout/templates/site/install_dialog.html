@@ -38,13 +38,21 @@
 <div class="code-copy{% if multi %} code-copy--multi{% endif %}"><code id="{{ id }}">{{ text }}</code>
   <button class="code-copy__btn" type="button" data-copy="#{{ id }}">{{ copy_icon }}<span class="code-copy__label">Copy</span></button></div>
 {%- endmacro %}
+{%- macro built_for(info) -%}
+{#- The machines a package is built for, by the names the picker uses: Debian
+    says amd64 and arm64 where Flatpak says x86_64 and aarch64. A package for
+    every machine (all, noarch) gives none, so it is never greyed out. -#}
+{%- set out = [] %}
+{%- for a in (info.downloads or {}).keys() %}{% set _ = out.append({'amd64': 'x86_64', 'arm64': 'aarch64'}.get(a, a)) %}{% endfor %}
+{%- if 'all' not in out and 'noarch' not in out %}{{ out|join(' ') }}{% endif %}
+{%- endmacro %}
 {%- macro arches_only(info) -%}
 {#- A package built for some machines only: greyed out, and flagged, on the others. -#}
-{%- set built = (info.downloads or {}).keys()|list %}
-{%- if built and arches|length > 1 %} data-arches="{{ built|join(' ') }}"{% endif %}
+{%- set built = built_for(info) %}
+{%- if built and arches|length > 1 %} data-arches="{{ built }}"{% endif %}
 {%- endmacro %}
 {%- macro only_flag(info) -%}
-{%- set built = (info.downloads or {}).keys()|list %}
+{%- set built = built_for(info).split() %}
 {%- if built and arches|length > 1 %} <span class="method__flag" hidden>{% for a in built %}{{ repo.arch_names.get(a, a) }}{% if not loop.last %}, {% endif %}{% endfor %} only</span>{% endif %}
 {%- endmacro %}
 <div class="modal" id="install-modal" hidden>

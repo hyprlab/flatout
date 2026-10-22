@@ -6,6 +6,11 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Fixed
+- The install dialog no longer greys out a Debian package on the machine it
+  is built for: Debian's amd64 and arm64 now match the picker's Intel/AMD
+  and ARM, and a package for every machine is never greyed out
+
 ## [1.10.0] — 2026-10-22
 
 ### Added
