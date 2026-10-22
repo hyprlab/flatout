@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.10.0] — 2026-10-22
+
 ### Added
 - The install dialog's apt option has its own wording, as the dnf option
   does: its name and description, the text before and after the commands,
