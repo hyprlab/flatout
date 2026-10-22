@@ -56,7 +56,7 @@ from urllib.parse import unquote, urlparse
 
 from flask import current_app
 
-from . import appimage, repo
+from . import appimage, releases, repo
 from .models import Package, db, get_setting, int_setting, utcnow
 from .repo import RepoError
 
@@ -599,6 +599,21 @@ def index(fmt: str, channel: str, log: list) -> None:
         index_rpm(channel, log)
     elif fmt == "deb":
         index_deb(channel, log)
+    else:
+        return
+    # A package may carry the repository files of every channel (Hylki's has
+    # the stable one on and the beta one off), so its first upload, on either
+    # channel, gives the other an empty, signed index: dnf and apt report a
+    # repository with no index as broken, and refuse to update past it.
+    for other in releases.CHANNELS:
+        if other != channel and not _indexed(fmt, other):
+            index(fmt, other, log)
+
+
+def _indexed(fmt: str, channel: str) -> bool:
+    if fmt == "rpm":
+        return (rpm_dir() / channel / "repodata" / "repomd.xml").exists()
+    return (deb_dir() / "dists" / channel / "InRelease").exists()
 
 
 def index_rpm(channel: str, log: list) -> None:

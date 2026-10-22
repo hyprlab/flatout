@@ -23,6 +23,10 @@ All notable changes to Flatout are documented here. The format follows
 ### Fixed
 - Uploading several files in a row no longer fails for some of them with a
   server error while the one before is still being published
+- A package's first upload, on either channel, gives the other channel an
+  empty, signed dnf or apt index, so a package that carries the repository
+  files of both channels no longer breaks `dnf` or `apt update` until
+  something is published on the second one
 
 ## [1.8.0] — 2026-10-12
 

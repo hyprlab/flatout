@@ -296,6 +296,7 @@ def test_rpms_make_a_signed_dnf_repository(client, csrf, signed, run_jobs, tmp_p
     (tmp_path / "repomd.xml").write_bytes(repomd.data)
     (tmp_path / "repomd.xml.asc").write_bytes(client.get("/rpm/stable/repodata/repomd.xml.asc").data)
     verify(tmp_path, key.encode(), tmp_path / "repomd.xml.asc", tmp_path / "repomd.xml")
+    assert client.get("/rpm/beta/repodata/repomd.xml").status_code == 200   # empty, but there
 
     # The package itself carries the repository's signature.
     served = client.get("/rpm/stable/packages/hello-1.0.0-1.noarch.rpm")
@@ -351,7 +352,11 @@ def test_debian_packages_make_a_signed_apt_archive(client, csrf, signed, run_job
     sources = client.get("/deb/gnomish-beta.sources").get_data(as_text=True)
     assert "URIs: http://localhost/deb" in sources and "Suites: beta" in sources
     assert "Signed-By:\n -----BEGIN PGP PUBLIC KEY BLOCK-----\n .\n" in sources
-    assert client.get("/deb/gnomish.sources").status_code == 404   # nothing on stable yet
+    # Nothing on stable yet, but its suite is there, empty and signed, for a
+    # package that carries both channels' sources.
+    assert "Suites: stable" in client.get("/deb/gnomish.sources").get_data(as_text=True)
+    assert client.get("/deb/dists/stable/main/binary-amd64/Packages").data == b""
+    assert client.get("/deb/dists/stable/InRelease").status_code == 200
 
     inrelease = client.get("/deb/dists/beta/InRelease")
     assert inrelease.headers["Cache-Control"] == "no-store"
