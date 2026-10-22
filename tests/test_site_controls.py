@@ -181,7 +181,7 @@ def test_a_site_saved_before_the_wording_fields_gets_the_built_in_text(app, clie
     from flatout.models import SiteDocument, db
     with app.app_context():
         doc = site.get("draft")
-        wording = [k for k in doc["install"] if k.startswith(("ref_", "bundle_", "repo_", "rpm_"))
+        wording = [k for k in doc["install"] if k.startswith(("ref_", "bundle_", "repo_", "rpm_", "deb_"))
                    and not k.endswith("_method")] + ["show_version"]
         for key in wording:
             del doc["install"][key]

@@ -446,6 +446,39 @@ def test_the_install_dialog_offers_what_is_published(client, admin, app):
     assert 'data-method="rpm"' not in page and 'data-method="files"' in page
 
 
+def test_the_apt_method_s_wording(client, admin, app):
+    from flatout.models import utcnow
+    with app.app_context():
+        db.session.add(Package(format="deb", channel="stable", name="gnomish", version="1.2.0", evr="1.2.0-1",
+                               arch="amd64", status="live", path="deb/pool/stable/gnomish_1.2.0-1_amd64.deb",
+                               published_at=utcnow()))
+        # A second method, so the dialog shows its picker and the method's name.
+        db.session.add(Package(format="rpm", channel="stable", name="gnomish", version="1.2.0", evr="1.2.0-1",
+                               arch="x86_64", status="live", path="rpm/stable/packages/gnomish-1.2.0-1.x86_64.rpm",
+                               published_at=utcnow()))
+        db.session.commit()
+    page = client.get("/").get_data(as_text=True)
+    assert 'data-method="deb"' in page and "Debian, Ubuntu and apt" in page       # the built-in text to start with
+    assert "sudo curl -fsSLo /etc/apt/sources.list.d/gnomish.sources http://localhost/deb/gnomish.sources\n" \
+           "sudo apt update &amp;&amp; sudo apt install gnomish" in page
+    assert '<a href="http://localhost/download/gnomish-amd64.deb">gnomish 1.2.0 for' in page
+
+    resp = client.patch("/api/v1/site", json={"install": {
+        "deb_title": "Debian package", "deb_desc": "", "deb_lead": "Add the {app_name} repository:",
+        "deb_after": "For **Debian 13** and newer.", "deb_files_title": "Prefer a download?",
+        "deb_files_text": "The same package as a file.", "deb_files_button": "Download the deb"}},
+        headers=h(token_of(client)))
+    assert resp.status_code == 200, resp.get_json()
+    assert client.post("/api/v1/site/publish", json={}, headers=h(token_of(client))).status_code == 200
+    page = client.get("/").get_data(as_text=True)
+    assert "Debian, Ubuntu and apt" not in page and "Debian package" in page
+    assert "this site's apt repository" not in page                                # emptied, so left out
+    assert "Add the Gnomish repository:" in page
+    assert "<strong>Debian 13</strong>" in page and "<summary>Prefer a download?</summary>" in page
+    assert 'class="btn btn--ghost" href="http://localhost/download/gnomish-amd64.deb"' in page
+    assert "Download the deb" in page
+
+
 def token_of(client):
     from tests.conftest import token_for
     return token_for(client)
