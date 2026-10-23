@@ -123,7 +123,7 @@
     </div>
     {%- endif %}
     <div class="container footer__legal">
-      <p>{{ s.fill(doc.footer.legal) }}{% if doc.app.license %} · {{ doc.app.license }}{% endif %}</p>
+      <p>{{ s.md_inline(doc.footer.legal) }}{% if doc.app.license %} · {{ doc.app.license }}{% endif %}</p>
     </div>
   </footer>
 

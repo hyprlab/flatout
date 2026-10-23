@@ -153,6 +153,16 @@ def test_the_footer_can_have_a_wordmark_of_its_own(client, csrf, admin):
     assert "wm.svg" not in header                       # the header keeps the name as text
 
 
+def test_the_small_print_takes_links(client, csrf, admin):
+    client.patch("/api/v1/site", json={"footer": {"legal": "© {year} [Hyprlab](https://hyprlab.co) · "
+                                                           '<a href="https://example.com/license">AGPLv3</a>'}},
+                 headers=h(csrf))
+    footer = preview(client).split('class="container footer__legal"')[1]
+    assert '<a href="https://hyprlab.co"' in footer and ">Hyprlab</a>" in footer
+    assert '<a href="https://example.com/license"' in footer and ">AGPLv3</a>" in footer
+    assert "&lt;a" not in footer and "<p><p>" not in footer
+
+
 def test_the_install_dialog_s_wording(client, csrf, admin, repo_state):
     page = preview(client)
     assert "Install file" in page and "Version 1.0.0" in page        # the built-in text to start with

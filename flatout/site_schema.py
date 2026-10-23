@@ -540,7 +540,8 @@ DOCUMENT = group("Site", {
             "logo_dark": image("Logo in dark mode"),
         }),
         "buttons": buttons("Buttons", [], max=6),
-        "legal": text("Small print", "© {year} {app_name}", max=300),
+        "legal": text("Small print", "© {year} {app_name}", max=300,
+                       help="**Bold** and [links](https://…) work."),
     }),
     "install": group("Install dialog", {
         "title": text("Title", "Install {app_name}", max=120),

@@ -43,7 +43,7 @@
       {%- endif %}
     </div>
     <footer class="status__foot">
-      <p>{{ s.fill(doc.footer.legal) }}</p>
+      <p>{{ s.md_inline(doc.footer.legal) }}</p>
       {%- if state == 'off' %}
       {#- The one place Flatout's own icon is on the public side: credit on the
           page that stands in for a site, linking to Flatout's source. -#}
