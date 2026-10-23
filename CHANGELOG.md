@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.11.0] — 2026-10-23
+
 ### Added
 - The footer's small print can carry links and bold text, written as
   Markdown (`[label](https://…)`) or as plain `<a>` tags
