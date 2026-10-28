@@ -6,6 +6,12 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- The beta section's button opens an install dialog of the beta's own, like
+  the release's: a choice of machine, and the beta's install file, bundles,
+  repository and dnf and apt packages. A link to `/#install-beta` opens it.
+  A switch in the section returns the button to downloading the install file
+
 ## [1.11.0] — 2026-10-23
 
 ### Added

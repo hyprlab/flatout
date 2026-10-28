@@ -127,7 +127,14 @@
     </div>
   </footer>
 
-  {% include "site/install_dialog.html" %}
+  {% with channel = 'stable' %}{% include "site/install_dialog.html" %}{% endwith %}
+  {#- The beta section's own chooser, while the section is on the page (it is
+      only while a beta exists) with its chooser switched on; sites saved
+      before the switch existed have it on. #}
+  {%- set beta_sec = s.sections()|selectattr('type', 'equalto', 'beta')|first %}
+  {%- if beta_sec and beta_sec.get('chooser', true) %}
+  {% with channel = 'beta', title = beta_sec.title %}{% include "site/install_dialog.html" %}{% endwith %}
+  {%- endif %}
 
   <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot" tabindex="-1" hidden>
     <div class="lightbox__backdrop" data-lightbox-close></div>

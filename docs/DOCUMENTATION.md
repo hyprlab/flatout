@@ -81,6 +81,10 @@ Sections have finer controls where a layout calls for them:
   and whether it fades in as one, heading by heading, or not at all.
 - **Beta channel**: an icon, the version shown or not, the button after the
   warning or after the text, a note under it, and a command in a copy box.
+  The button opens the beta's own install dialog, as the install button opens
+  the release's: the machines the beta is built for, and its install file,
+  bundles, repository and dnf and apt packages. `/#install-beta` opens it
+  too. Switched off, the button downloads the beta's install file.
 - **Install guide**: a distro's command can come right after its text, its
   steps can have a heading of their own, and a note can close it; closing
   blocks put text and its buttons in turn after the guide.

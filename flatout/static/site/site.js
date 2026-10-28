@@ -283,10 +283,14 @@
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !box.hidden) close(); });
   })();
 
-  /* ————— Install dialog ————— */
-  (function () {
-    var modal = document.getElementById("install-modal");
-    if (!modal) return;
+  /* ————— Install dialogs ————— */
+  // One per channel: #install-modal for the release, #install-modal-beta for
+  // the beta section's button (data-install-open="beta"). Each keeps its own
+  // picker; /#install and /#install-beta open them.
+  document.querySelectorAll(".modal[data-install-channel]").forEach(function (modal) {
+    var channel = modal.getAttribute("data-install-channel");
+    var hash = channel === "beta" ? "#install-beta" : "#install";
+    var sfx = channel === "beta" ? "-beta" : "";
     var dialog = modal.querySelector(".modal__scroll");
     var lastFocus = null;
 
@@ -301,20 +305,22 @@
       modal.hidden = true;
       document.body.style.overflow = "";
       if (lastFocus && lastFocus.focus) lastFocus.focus();
-      if (location.hash === "#install") history.replaceState(null, "", location.pathname + location.search);
+      if (location.hash === hash) history.replaceState(null, "", location.pathname + location.search);
     }
-    document.querySelectorAll("[data-install-open]").forEach(function (el) { el.addEventListener("click", open); });
+    document.querySelectorAll("[data-install-open]").forEach(function (el) {
+      if ((el.getAttribute("data-install-open") === "beta") === (channel === "beta")) el.addEventListener("click", open);
+    });
     modal.querySelectorAll("[data-install-close]").forEach(function (el) { el.addEventListener("click", close); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modal.hidden) close(); });
-    // A link to /#install opens it straight away.
-    if (location.hash === "#install") open();
+    // A link to /#install (or /#install-beta) opens it straight away.
+    if (location.hash === hash) open();
 
     // The picker: the machine and the method drive one state. The install
     // file needs neither (flatpak resolves the architecture), the bundle
     // download needs both.
     var NAMES = { x86_64: "Intel/AMD", aarch64: "ARM" };
-    var archInputs = modal.querySelectorAll('input[name="install-arch"]');
-    var methodInputs = modal.querySelectorAll('input[name="install-method"]');
+    var archInputs = modal.querySelectorAll('input[name="install-arch' + sfx + '"]');
+    var methodInputs = modal.querySelectorAll('input[name="install-method' + sfx + '"]');
     function value(list) {
       for (var i = 0; i < list.length; i++) if (list[i].checked || list[i].type === "hidden") return list[i].value;
       return list[0] ? list[0].value : "";
@@ -340,11 +346,11 @@
       }
       var link = modal.querySelector("[data-bundle-link]");
       if (link && arch) link.href = link.getAttribute("data-href").replace("{arch}", arch);
-      var cmd = document.getElementById("install-cmd-bundle");
+      var cmd = modal.querySelector("[data-bundle-cmd]");
       if (cmd && arch) cmd.textContent = cmd.getAttribute("data-template").split("{arch}").join(arch);
       modal.querySelectorAll(".dl-arch-name").forEach(function (el) { el.textContent = NAMES[arch] || arch; });
       // Architectures can be on different versions; say the chosen one's.
-      var picked = modal.querySelector('input[name="install-arch"]:checked');
+      var picked = modal.querySelector('input[name="install-arch' + sfx + '"]:checked');
       var sub = modal.querySelector("[data-install-version]");
       if (picked && sub && picked.getAttribute("data-version")) sub.textContent = "Version " + picked.getAttribute("data-version");
     }
@@ -354,7 +360,7 @@
     // Guess the machine. Chromium only tells the CPU through client hints;
     // elsewhere the user-agent string carries it on Linux ("Linux aarch64").
     function useArm() {
-      var arm = modal.querySelector('input[name="install-arch"][value="aarch64"]');
+      var arm = modal.querySelector('input[name="install-arch' + sfx + '"][value="aarch64"]');
       if (arm && arm.type === "radio") { arm.checked = true; render(); }
     }
     var ua = navigator.userAgent || "";
@@ -366,7 +372,7 @@
       }).catch(function () {});
     }
     render();
-  })();
+  });
 
   /* ————— Copy buttons ————— */
   document.querySelectorAll("[data-copy]").forEach(function (btn) {

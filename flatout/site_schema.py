@@ -352,6 +352,10 @@ SECTION_TYPES: dict[str, SectionType] = {
             "warning": markdown("Warning box", max=2000),
             "body": markdown("Text", max=4000),
             "button_label": text("Button label", "Download the beta", max=60),
+            "chooser": boolean("Button opens the install dialog", True,
+                               help="The beta's own dialog: its machines and every way it is published, as the "
+                                    "install dialog has the stable release's. Off, the button downloads the "
+                                    "beta's install file."),
             "button_at": select("Button goes", [("warning", "After the warning"), ("text", "After the text")],
                                 "warning"),
             "button_note": text("Note under the button", max=300),

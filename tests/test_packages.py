@@ -479,6 +479,49 @@ def test_the_apt_method_s_wording(client, admin, app):
     assert "Download the deb" in page
 
 
+def test_the_beta_has_an_install_dialog_of_its_own(client, admin, app):
+    """The beta section's button opens a dialog like the release's: its own
+    machines, and the beta's install file, bundles and repositories."""
+    from flatout.models import Release, utcnow
+    with app.app_context():
+        for channel, app_id, version in (("stable", "org.example.Gnomish", "1.2.0"),
+                                         ("beta", "org.example.Gnomish.Beta", "1.3.0-beta.1")):
+            for arch in ("x86_64", "aarch64"):
+                db.session.add(Release(app_id=app_id, arch=arch, channel=channel, version=version, status="live",
+                                       bundle_file=f"{channel}-{arch}.flatpak", published_at=utcnow()))
+        for arch in ("x86_64", "aarch64"):
+            db.session.add(Package(format="rpm", channel="beta", name="gnomish", version="1.3.0~beta.1",
+                                   evr="1.3.0~beta.1-1", arch=arch, status="live",
+                                   path=f"rpm/beta/packages/gnomish-1.3.0~beta.1-1.{arch}.rpm", published_at=utcnow()))
+        db.session.add(Package(format="deb", channel="beta", name="gnomish", version="1.3.0~beta.1",
+                               evr="1.3.0~beta.1-1", arch="arm64", status="live",
+                               path="deb/pool/beta/gnomish_1.3.0~beta.1-1_arm64.deb", published_at=utcnow()))
+        db.session.commit()
+    page = client.get("/").get_data(as_text=True)
+    stable, beta = page.split('id="install-modal-beta"', 1)
+    assert 'href="#install-beta" data-install-open="beta"' in stable
+    assert 'data-install-channel="beta"' in beta and 'name="install-arch-beta" value="aarch64"' in beta
+    assert 'name="install-arch"' not in beta and 'name="install-arch-beta"' not in stable
+    assert "Version 1.3.0-beta.1" in beta and "-beta.flatpakref" in beta
+    assert re.search(r'data-href="http://localhost/download/[^"]+-beta-\{arch\}\.flatpak"', beta)
+    assert "sudo curl -fsSLo /etc/yum.repos.d/gnomish-beta.repo http://localhost/rpm/gnomish-beta.repo\n" \
+           "sudo dnf install gnomish" in beta
+    assert "sudo curl -fsSLo /etc/apt/sources.list.d/gnomish-beta.sources http://localhost/deb/gnomish-beta.sources\n" \
+           "sudo apt update &amp;&amp; sudo apt install -o Dpkg::Options::=--force-confold gnomish" in beta
+    # The Debian package is for ARM only: greyed out on Intel/AMD.
+    assert 'class="method" data-arches="aarch64"' in beta
+    # The release's own dialog is untouched by the beta's packages.
+    assert 'data-method="rpm"' not in stable.split('id="install-modal"', 1)[1]
+
+    # Off, the button downloads the beta's install file, and there's no dialog.
+    resp = client.patch("/api/v1/site/sections/beta", json={"chooser": False}, headers=h(token_of(client)))
+    assert resp.status_code == 200, resp.get_json()
+    assert client.post("/api/v1/site/publish", json={}, headers=h(token_of(client))).status_code == 200
+    page = client.get("/").get_data(as_text=True)
+    assert 'id="install-modal-beta"' not in page and 'data-install-open="beta"' not in page
+    assert "-beta.flatpakref\" download>" in page
+
+
 def token_of(client):
     from tests.conftest import token_for
     return token_for(client)

@@ -5,7 +5,13 @@
 {%- set rv = '' if whole else ' reveal-me' %}
 {%- macro beta_button() %}
     {%- if sec.button_label %}
+    {#- With the chooser on, the button opens the beta's install dialog
+        (layout.html), as the install button does the stable one's. #}
+    {%- if sec.get('chooser', true) %}
+    <div class="actions{{ rv }}"><a class="btn btn--primary" href="#install-beta" data-install-open="beta">
+    {%- else %}
     <div class="actions{{ rv }}"><a class="btn btn--primary" href="{{ s.repo.beta_flatpakref_url }}" download>
+    {%- endif %}
       <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1a1 1 0 0 1 1-1Z"/></svg>
       {{ s.fill(sec.button_label) }}</a></div>
     {%- if sec.button_note %}<p class="install-note beta__note{{ rv }}">{{ s.md_inline(sec.button_note) }}</p>{% endif %}
