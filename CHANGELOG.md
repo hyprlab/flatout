@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.13.0] — 2026-10-28
+
 ### Changed
 - The install dialog lists every format with the machines it is built for,
   and shows the chosen one's instructions beside the list on a desktop, in a
