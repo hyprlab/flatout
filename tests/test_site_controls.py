@@ -182,8 +182,12 @@ def test_the_install_dialog_s_wording(client, csrf, admin, repo_state):
     assert "flatpak install ./App-x86_64.flatpak" in page
     assert '<strong><span class="dl-arch-name">Intel/AMD</span></strong>' in page
     assert "The whole app in one .flatpak file." not in page        # emptied, so left out
-    # The RPM: greyed out on ARM, and its own download button.
-    assert 'data-arches="x86_64"' in page and "Intel/AMD only</span>" in page
+    # The RPM: greyed out on ARM, its chips name Intel/AMD alone, and its own download button.
+    assert 'data-arches="x86_64"' in page
+    rpm = page[page.index('value="rpm"'):page.index("</label>", page.index('value="rpm"'))]
+    assert '<span class="arch-chip" data-arch="x86_64">Intel/AMD</span>' in rpm and 'data-arch="aarch64"' not in rpm
+    # The chosen method names itself above its instructions.
+    assert '<h3 class="how__title">Install via Flatpakref</h3>' in page
     # The Debian package's amd64 is the picker's x86_64, so it is offered on Intel/AMD.
     deb = page[page.index('value="deb"') - 400:page.index('value="deb"')]
     assert 'data-arches="x86_64"' in deb and "amd64" not in deb

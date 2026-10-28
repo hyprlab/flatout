@@ -315,7 +315,7 @@
     // A link to /#install (or /#install-beta) opens it straight away.
     if (location.hash === hash) open();
 
-    // The picker: the machine and the method drive one state. The install
+    // The machine switch and the format list drive one state. The install
     // file needs neither (flatpak resolves the architecture), the bundle
     // download needs both.
     var NAMES = { x86_64: "Intel/AMD", aarch64: "ARM" };
@@ -327,16 +327,18 @@
     }
     function render() {
       var arch = value(archInputs);
-      // A package built for some machines only is greyed out, and says so,
-      // on the others; the first method takes over if it was the one picked.
+      // A package built for some machines only is greyed out on the others
+      // (its chips say which it is for); the first method takes over if it
+      // was the one picked.
       modal.querySelectorAll(".method[data-arches]").forEach(function (card) {
         var off = card.getAttribute("data-arches").split(" ").indexOf(arch) < 0;
         var input = card.querySelector("input");
-        var flag = card.querySelector(".method__flag");
         input.disabled = off;
         card.classList.toggle("is-off", off);
-        if (flag) flag.hidden = !off;
         if (off && input.checked && methodInputs[0]) methodInputs[0].checked = true;
+      });
+      modal.querySelectorAll(".arch-chip").forEach(function (chip) {
+        chip.classList.toggle("is-current", chip.getAttribute("data-arch") === arch);
       });
       var method = value(methodInputs);
       if (method) {

@@ -6,6 +6,12 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- The install dialog lists every format with the machines it is built for,
+  and shows the chosen one's instructions beside the list on a desktop, in a
+  wider dialog, or below it on a phone. The machine is a small switch in the
+  header instead of a step of its own; formats it can't take are greyed out.
+
 ## [1.12.0] — 2026-10-28
 
 ### Added
