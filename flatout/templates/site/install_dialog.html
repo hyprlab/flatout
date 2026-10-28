@@ -85,16 +85,6 @@
 {%- macro method_desc(m) -%}
 {%- if m == 'files' %}Files to download and run, which don't update themselves.{% elif t(m ~ '_desc') %}{{ s.fill(t(m ~ '_desc')) }}{% endif %}
 {%- endmacro %}
-{%- macro method_icon(m) -%}
-{%- if m == 'ref' %}<span class="method__icon method__icon--ref"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16a1 1 0 0 1 1 1v3H3V5a1 1 0 0 1 1-1Zm-1 6h18v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9Zm5 3v2h8v-2H8Z"/></svg></span>
-{%- elif m == 'bundle' %}<span class="method__icon method__icon--bundle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3 6.5v11L12 22l9-4.5v-11L12 2Zm0 2.2 6.4 3.2L12 10.6 5.6 7.4 12 4.2ZM5 9.1l6 3v7.3l-6-3V9.1Zm14 0v7.3l-6 3v-7.3l6-3Z"/></svg></span>
-{%- elif m == 'repo' %}<span class="method__icon method__icon--repo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm1 2v3h12V6H6Zm0 5v3h12v-3H6Zm0 5v2h12v-2H6Z"/></svg></span>
-{%- elif m == 'rpm' %}<span class="method__icon method__icon--rpm"><span>rpm</span></span>
-{%- elif m == 'deb' %}<span class="method__icon method__icon--deb"><span>deb</span></span>
-{%- elif m == 'appimage' %}<span class="method__icon method__icon--appimage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 3.3 7v10L12 22l8.7-5V7L12 2Zm0 2.3 6.7 3.9v7.6L12 19.7l-6.7-3.9V8.2L12 4.3Zm0 3.2a4.5 4.5 0 0 0-4.4 3.6h1.6a3 3 0 0 1 5-1.1L12.9 11H17V6.9l-1.3 1.3A4.5 4.5 0 0 0 12 7.5Zm-5 5.5v4.1l1.3-1.3a4.5 4.5 0 0 0 8.1-2.8h-1.6a3 3 0 0 1-5 1.1l1.3-1.1H7Z"/></svg></span>
-{%- else %}<span class="method__icon method__icon--files"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm6 1.5V9h4.5L13 4.5ZM11.3 11v4.2l-1.6-1.6-1.1 1.1 3.4 3.4 3.4-3.4-1.1-1.1-1.5 1.5V11h-1.5Z"/></svg></span>
-{%- endif %}
-{%- endmacro %}
 {%- macro how_head(m) -%}
 <div class="how__head"><h3 class="how__title">{{ method_title(m) }}</h3>
   {%- set desc = method_desc(m) %}{% if desc %}<p class="how__desc">{{ desc }}</p>{% endif %}</div>
@@ -142,7 +132,6 @@
       <label class="method"{% if m == 'rpm' %}{{ arches_only(pk.rpm[channel]) }}{% elif m == 'deb' %}{{ arches_only(pk.deb[channel]) }}{% elif m == 'appimage' %}{{ arches_only({'downloads': ai_downloads}) }}{% endif %}>
         <input type="radio" name="install-method{{ sfx }}" value="{{ m }}"{% if loop.first %} checked{% endif %}>
         <span class="method__face">
-          {{ method_icon(m) }}
           <span class="method__text"><span class="method__title">{{ method_title(m) }}</span>
             {{- arch_chips(m) }}</span>
           {%- if m == 'ref' %}<span class="install-badge method__badge">Easiest</span>{% endif %}

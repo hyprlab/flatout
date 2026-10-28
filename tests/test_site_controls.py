@@ -192,7 +192,6 @@ def test_the_install_dialog_s_wording(client, csrf, admin, repo_state):
     deb = page[page.index('value="deb"') - 400:page.index('value="deb"')]
     assert 'data-arches="x86_64"' in deb and "amd64" not in deb
     assert 'class="btn btn--ghost" href="http://localhost/download/gnomish-x86_64.rpm"' in page
-    assert ">rpm</span>" in page
 
 
 def test_a_site_saved_before_the_wording_fields_gets_the_built_in_text(app, client, csrf, admin, repo_state):

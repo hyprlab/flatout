@@ -959,44 +959,29 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   cursor: inherit;
 }
 
-/* Method cards. */
-.methods { display: grid; gap: 6px; align-content: start; }
+/* The formats, as a list of rows; the chosen one is filled with the accent,
+   like the selected row in a GNOME sidebar. */
+.methods { display: grid; gap: 2px; align-content: start; }
 .method { position: relative; cursor: pointer; }
 .method__face {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 9px 12px;
+  padding: 10px 14px;
   border-radius: 12px;
-  border: 1.5px solid var(--line);
-  background: var(--surface);
-  transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+  transition: background .15s ease, color .15s ease;
 }
-.method:hover .method__face { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
-.method input:checked + .method__face {
-  border-color: var(--accent);
-  background: var(--bg-tint);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+.method:hover .method__face { background: var(--bg-tint); }
+.method input:checked + .method__face { background: var(--accent); }
+/* A dark theme's accent is a light tint, too pale under white text. */
+:root[data-theme="dark"] .method input:checked + .method__face {
+  background: color-mix(in srgb, var(--accent) 75%, black);
 }
+.method input:checked + .method__face .method__title { color: var(--accent-ink); }
 .method input:focus-visible + .method__face { outline: 2px solid var(--accent); outline-offset: 2px; }
 .method.is-off { cursor: default; }
-.method.is-off .method__face { opacity: .5; border-style: dashed; }
-.method.is-off:hover .method__face { border-color: var(--line); }
-.method__icon {
-  flex: none;
-  width: 36px; height: 36px;
-  display: grid; place-items: center;
-  border-radius: 6px;
-  color: #fff;
-}
-.method__icon svg { width: 20px; height: 20px; fill: currentColor; }
-.method__icon--ref    { background: var(--accent-gradient); }
-.method__icon--bundle { background: linear-gradient(160deg, color-mix(in srgb, var(--highlight) 80%, white), var(--highlight)); color: var(--highlight-ink); }
-.method__icon--repo   { background: linear-gradient(160deg, color-mix(in srgb, var(--c-green) 72%, white), var(--c-green)); }
-.method__icon--rpm    { background: linear-gradient(160deg, #3c6eb4, #294172); }
-.method__icon--deb    { background: linear-gradient(160deg, #e0577f, #a80030); }
-.method__icon--appimage { background: linear-gradient(160deg, color-mix(in srgb, var(--c-blue) 72%, white), var(--c-blue)); }
-.method__icon--files  { background: linear-gradient(160deg, color-mix(in srgb, var(--ink-soft) 70%, white), var(--ink-soft)); }
+.method.is-off .method__face { opacity: .45; }
+.method.is-off:hover .method__face { background: none; }
 .method__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .method__title {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
@@ -1019,6 +1004,15 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--accent);
 }
+.method input:checked + .method__face .arch-chip {
+  border-color: color-mix(in srgb, var(--accent-ink) 45%, transparent);
+  background: transparent;
+  color: var(--accent-ink);
+}
+.method input:checked + .method__face .arch-chip.is-current {
+  border-color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent-ink) 22%, transparent);
+}
 .method__badge { margin-left: auto; align-self: flex-start; }
 .install-badge {
   display: inline-flex;
@@ -1036,11 +1030,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 /* The chosen method. */
 .install__how { min-width: 0; }
 .how {
-  margin-top: 16px;
-  padding: 22px 22px 18px;
-  border-radius: var(--radius);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
-  background: var(--bg-tint);
+  margin-top: 18px;
   animation: modal-pop .2s ease;
 }
 .how[hidden] { display: none; }
@@ -1050,7 +1040,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .how__desc { margin: 2px 0 0; font-size: .88rem; color: var(--ink-soft); }
 .how__after strong { color: var(--ink); }
 .how__after code, .how__lead code, .term code:not(.code-copy code) {
-  background: var(--surface);
+  background: var(--bg-tint);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 1px 6px;
@@ -1095,6 +1085,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
    the method beside it, and the header in one row. */
 @media (max-width: 859px) {
   .how__title { display: none; }
+  .install .methods + .install__how .how { padding-top: 16px; border-top: 1px solid var(--line); }
 }
 @media (min-width: 860px) {
   .modal__dialog--install { max-width: 940px; }
@@ -1213,7 +1204,6 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 
 @media (max-width: 520px) {
   .modal__scroll { padding: 30px 20px 26px; }
-  .how { padding: 18px 16px 14px; }
   .code-copy { flex-direction: column; }
   .code-copy__btn { padding: 10px; justify-content: center; }
 }
