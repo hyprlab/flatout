@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.12.0] — 2026-10-28
+
 ### Added
 - The beta section's button opens an install dialog of the beta's own, like
   the release's: a choice of machine, and the beta's install file, bundles,
