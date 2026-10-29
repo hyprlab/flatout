@@ -15,6 +15,8 @@ All notable changes to Flatout are documented here. The format follows
 - The full download's description sits under its buttons.
 
 ### Fixed
+- An address with a trailing slash, such as /admin/, goes to the one without
+  it instead of answering that there is nothing there.
 - Typing in the install dialog's fields in the site editor no longer loses
   the caret each time the preview reloads and reopens the dialog.
 

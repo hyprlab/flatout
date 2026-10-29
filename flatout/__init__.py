@@ -179,6 +179,18 @@ def create_app(config_class=Config) -> Flask:
 
     @app.errorhandler(HTTPException)
     def http_error(err):
+        # /admin/ for /admin: an address typed or linked with a trailing slash
+        # goes to the one without it, when that one exists.
+        if err.code == 404 and request.method in ("GET", "HEAD") and len(request.path) > 1 \
+                and request.path.endswith("/"):
+            bare = request.path.rstrip("/")
+            try:
+                app.url_map.bind_to_environ(request.environ).match(bare, method=request.method)
+            except HTTPException:
+                pass
+            else:
+                qs = request.query_string.decode()
+                return redirect(bare + ("?" + qs if qs else ""), 308)
         if _wants_json():
             return jsonify(error=err.description or err.name), err.code
         if err.code == 404 and public.is_public_path() and not setup.needs_setup():
