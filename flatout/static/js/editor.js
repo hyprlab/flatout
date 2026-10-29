@@ -431,7 +431,11 @@
     }
     if (E.view && E.view.kind === "group" && E.view.key === "install") {
       var opener = doc.querySelector("[data-install-open]");
+      // Opening the dialog focuses it, which would pull the caret out of
+      // the field being typed in; the field gets it back.
+      var typing = document.activeElement;
       if (opener) opener.click();
+      if (typing && typing !== frame && typing !== document.body) typing.focus({ preventScroll: true });
     }
     E.restoreY = null;
     E.scrollTarget = null;

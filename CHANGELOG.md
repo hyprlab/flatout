@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Fixed
+- Typing in the install dialog's fields in the site editor no longer loses
+  the caret each time the preview reloads and reopens the dialog.
+
 ## [1.14.5] — 2026-10-29
 
 ### Fixed
