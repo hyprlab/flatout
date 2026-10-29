@@ -1702,6 +1702,23 @@ a.status__powered:hover { color: var(--hero-ink); text-decoration: underline; te
 .hero--fade:not(.hero--shot) { padding-bottom: calc(var(--hero-pad) + var(--fade-len)); }
 @media (max-width: 760px) {
   .hero--fade { --fade-len: calc(var(--hero-fade-len, 470px) * .47); }
+  /* A phone's hero is short: measured from its foot, the blend reached back
+     behind the buttons and badges, and their white text vanished into it.
+     The copy keeps the hero's color, and the blend runs behind the window
+     instead, from its top, as it does on a wide screen. */
+  .hero--fade.hero--shot { background: var(--hero-bg); }
+  .hero--fade.hero--shot .shot {
+    --fade-start: 0px;
+    background:
+      linear-gradient(180deg,
+        var(--hero-bg) 0,
+        color-mix(in srgb, var(--hero-bg) 86%, var(--bg)) calc(var(--fade-len) * .15),
+        color-mix(in srgb, var(--hero-bg) 55%, var(--bg)) calc(var(--fade-len) * .36),
+        color-mix(in srgb, var(--hero-bg) 24%, var(--bg)) calc(var(--fade-len) * .62),
+        color-mix(in srgb, var(--hero-bg) 6%, var(--bg)) calc(var(--fade-len) * .83),
+        var(--bg) var(--fade-len)),
+      var(--bg);
+  }
 }
 
 /* ———————— Markdown alignment and text-section headings ———————— */

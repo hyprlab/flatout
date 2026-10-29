@@ -6,6 +6,11 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Fixed
+- On a phone, a hero that fades into the page with a screenshot started the
+  fade behind its buttons and badges, and their white text vanished into it.
+  The copy now stays on the hero's color and the fade runs behind the window.
+
 ## [1.14.3] — 2026-10-29
 
 ### Changed
