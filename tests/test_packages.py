@@ -516,6 +516,16 @@ def test_the_beta_has_an_install_dialog_of_its_own(client, admin, app):
     # The release's own dialog is untouched by the beta's packages.
     assert 'data-method="rpm"' not in stable.split('id="install-modal"', 1)[1]
 
+    # The beta's dialog shows the beta section's icon once it has one.
+    icon = '<img class="modal__icon" src="https://example.org/beta.png"'
+    assert icon not in beta
+    resp = client.patch("/api/v1/site/sections/beta", json={"icon": "https://example.org/beta.png"},
+                        headers=h(token_of(client)))
+    assert resp.status_code == 200, resp.get_json()
+    assert client.post("/api/v1/site/publish", json={}, headers=h(token_of(client))).status_code == 200
+    stable, beta = client.get("/").get_data(as_text=True).split('id="install-modal-beta"', 1)
+    assert icon in beta and icon not in stable
+
     # Off, the button downloads the beta's install file, and there's no dialog.
     resp = client.patch("/api/v1/site/sections/beta", json={"chooser": False}, headers=h(token_of(client)))
     assert resp.status_code == 200, resp.get_json()

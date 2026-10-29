@@ -9,7 +9,8 @@
     Included once per channel (layout.html): `channel` is "stable", or "beta"
     for the beta section's button, which then installs the beta app, its
     beta-branch bundles and the beta dnf and apt repositories. Ids and radio
-    names carry the channel so the two dialogs never share a group. -#}
+    names carry the channel so the two dialogs never share a group, and the
+    betas dialog has the beta sections title and icon when it sets them. -#}
 {% from "site/macros.html" import versions %}
 {%- set repo = s.repo %}
 {%- set conf = doc.install %}
@@ -97,7 +98,7 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z"/></svg>
     </button>
     <div class="modal__head modal__head--install">
-      <img class="modal__icon" src="{{ s.icon_url }}" alt="" width="64" height="64">
+      <img class="modal__icon" src="{{ icon if beta and icon else s.icon_url }}" alt="" width="64" height="64">
       <div class="modal__heading">
         <h2 class="modal__title" id="install-title{{ sfx }}">{{ s.fill(title if beta and title else conf.title) }}</h2>
         {%- if t('show_version') %}
