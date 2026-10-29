@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.14.4] — 2026-10-29
+
 ### Fixed
 - On a phone, a hero that fades into the page with a screenshot started the
   fade behind its buttons and badges, and their white text vanished into it.
