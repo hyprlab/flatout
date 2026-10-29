@@ -1040,9 +1040,11 @@
       });
       var full = f.max && items.length >= f.max;
       box.appendChild(el("button", { type: "button", class: "btn btn--ghost btn--xs ed-add", disabled: full, onclick: function () {
-        getAt(E.doc, path).push(defaultFor(f.item));
+        // items is that same list, already one longer: open the new last one.
+        var list = getAt(E.doc, path);
+        list.push(defaultFor(f.item));
         changed();
-        draw(items.length);
+        draw(list.length - 1);
         var last = box.querySelectorAll(".ed-item");
         last = last[last.length - 1];
         if (last) { var input = last.querySelector("input, textarea, select"); if (input) input.focus(); }
