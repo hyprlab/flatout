@@ -74,6 +74,7 @@ class F:
     fields: dict | None = None      # group: name -> F
     item_label: str = ""            # list: what one item is called in the editor
     title_field: str = ""           # list of groups: the field that names an item
+    folds: list | None = None       # group: [{key, label, fields}], drawn as folds in the editor
 
     def to_json(self) -> dict:
         out: dict[str, Any] = {"type": self.type, "label": self.label}
@@ -92,6 +93,8 @@ class F:
                 out["title_field"] = self.title_field
         if self.type == "group":
             out["fields"] = {k: f.to_json() for k, f in self.fields.items()}
+            if self.folds:
+                out["folds"] = self.folds
         if self.type not in ("list", "group"):
             out["default"] = self.default
         return out
@@ -144,8 +147,18 @@ def icon(label="Icon", default="", help="A built-in icon, or the URL of an uploa
     return F("icon", label, default, help, max=2000)
 
 
-def group(label, fields, help=""):
-    return F("group", label, help=help, fields=fields)
+def group(label, fields, help="", folds=None):
+    """``folds`` gathers fields the editor shows behind a fold of their own:
+    [(key, label), ...], each taking the fields named ``<key>_…``. A fold's
+    ``title_field`` is its ``<key>_title``, when there is one, so the fold
+    reads as the site names it. Fields in no fold come first."""
+    out = F("group", label, help=help, fields=fields)
+    if folds:
+        out.folds = [{"key": k, "label": lbl,
+                      "fields": [n for n in fields if n.startswith(k + "_")],
+                      **({"title_field": k + "_title"} if k + "_title" in fields else {})}
+                     for k, lbl in folds]
+    return out
 
 
 def items(label, item, default=None, max=50, item_label="item", title_field="", help=""):
@@ -571,82 +584,84 @@ DOCUMENT = group("Site", {
         # {flatpak_setup_url}, and in the full download's, {arch_name} and
         # {arch} name the machines it is built for (Intel/AMD or ARM).
         "show_version": boolean("Show the version under the title", True),
-        "ref_title": text("Install file: name", "Install file", max=80),
-        "ref_desc": text("Install file: description", "A small file your app store opens, and keeps the app updated.",
+        "ref_title": text("Name", "Install file", max=80),
+        "ref_desc": text("Description", "A small file your app store opens, and keeps the app updated.",
                          max=200),
-        "ref_button": text("Install file: button", "Download the install file", max=80),
-        "ref_after": markdown("Install file: under the button",
+        "ref_button": text("Button", "Download the install file", max=80),
+        "ref_after": markdown("Under the button",
                               "**Open the downloaded file** and your app store (GNOME Software, KDE Discover or "
                               "similar) installs {app_name} and keeps it updated. New to Flatpak? "
                               "[Set it up for your distro]({flatpak_setup_url}) first.", max=2000),
-        "ref_tip_title": text("Install file: a folded tip's title", "", max=80,
+        "ref_tip_title": text("A folded tip's title", "", max=80,
                               help="Optional, such as: Using Bazaar?"),
-        "ref_tip_text": markdown("Install file: the tip", "", max=2000),
-        "ref_tip_command": textarea("Install file: the tip's command", "", max=600,
+        "ref_tip_text": markdown("The tip", "", max=2000),
+        "ref_tip_command": textarea("The tip's command", "", max=600,
                                     help="Shown in a copyable box under the tip."),
-        "ref_terminal_intro": markdown("Install file: before the terminal command", "", max=1000),
-        "ref_terminal_after": markdown("Install file: after the terminal command",
+        "ref_terminal_intro": markdown("Before the terminal command", "", max=1000),
+        "ref_terminal_after": markdown("After the terminal command",
                                        "Then start it from the applications menu or with `flatpak run {app_id}`.",
                                        max=1000),
-        "bundle_title": text("Full download: name", "Full download", max=80),
-        "bundle_desc": text("Full download: description", "The whole app in one .flatpak file.", max=200),
-        "bundle_url": url("Full download: address",
+        "bundle_title": text("Name", "Full download", max=80),
+        "bundle_desc": text("Description, under the buttons", "The whole app in one .flatpak file.", max=200),
+        "bundle_url": url("Address",
                           help="Empty serves the bundles uploaded here. Another address, such as a GitHub release "
                                "asset, offers the download from there; {arch} in it becomes x86_64 or aarch64."),
-        "bundle_button": text("Full download: button (no longer used)", "Download for", max=80,
+        "bundle_button": text("Button (no longer used)", "Download for", max=80,
                               help="Since 1.14.0 each machine's file has its own button, named after the file."),
-        "bundle_after": markdown("Full download: under the button",
+        "bundle_after": markdown("Under the description",
                                  "**Open it like any download** and your app store installs it. Flatpak has to be "
                                  "[set up]({flatpak_setup_url}) already.", max=2000),
-        "bundle_terminal_intro": markdown("Full download: before the terminal commands", "", max=1000),
-        "bundle_terminal_after": markdown("Full download: after the terminal commands", "", max=1000),
-        "repo_title": text("Repository: name", "Add the repository", max=80),
-        "repo_desc": text("Repository: description", "For app stores that only search repositories they know.",
+        "bundle_terminal_intro": markdown("Before the terminal commands", "", max=1000),
+        "bundle_terminal_after": markdown("After the terminal commands", "", max=1000),
+        "repo_title": text("Name", "Add the repository", max=80),
+        "repo_desc": text("Description", "For app stores that only search repositories they know.",
                           max=200),
-        "repo_lead": markdown("Repository: before the commands",
+        "repo_lead": markdown("Before the commands",
                               "Add the repository once, then find {app_name} in your app store or install it from "
                               "a terminal:", max=1000),
-        "rpm_title": text("dnf: name", "Fedora and dnf", max=80),
-        "rpm_desc": text("dnf: description",
+        "rpm_title": text("Name", "Fedora and dnf", max=80),
+        "rpm_desc": text("Description",
                          "A package from this site's dnf repository, updated with the rest of the system.", max=200),
-        "rpm_lead": markdown("dnf: before the commands",
+        "rpm_lead": markdown("Before the commands",
                              "Add the repository once; {app_name} then updates with the rest of the system.",
                              max=1000),
-        "rpm_after": markdown("dnf: after the commands",
+        "rpm_after": markdown("After the commands",
                               "GNOME Software and KDE Discover show its updates too. Fedora, RHEL and their "
                               "relatives.", max=2000),
-        "rpm_files_title": text("dnf: the single file's title", "Prefer a single file?", max=80),
-        "rpm_files_text": markdown("dnf: the single file's text", "", max=1000,
+        "rpm_files_title": text("The single file's title", "Prefer a single file?", max=80),
+        "rpm_files_text": markdown("The single file's text", "", max=1000,
                                    help="Empty lists each package file with its version."),
-        "rpm_files_button": text("dnf: the single file's button (no longer used)", "Download the RPM", max=80,
+        "rpm_files_button": text("The single file's button (no longer used)", "Download the RPM", max=80,
                                  help="Since 1.14.0 each file's button is named after the file."),
-        "deb_title": text("apt: name", "Debian, Ubuntu and apt", max=80),
-        "deb_desc": text("apt: description",
+        "deb_title": text("Name", "Debian, Ubuntu and apt", max=80),
+        "deb_desc": text("Description",
                          "A package from this site's apt repository, updated with the rest of the system.", max=200),
-        "deb_lead": markdown("apt: before the commands",
+        "deb_lead": markdown("Before the commands",
                              "Add the repository once; {app_name} then updates with the rest of the system.",
                              max=1000),
-        "deb_after": markdown("apt: after the commands",
+        "deb_after": markdown("After the commands",
                               "The file carries the repository's signing key. Debian 12, Ubuntu 22.04 and newer.",
                               max=2000),
-        "deb_files_title": text("apt: the single file's title", "Prefer a single file?", max=80),
-        "deb_files_text": markdown("apt: the single file's text", "", max=1000,
+        "deb_files_title": text("The single file's title", "Prefer a single file?", max=80),
+        "deb_files_text": markdown("The single file's text", "", max=1000,
                                    help="Empty lists each package file with its version."),
-        "deb_files_button": text("apt: the single file's button (no longer used)", "Download the Debian package", max=80,
+        "deb_files_button": text("The single file's button (no longer used)", "Download the Debian package", max=80,
                                  help="Since 1.14.0 each file's button is named after the file."),
-        "appimage_title": text("AppImage: name", "AppImage", max=80),
-        "appimage_desc": text("AppImage: description",
+        "appimage_title": text("Name", "AppImage", max=80),
+        "appimage_desc": text("Description",
                               "One file that runs on most distributions and updates from this site.", max=200),
-        "appimage_after": markdown("AppImage: under the downloads",
+        "appimage_after": markdown("Under the downloads",
                                    "**Open it with [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever)** "
                                    "to add {app_name} to your applications and get its updates; AppImageLauncher "
                                    "works too. Each AppImage already knows where its updates come from.",
                                    max=2000),
-        "appimage_terminal": markdown("AppImage: the terminal tip",
+        "appimage_terminal": markdown("The terminal tip",
                                       "Make the file executable with `chmod +x` and run it. `appimageupdatetool` "
                                       "brings it up to date from this site.", max=1000,
                                       help="Folded under the downloads, as Prefer the terminal? Empty leaves it out."),
-    }),
+    }, folds=[("ref", "Install file (.flatpakref)"), ("bundle", "Full .flatpak download"),
+              ("repo", "Flatpak repository"), ("rpm", "dnf repository"), ("deb", "apt repository"),
+              ("appimage", "AppImage"), ("files", "Other downloads")]),
     "not_found": group("Page not found", {
         "title": text("Title", "There is nothing at this address", max=120),
         "message": textarea("Message", "The page may have moved, or the link may be mistyped.", max=600),

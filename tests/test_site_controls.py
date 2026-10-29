@@ -199,6 +199,31 @@ def test_the_install_dialog_s_wording(client, csrf, admin, repo_state):
     assert 'class="btn btn--ghost dl-list__btn" href="http://localhost/download/gnomish-x86_64.rpm"' in page
     assert '<h4 class="how__sub">Prefer a download?</h4>' in page
 
+
+def test_the_full_download_s_description_is_under_its_buttons(client, csrf, admin, repo_state):
+    resp = client.patch("/api/v1/site", json={"install": {"bundle_desc": "Updates from the repository.",
+                      "bundle_url": "https://example.org/App-{arch}.flatpak"}},
+                        headers=h(csrf))
+    assert resp.status_code == 200, resp.get_json()
+    page = preview(client)
+    bundle = page[page.index('data-method="bundle"'):page.index("</section>", page.index('data-method="bundle"'))]
+    assert bundle.index("dl-list__btn") < bundle.index('<p class="how__desc">Updates from the repository.</p>')
+
+
+def test_the_install_dialog_s_fields_fold_by_format():
+    """The editor shows each format's fields behind a fold of its own, named
+    as the site names that format; the dialog's own settings stay out of them."""
+    install = site_schema.schema_json()["document"]["fields"]["install"]
+    folds = {f["key"]: f for f in install["folds"]}
+    assert list(folds) == ["ref", "bundle", "repo", "rpm", "deb", "appimage", "files"]
+    assert folds["bundle"]["title_field"] == "bundle_title" and "title_field" not in folds["files"]
+    assert folds["bundle"]["fields"][0] == "bundle_method" and "bundle_desc" in folds["bundle"]["fields"]
+    folded = [n for f in install["folds"] for n in f["fields"]]
+    assert len(folded) == len(set(folded))
+    assert set(install["fields"]) - set(folded) == {"title", "show_arch_picker", "flatpak_setup_url", "footer",
+                                                    "show_version"}
+
+
 def test_a_site_saved_before_the_wording_fields_gets_the_built_in_text(app, client, csrf, admin, repo_state):
     from flatout import site
     from flatout.models import SiteDocument, db

@@ -283,7 +283,8 @@
     hasChanges: false,
     view: null,           // { kind: "list" } | { kind: "group", key } | { kind: "section", obj } | { kind: "page", obj } | { kind: "theme" }
     timer: null, saving: false, again: false, dirty: false, failed: false,
-    restoreY: null, scrollTarget: null
+    restoreY: null, scrollTarget: null,
+    openFolds: {}, installMethod: null
   };
 
   var GROUPS = [
@@ -435,6 +436,7 @@
       // the field being typed in; the field gets it back.
       var typing = document.activeElement;
       if (opener) opener.click();
+      showInstallMethod();
       if (typing && typing !== frame && typing !== document.body) typing.focus({ preventScroll: true });
     }
     E.restoreY = null;
@@ -450,6 +452,15 @@
   document.querySelectorAll('input[name="preview-mode"]').forEach(function (r) {
     r.addEventListener("change", function () { E.restoreY = null; refreshPreview(); });
   });
+  // The format whose fold is open in the editor, chosen in the preview's
+  // dialog, so the preview shows the part being edited.
+  function showInstallMethod() {
+    if (!E.installMethod) return;
+    try {
+      var input = frame.contentDocument.querySelector('#install-modal input[name="install-method"][value="' + E.installMethod + '"]');
+      if (input && !input.checked) { input.checked = true; input.dispatchEvent(new Event("change")); }
+    } catch (_) {}
+  }
   function scrollPreviewTo(id) {
     try {
       var doc = frame.contentDocument;
@@ -723,9 +734,13 @@
     }
     wrap.appendChild(placeholderHelp());
     var form = el("div", { class: "ed-form" });
+    var folds = v.kind === "group" ? (S.document.fields[v.key].folds || []) : [];
+    var folded = {};
+    folds.forEach(function (fd) { fd.fields.forEach(function (n) { folded[n] = true; }); });
     Object.keys(fields).forEach(function (name) {
-      form.appendChild(field(fields[name], path.concat([name]), 0));
+      if (!folded[name]) form.appendChild(field(fields[name], path.concat([name]), 0));
     });
+    folds.forEach(function (fd) { form.appendChild(foldControl(fd, fields, path, v.key)); });
     wrap.appendChild(form);
     panel.appendChild(wrap);
     linkSuggestions();
@@ -944,6 +959,27 @@
       set(sel.value);
     });
     return sel;
+  }
+
+  // A group's fields behind folds of their own (site_schema.group's folds),
+  // so a long group opens at the part wanted rather than a page of fields.
+  // A fold is named as the site names it; one left open stays open while the
+  // editor is. In the install dialog, opening one shows that format.
+  function foldControl(fd, fields, path, key) {
+    var id = key + "/" + fd.key;
+    var name = fd.title_field && getAt(E.doc, path.concat([fd.title_field]));
+    var details = el("details", { class: "ed-group ed-fold", "data-fold": fd.key, open: E.openFolds[id] ? true : null }, [
+      el("summary", { class: "ed-group-title" }, [
+        el("span", { text: name || fd.label }),
+        name && name !== fd.label ? el("span", { class: "ed-fold-kind", text: fd.label }) : null
+      ]),
+      el("div", { class: "ed-group-body" }, fd.fields.map(function (n) { return field(fields[n], path.concat([n]), 1); }))
+    ]);
+    details.addEventListener("toggle", function () {
+      E.openFolds[id] = details.open;
+      if (details.open && key === "install") { E.installMethod = fd.key; showInstallMethod(); }
+    });
+    return details;
   }
 
   function groupControl(f, path, depth) {

@@ -6,6 +6,14 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- In the site editor, the install dialog's fields fold by format, each fold
+  named as the site names the format. Opening one shows that format in the
+  preview, and it stays open while the editor is.
+
+### Changed
+- The full download's description sits under its buttons.
+
 ### Fixed
 - Typing in the install dialog's fields in the site editor no longer loses
   the caret each time the preview reloads and reopens the dialog.
