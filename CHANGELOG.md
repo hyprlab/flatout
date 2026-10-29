@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.14.1] — 2026-10-29
+
 ### Changed
 - More space between the formats in the install dialog's list.
 - The install file no longer carries an "Easiest" badge in the install dialog.
