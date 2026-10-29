@@ -127,6 +127,8 @@ def restore_revision(revision_id: int, who: str) -> dict | None:
     # A revision from before the app ID became a repository setting carries
     # it; the setting stays as it is now.
     site_schema.take_moved(doc)
+    # And one from before the install dialog's formats shared their fields.
+    site_schema.upgrade_install(doc)
     # Validated on the way in: the revision may name files deleted since.
     return save_draft(doc, who)
 

@@ -7,14 +7,23 @@ All notable changes to Flatout are documented here. The format follows
 ## Unreleased
 
 ### Added
+- Every way to install in the install dialog has the same fields: its name,
+  text above and below its buttons (or commands), and any number of folded
+  tips, each with a title, text and a command to copy. `{command}` in a tip
+  is that format's own install command. A site's text moves across on
+  upgrade: descriptions and leads above, after-texts below, the install
+  file's tip and the terminal wording into tips. The API names the new
+  field for an old one; a whole document in the old shape still saves.
 - In the site editor, the install dialog's fields fold by format, each fold
   named as the site names the format. Opening one shows that format in the
   preview, and it stays open while the editor is.
 
 ### Changed
-- The full download's description sits under its buttons.
+- The install file's button is named after the file, like every other
+  download button. A package's files follow its commands without a heading.
 
 ### Fixed
+- A list item added in the site editor opens, ready to fill in.
 - An address with a trailing slash, such as /admin/, goes to the one without
   it instead of answering that there is nothing there.
 - Typing in the install dialog's fields in the site editor no longer loses

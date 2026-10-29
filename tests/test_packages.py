@@ -464,9 +464,8 @@ def test_the_apt_method_s_wording(client, admin, app):
     assert "<span>gnomish_1.2.0-1_amd64.deb</span>" in page                  # its file, named as it downloads
 
     resp = client.patch("/api/v1/site", json={"install": {
-        "deb_title": "Debian package", "deb_desc": "", "deb_lead": "Add the {app_name} repository:",
-        "deb_after": "For **Debian 13** and newer.", "deb_files_title": "Prefer a download?",
-        "deb_files_text": "The same package as a file.", "deb_files_button": "Download the deb"}},
+        "deb_title": "Debian package", "deb_above": "Add the {app_name} repository:",
+        "deb_below": "For **Debian 13** and newer."}},
         headers=h(token_of(client)))
     assert resp.status_code == 200, resp.get_json()
     assert client.post("/api/v1/site/publish", json={}, headers=h(token_of(client))).status_code == 200
@@ -474,9 +473,11 @@ def test_the_apt_method_s_wording(client, admin, app):
     assert "Debian, Ubuntu and apt" not in page and "Debian package" in page
     assert "this site's apt repository" not in page                                # emptied, so left out
     assert "Add the Gnomish repository:" in page
-    assert "<strong>Debian 13</strong>" in page and '<h4 class="how__sub">Prefer a download?</h4>' in page
-    assert 'class="btn btn--ghost dl-list__btn" href="http://localhost/download/gnomish-amd64.deb"' in page
-    assert "Download the deb" not in page             # the button is named after the file since 1.14.0
+    assert "<strong>Debian 13</strong>" in page
+    # Above the commands, then the commands, the file's button, and below them.
+    deb = page[page.index('data-method="deb"'):page.index("</section>", page.index('data-method="deb"'))]
+    assert deb.index("Add the Gnomish repository:") < deb.index("install-cmd-deb") \
+        < deb.index('href="http://localhost/download/gnomish-amd64.deb"') < deb.index("Debian 13")
 
 
 def test_the_beta_has_an_install_dialog_of_its_own(client, admin, app):

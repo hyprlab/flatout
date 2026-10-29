@@ -1,8 +1,9 @@
 {#- The install dialog: every format in a list, each with the machines it is
     built for, and the chosen one's instructions beside it (below it on a
     phone). Each file has a button of its own, one per machine, with its
-    version and size beside it, so nobody has to say which machine they have. Every address comes from the repository
-    (releases.public_info), so it follows the uploads. The dnf and apt
+    version and size beside it, so nobody has to say which machine they
+    have. Every address comes from the repository (releases.public_info), so
+    it follows the uploads. The dnf and apt
     repositories, AppImages and other downloads (packages.public_info) are
     methods too, each shown once something is published there.
 
@@ -10,7 +11,7 @@
     for the beta section's button, which then installs the beta app, its
     beta-branch bundles and the beta dnf and apt repositories. Ids and radio
     names carry the channel so the two dialogs never share a group, and the
-    betas dialog has the beta sections title and icon when it sets them. -#}
+    beta's dialog has the beta section's title and icon when it sets them. -#}
 {% from "site/macros.html" import versions %}
 {%- set repo = s.repo %}
 {%- set conf = doc.install %}
@@ -75,21 +76,31 @@
 {%- if built %}<span class="method__arches">{% for a in arches if a in built %}<span class="arch-chip" data-arch="{{ a }}">{{ repo.arch_names.get(a, a) }}</span>{% endfor %}</span>{% endif %}
 {%- endif %}
 {%- endmacro %}
-{%- macro method_title(m) -%}
-{%- if m == 'files' %}Other downloads{% else %}{{ s.fill(t(m ~ '_title')) }}{% endif %}
-{%- endmacro %}
-{%- macro method_desc(m) -%}
-{%- if m == 'files' %}Files to download and run, which don't update themselves.{% elif t(m ~ '_desc') %}{{ s.fill(t(m ~ '_desc')) }}{% endif %}
-{%- endmacro %}
+{%- macro method_title(m) -%}{{ s.fill(t(m ~ '_title')) }}{%- endmacro %}
 {%- macro dl_item(url, label, version, arch, size) -%}
 <li><a class="btn btn--ghost dl-list__btn" href="{{ url }}">{{ dl_icon }}<span>{{ label }}</span></a>
   <span class="dl-list__meta">{{ version }}{% if arch %} · {{ arch }}{% endif %}{% if size %} · {{ size|filesizeformat }}{% endif %}</span></li>
 {%- endmacro %}
-{%- macro how_head(m) -%}
-{#- The list beside it already names the format; a description, if the site
-    has one, is all that goes above the instructions. The full download's
-    goes under its buttons instead, where it reads as a note on the files. #}
-{%- set desc = method_desc(m) %}{% if desc %}<p class="how__desc">{{ desc }}</p>{% endif %}
+{#- Every format is laid out alike: the owner's text above its buttons (or
+    commands), the buttons, the text below them, then its tips, each folded.
+    The list beside it already names the format. In the full download's
+    text, {arch} and {arch_name} name the machines its files are built for. -#}
+{%- macro md_for(m, text) -%}
+{%- if m == 'bundle' %}{{ s.arch_spans(s.md(text), bundle_arches|join(' or '), bundle_names|join(' or ')) }}{% else %}{{ s.md(text) }}{% endif %}
+{%- endmacro %}
+{%- macro above(m) %}{% if t(m ~ '_above') %}<div class="how__lead">{{ md_for(m, t(m ~ '_above')) }}</div>{% endif %}{% endmacro %}
+{%- macro below(m) %}{% if t(m ~ '_below') %}<div class="how__after">{{ md_for(m, t(m ~ '_below')) }}</div>{% endif %}{% endmacro %}
+{%- macro tips(m, command='') %}
+{#- A tip's {command} is this format's own install command, in this
+    dialog's channel; a tip without a title has nothing to fold under. #}
+{%- for tip in t(m ~ '_tips') or [] if tip.title %}
+      <details class="term">
+        <summary>{{ s.fill(tip.title) }}</summary>
+        {%- if tip.text %}{{ md_for(m, tip.text) }}{% endif %}
+        {%- set cmd = s.fill(tip.command|replace('{command}', command)).strip() %}
+        {%- if cmd %}{{ copy_box('install-cmd-' ~ m ~ '-' ~ loop.index, cmd, '\n' in cmd) }}{% endif %}
+      </details>
+{%- endfor %}
 {%- endmacro %}
 <div class="modal" id="install-modal{{ sfx }}" data-install-channel="{{ channel }}" hidden>
   <div class="modal__backdrop" data-install-close></div>
@@ -127,127 +138,108 @@
     {%- endif %}
     <div class="install__how">
     {%- if 'ref' in methods %}
+    {%- set ref_cmd = 'flatpak install --from ' ~ ref_url %}
     <section class="how" data-method="ref"{% if methods|first != 'ref' %} hidden{% endif %}>
-      {{ how_head('ref') }}
+      {{ above('ref') }}
       <ul class="dl-list">
-        {{ dl_item(ref_url, s.fill(t('ref_button')), info.version, arch_names|join(' and '), none) }}
+        {{ dl_item(ref_url, ref_url.rsplit('/', 1)[-1], info.version, arch_names|join(' and '), none) }}
       </ul>
-      {{ md_block('ref_after', 'how__after') }}
-      {%- if t('ref_tip_title') %}
-      <details class="term">
-        <summary>{{ s.fill(t('ref_tip_title')) }}</summary>
-        {%- if t('ref_tip_text') %}{{ s.md(t('ref_tip_text')) }}{% endif %}
-        {%- if t('ref_tip_command') %}{{ copy_box('install-cmd-tip', s.fill(t('ref_tip_command'))) }}{% endif %}
-      </details>
-      {%- endif %}
-      <details class="term">
-        <summary>Prefer the terminal?</summary>
-        {%- if t('ref_terminal_intro') %}{{ s.md(t('ref_terminal_intro')) }}{% endif %}
-        {{ copy_box('install-cmd-ref', 'flatpak install --from ' ~ ref_url) }}
-        {%- if t('ref_terminal_after') and repo.app_id %}{{ s.md(t('ref_terminal_after')) }}{% endif %}
-      </details>
+      {{ below('ref') }}
+      {{ tips('ref', ref_cmd) }}
     </section>
     {%- endif %}
     {%- if 'bundle' in methods %}
     {%- set bundle_file = bundle_url.rsplit('/', 1)[-1] %}
+    {#- uname -m says x86_64 or aarch64, the names the files carry, so one command fits either machine. #}
+    {%- set bundle_cmd = 'curl -LO ' ~ bundle_url|replace('{arch}', '$(uname -m)') ~ '\n' ~ 'flatpak install ./' ~ bundle_file|replace('{arch}', '$(uname -m)') %}
     <section class="how" data-method="bundle"{% if methods|first != 'bundle' %} hidden{% endif %}>
+      {{ above('bundle') }}
       <ul class="dl-list">
         {%- for a in bundle_arches %}
         {%- set build = info.builds.get(a, {}) %}
         {{ dl_item(bundle_url|replace('{arch}', a), bundle_file|replace('{arch}', a), build.get('version', info.version), repo.arch_names.get(a, a), build.get('size')) }}
         {%- endfor %}
       </ul>
-      {{ how_head('bundle') }}
-      {%- if t('bundle_after') %}<div class="how__after">{{ s.arch_spans(s.md(t('bundle_after')), bundle_arches|join(' or '), bundle_names|join(' or ')) }}</div>{% endif %}
-      <details class="term">
-        <summary>Prefer the terminal?</summary>
-        {%- if t('bundle_terminal_intro') %}{{ s.arch_spans(s.md(t('bundle_terminal_intro')), bundle_arches|join(' or '), bundle_names|join(' or ')) }}{% endif %}
-        {#- uname -m says x86_64 or aarch64, the names the files carry, so one command fits either machine. #}
-        {{ copy_box('install-cmd-bundle', 'curl -LO ' ~ bundle_url|replace('{arch}', '$(uname -m)') ~ '\n' ~ 'flatpak install ./' ~ bundle_file|replace('{arch}', '$(uname -m)'), true) }}
-        {%- if t('bundle_terminal_after') %}{{ s.arch_spans(s.md(t('bundle_terminal_after')), bundle_arches|join(' or '), bundle_names|join(' or ')) }}{% endif %}
-      </details>
+      {{ below('bundle') }}
+      {{ tips('bundle', bundle_cmd) }}
     </section>
     {%- endif %}
     {%- if 'repo' in methods %}
+    {%- set repo_cmd = 'flatpak remote-add --if-not-exists ' ~ repo.remote_name ~ ' ' ~ repo.flatpakrepo_url ~ '\n' ~ 'flatpak install ' ~ repo.remote_name ~ ' ' ~ flatpak_id %}
     <section class="how" data-method="repo"{% if methods|first != 'repo' %} hidden{% endif %}>
-      {{ how_head('repo') }}
-      {{ md_block('repo_lead', 'how__lead') }}
-      {{ copy_box('install-cmd-repo', 'flatpak remote-add --if-not-exists ' ~ repo.remote_name ~ ' ' ~ repo.flatpakrepo_url ~ '\n' ~ 'flatpak install ' ~ repo.remote_name ~ ' ' ~ flatpak_id, true) }}
+      {{ above('repo') }}
+      {{ copy_box('install-cmd-repo', repo_cmd, true) }}
+      {{ below('repo') }}
+      {{ tips('repo', repo_cmd) }}
     </section>
     {%- endif %}
-    {%- macro package_files(kind, info) %}
+    {%- macro package_files(info) %}
       {#- Each file with its name and size; a summary without them (an older
           shape) still gets a button per address. #}
       {%- set files = info.files if info.files else [] %}
       {%- if not files %}{% for arch, url in (info.downloads or {}).items() %}{% set _ = files.append({'arch': arch, 'url': url, 'file': url.rsplit('/', 1)[-1], 'version': info.version, 'size': none}) %}{% endfor %}{% endif %}
       {%- if files %}
-      <div class="how__files">
-        {%- if t(kind ~ '_files_title') %}<h4 class="how__sub">{{ s.fill(t(kind ~ '_files_title')) }}</h4>{% endif %}
-        {{- md_block(kind ~ '_files_text', 'how__lead') }}
-        <ul class="dl-list">
-          {%- for f in files %}
-          {%- set a = {'amd64': 'x86_64', 'arm64': 'aarch64'}.get(f.arch, f.arch) %}
-          {{ dl_item(f.url, f.file, f.version, repo.arch_names.get(a, a) if a not in ('all', 'noarch') else '', f.size) }}
-          {%- endfor %}
-        </ul>
-      </div>
+      <ul class="dl-list how__files">
+        {%- for f in files %}
+        {%- set a = {'amd64': 'x86_64', 'arm64': 'aarch64'}.get(f.arch, f.arch) %}
+        {{ dl_item(f.url, f.file, f.version, repo.arch_names.get(a, a) if a not in ('all', 'noarch') else '', f.size) }}
+        {%- endfor %}
+      </ul>
       {%- endif %}
     {%- endmacro %}
     {%- if 'rpm' in methods %}
+    {%- if beta %}
+    {%- set rpm_cmd = 'sudo curl -fsSLo /etc/yum.repos.d/' ~ repo.remote_name ~ '-beta.repo ' ~ pk.rpm.beta_repo_file_url ~ '\n' ~ 'sudo dnf install ' ~ pk.rpm.beta.name %}
+    {%- else %}
+    {%- set rpm_cmd = 'sudo curl -fsSLo /etc/yum.repos.d/' ~ repo.remote_name ~ '.repo ' ~ pk.rpm.repo_file_url ~ '\n' ~ 'sudo dnf install ' ~ pk.rpm.stable.name %}
+    {%- endif %}
     <section class="how" data-method="rpm"{% if methods|first != 'rpm' %} hidden{% endif %}>
-      {{ how_head('rpm') }}
-      {{ md_block('rpm_lead', 'how__lead') }}
-      {%- if beta %}
-      {{ copy_box('install-cmd-rpm', 'sudo curl -fsSLo /etc/yum.repos.d/' ~ repo.remote_name ~ '-beta.repo ' ~ pk.rpm.beta_repo_file_url ~ '\n' ~ 'sudo dnf install ' ~ pk.rpm.beta.name, true) }}
-      {%- else %}
-      {{ copy_box('install-cmd-rpm', 'sudo curl -fsSLo /etc/yum.repos.d/' ~ repo.remote_name ~ '.repo ' ~ pk.rpm.repo_file_url ~ '\n' ~ 'sudo dnf install ' ~ pk.rpm.stable.name, true) }}
-      {%- endif %}
-      {{ md_block('rpm_after', 'how__after') }}
-      {{ package_files('rpm', pk.rpm[channel]) }}
+      {{ above('rpm') }}
+      {{ copy_box('install-cmd-rpm', rpm_cmd, true) }}
+      {{ package_files(pk.rpm[channel]) }}
+      {{ below('rpm') }}
+      {{ tips('rpm', rpm_cmd) }}
     </section>
     {%- endif %}
     {%- if 'deb' in methods %}
+    {%- if beta %}
+    {#- A package may carry the beta's sources file itself, switched off;
+        --force-confold keeps the one just fetched, switched on, without a
+        question about it in the middle of the install. #}
+    {%- set deb_cmd = 'sudo curl -fsSLo /etc/apt/sources.list.d/' ~ repo.remote_name ~ '-beta.sources ' ~ pk.deb.beta_sources_url ~ '\n' ~ 'sudo apt update && sudo apt install -o Dpkg::Options::=--force-confold ' ~ pk.deb.beta.name %}
+    {%- else %}
+    {%- set deb_cmd = 'sudo curl -fsSLo /etc/apt/sources.list.d/' ~ repo.remote_name ~ '.sources ' ~ pk.deb.sources_url ~ '\n' ~ 'sudo apt update && sudo apt install ' ~ pk.deb.stable.name %}
+    {%- endif %}
     <section class="how" data-method="deb"{% if methods|first != 'deb' %} hidden{% endif %}>
-      {{ how_head('deb') }}
-      {{ md_block('deb_lead', 'how__lead') }}
-      {%- if beta %}
-      {#- A package may carry the beta's sources file itself, switched off;
-          --force-confold keeps the one just fetched, switched on, without a
-          question about it in the middle of the install. #}
-      {{ copy_box('install-cmd-deb', 'sudo curl -fsSLo /etc/apt/sources.list.d/' ~ repo.remote_name ~ '-beta.sources ' ~ pk.deb.beta_sources_url ~ '\n' ~ 'sudo apt update && sudo apt install -o Dpkg::Options::=--force-confold ' ~ pk.deb.beta.name, true) }}
-      {%- else %}
-      {{ copy_box('install-cmd-deb', 'sudo curl -fsSLo /etc/apt/sources.list.d/' ~ repo.remote_name ~ '.sources ' ~ pk.deb.sources_url ~ '\n' ~ 'sudo apt update && sudo apt install ' ~ pk.deb.stable.name, true) }}
-      {%- endif %}
-      {{ md_block('deb_after', 'how__after') }}
-      {{ package_files('deb', pk.deb[channel]) }}
+      {{ above('deb') }}
+      {{ copy_box('install-cmd-deb', deb_cmd, true) }}
+      {{ package_files(pk.deb[channel]) }}
+      {{ below('deb') }}
+      {{ tips('deb', deb_cmd) }}
     </section>
     {%- endif %}
     {%- if 'appimage' in methods %}
     <section class="how" data-method="appimage"{% if methods|first != 'appimage' %} hidden{% endif %}>
-      {{ how_head('appimage') }}
+      {{ above('appimage') }}
       <ul class="dl-list">
         {%- for f in pk.appimage[channel] %}
         {{ dl_item(f.url, f.name, f.version, repo.arch_names.get(f.arch, f.arch) if f.arch else '', f.size) }}
         {%- endfor %}
       </ul>
-      {{ md_block('appimage_after', 'how__after') }}
-      {%- if t('appimage_terminal') %}
-      <details class="term">
-        <summary>Prefer the terminal?</summary>
-        {{ s.md(t('appimage_terminal')) }}
-      </details>
-      {%- endif %}
+      {{ below('appimage') }}
+      {{ tips('appimage') }}
     </section>
     {%- endif %}
     {%- if 'files' in methods %}
     <section class="how" data-method="files"{% if methods|first != 'files' %} hidden{% endif %}>
-      {{ how_head('files') }}
+      {{ above('files') }}
       <ul class="dl-list">
         {%- for f in pk.files[channel] %}
         {{ dl_item(f.url, f.name, f.version, repo.arch_names.get(f.arch, f.arch) if f.arch else '', f.size) }}
         {%- endfor %}
       </ul>
-      <p class="how__after">Downloaded files don't update themselves: come back here for a new version.</p>
+      {{ below('files') }}
+      {{ tips('files') }}
     </section>
     {%- endif %}
     </div>

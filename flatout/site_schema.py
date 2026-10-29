@@ -507,6 +507,112 @@ THEME = group("Design", {
 })
 
 
+# ———————————————————————————— The install dialog's formats ————————————————————————————
+
+# The built-in tip under a Flatpak format: the same install, as a command.
+_TERMINAL_TIP = {"title": "Prefer the terminal?", "text": "", "command": "{command}"}
+
+INSTALL_TIP = group("Tip", {
+    "title": text("Title", "", max=80, help="Shown folded, such as: Using Bazaar?"),
+    "text": markdown("Text", "", max=2000),
+    "command": textarea("Command", "", max=600,
+                        help="Shown in a box with a Copy button. {command} is this format's own install "
+                             "command, for the release or the beta, whichever dialog it is in."),
+})
+
+
+def _install_format(key, offer, title, above, below, tips, url=None, help=""):
+    """One way to install's fields, the same for each: offered or not, its
+    name, the text above and below its buttons (or commands), and its tips."""
+    out = {
+        f"{key}_method": boolean(offer, True, help=help),
+        f"{key}_title": text("Name", title, max=80),
+    }
+    if url is not None:
+        out[f"{key}_url"] = url
+    out[f"{key}_above"] = markdown("Above the buttons", above, max=2000)
+    out[f"{key}_below"] = markdown("Below the buttons", below, max=2000)
+    out[f"{key}_tips"] = items("Tips", INSTALL_TIP, copy.deepcopy(tips), max=6, item_label="tip", title_field="title")
+    return out
+
+
+# The fields each format had before they all had the same ones (1.15.0).
+# upgrade_install() carries a document's text across; the API names the
+# new field for a client still sending an old one.
+INSTALL_RETIRED = {
+    "show_arch_picker": "no longer used: every file has a button per machine",
+    "ref_button": "no longer used: the button is named after the file",
+    "bundle_button": "no longer used: each button is named after its file",
+    "rpm_files_button": "no longer used: each button is named after its file",
+    "deb_files_button": "no longer used: each button is named after its file",
+    "rpm_files_title": "no longer used: the files' buttons follow the commands",
+    "deb_files_title": "no longer used: the files' buttons follow the commands",
+}
+for _k in ("ref", "repo", "rpm", "deb", "appimage"):
+    INSTALL_RETIRED[f"{_k}_desc"] = f"now install.{_k}_above"
+for _k in ("repo", "rpm", "deb"):
+    INSTALL_RETIRED[f"{_k}_lead"] = f"now install.{_k}_above"
+INSTALL_RETIRED["bundle_desc"] = "now install.bundle_below"
+for _k in ("ref", "bundle", "rpm", "deb", "appimage"):
+    INSTALL_RETIRED[f"{_k}_after"] = f"now install.{_k}_below"
+for _k in ("rpm", "deb"):
+    INSTALL_RETIRED[f"{_k}_files_text"] = f"now install.{_k}_below"
+for _k in ("ref_tip_title", "ref_tip_text", "ref_tip_command", "ref_terminal_intro", "ref_terminal_after"):
+    INSTALL_RETIRED[_k] = "now install.ref_tips"
+for _k in ("bundle_terminal_intro", "bundle_terminal_after"):
+    INSTALL_RETIRED[_k] = "now install.bundle_tips"
+INSTALL_RETIRED["appimage_terminal"] = "now install.appimage_tips"
+
+
+def upgrade_install(doc: dict) -> bool:
+    """Carry a document's install dialog from the fields each format had
+    before 1.15.0 to the ones they all share. Text moves to where it showed:
+    descriptions and leads above, after-texts below, the tip and the
+    terminal wording into tips. True if anything changed.
+
+    Only a dialog wholly in the old shape: one that already has the shared
+    fields (an old field patched onto a current site) is left for the
+    validator, which names the field that took the old one's place."""
+    conf = doc.get("install") if isinstance(doc, dict) else None
+    if not isinstance(conf, dict) or not any(k in conf for k in INSTALL_RETIRED):
+        return False
+    if any(k.endswith(("_above", "_below", "_tips")) for k in conf):
+        return False
+    old = {k: conf.pop(k) for k in list(conf) if k in INSTALL_RETIRED}
+
+    def join(*keys):
+        return "\n\n".join(v.strip() for v in (old.get(k) for k in keys) if isinstance(v, str) and v.strip())
+
+    def put(key, value):
+        conf.setdefault(key, value)
+
+    for k in ("ref", "appimage"):
+        put(f"{k}_above", join(f"{k}_desc"))
+    for k in ("repo", "rpm", "deb"):
+        put(f"{k}_above", join(f"{k}_desc", f"{k}_lead"))
+    put("ref_below", join("ref_after"))
+    put("bundle_above", "")
+    put("bundle_below", join("bundle_desc", "bundle_after"))   # its description had moved under the buttons
+    put("repo_below", "")
+    for k in ("rpm", "deb"):
+        put(f"{k}_below", join(f"{k}_after", f"{k}_files_text"))
+    put("appimage_below", join("appimage_after"))
+
+    def terminal(intro, after):
+        return {"title": "Prefer the terminal?", "text": join(intro, after), "command": "{command}"}
+
+    ref_tips = []
+    if isinstance(old.get("ref_tip_title"), str) and old["ref_tip_title"].strip():
+        ref_tips.append({"title": old["ref_tip_title"].strip(), "text": old.get("ref_tip_text") or "",
+                         "command": old.get("ref_tip_command") or ""})
+    ref_tips.append(terminal("ref_terminal_intro", "ref_terminal_after"))
+    put("ref_tips", ref_tips)
+    put("bundle_tips", [terminal("bundle_terminal_intro", "bundle_terminal_after")])
+    put("appimage_tips", [{"title": "Prefer the terminal?", "text": join("appimage_terminal"), "command": ""}]
+        if join("appimage_terminal") else [])
+    return True
+
+
 # ———————————————————————————— The document ————————————————————————————
 
 DOCUMENT = group("Site", {
@@ -562,103 +668,54 @@ DOCUMENT = group("Site", {
     }),
     "install": group("Install dialog", {
         "title": text("Title", "Install {app_name}", max=120),
-        # Kept so documents saved with it still validate; the dialog no
-        # longer asks, every file has a button per machine.
-        "show_arch_picker": boolean("Ask Intel/AMD or ARM (no longer used)", True,
-                                    help="Since 1.14.0 each file has a button per machine, so the dialog no longer asks."),
-        "ref_method": boolean("Offer the install file (.flatpakref)", True),
-        "bundle_method": boolean("Offer the full .flatpak download", True),
-        "repo_method": boolean("Offer adding the repository", True),
-        "rpm_method": boolean("Offer the dnf repository", True,
-                              help="Shown once an RPM is published under Releases."),
-        "deb_method": boolean("Offer the apt repository", True,
-                              help="Shown once a Debian package is published under Releases."),
-        "appimage_method": boolean("Offer the AppImage", True,
-                                   help="Shown once an AppImage is published under Releases."),
-        "files_method": boolean("Offer other downloads", True,
-                                help="Tarballs and other files published under Releases."),
+        "show_version": boolean("Show the version under the title", True),
         "flatpak_setup_url": url("Flatpak setup guide", "https://flatpak.org/setup/"),
         "footer": markdown("Small print", "Every option installs the same app and keeps it updated.", max=2000),
-        # The wording of each way to install. Every default is the built-in
-        # text; emptying a field leaves that piece out. Markdown fields know
-        # {flatpak_setup_url}, and in the full download's, {arch_name} and
-        # {arch} name the machines it is built for (Intel/AMD or ARM).
-        "show_version": boolean("Show the version under the title", True),
-        "ref_title": text("Name", "Install file", max=80),
-        "ref_desc": text("Description", "A small file your app store opens, and keeps the app updated.",
-                         max=200),
-        "ref_button": text("Button", "Download the install file", max=80),
-        "ref_after": markdown("Under the button",
-                              "**Open the downloaded file** and your app store (GNOME Software, KDE Discover or "
-                              "similar) installs {app_name} and keeps it updated. New to Flatpak? "
-                              "[Set it up for your distro]({flatpak_setup_url}) first.", max=2000),
-        "ref_tip_title": text("A folded tip's title", "", max=80,
-                              help="Optional, such as: Using Bazaar?"),
-        "ref_tip_text": markdown("The tip", "", max=2000),
-        "ref_tip_command": textarea("The tip's command", "", max=600,
-                                    help="Shown in a copyable box under the tip."),
-        "ref_terminal_intro": markdown("Before the terminal command", "", max=1000),
-        "ref_terminal_after": markdown("After the terminal command",
-                                       "Then start it from the applications menu or with `flatpak run {app_id}`.",
-                                       max=1000),
-        "bundle_title": text("Name", "Full download", max=80),
-        "bundle_desc": text("Description, under the buttons", "The whole app in one .flatpak file.", max=200),
-        "bundle_url": url("Address",
-                          help="Empty serves the bundles uploaded here. Another address, such as a GitHub release "
-                               "asset, offers the download from there; {arch} in it becomes x86_64 or aarch64."),
-        "bundle_button": text("Button (no longer used)", "Download for", max=80,
-                              help="Since 1.14.0 each machine's file has its own button, named after the file."),
-        "bundle_after": markdown("Under the description",
-                                 "**Open it like any download** and your app store installs it. Flatpak has to be "
-                                 "[set up]({flatpak_setup_url}) already.", max=2000),
-        "bundle_terminal_intro": markdown("Before the terminal commands", "", max=1000),
-        "bundle_terminal_after": markdown("After the terminal commands", "", max=1000),
-        "repo_title": text("Name", "Add the repository", max=80),
-        "repo_desc": text("Description", "For app stores that only search repositories they know.",
-                          max=200),
-        "repo_lead": markdown("Before the commands",
-                              "Add the repository once, then find {app_name} in your app store or install it from "
-                              "a terminal:", max=1000),
-        "rpm_title": text("Name", "Fedora and dnf", max=80),
-        "rpm_desc": text("Description",
-                         "A package from this site's dnf repository, updated with the rest of the system.", max=200),
-        "rpm_lead": markdown("Before the commands",
-                             "Add the repository once; {app_name} then updates with the rest of the system.",
-                             max=1000),
-        "rpm_after": markdown("After the commands",
-                              "GNOME Software and KDE Discover show its updates too. Fedora, RHEL and their "
-                              "relatives.", max=2000),
-        "rpm_files_title": text("The single file's title", "Prefer a single file?", max=80),
-        "rpm_files_text": markdown("The single file's text", "", max=1000,
-                                   help="Empty lists each package file with its version."),
-        "rpm_files_button": text("The single file's button (no longer used)", "Download the RPM", max=80,
-                                 help="Since 1.14.0 each file's button is named after the file."),
-        "deb_title": text("Name", "Debian, Ubuntu and apt", max=80),
-        "deb_desc": text("Description",
-                         "A package from this site's apt repository, updated with the rest of the system.", max=200),
-        "deb_lead": markdown("Before the commands",
-                             "Add the repository once; {app_name} then updates with the rest of the system.",
-                             max=1000),
-        "deb_after": markdown("After the commands",
-                              "The file carries the repository's signing key. Debian 12, Ubuntu 22.04 and newer.",
-                              max=2000),
-        "deb_files_title": text("The single file's title", "Prefer a single file?", max=80),
-        "deb_files_text": markdown("The single file's text", "", max=1000,
-                                   help="Empty lists each package file with its version."),
-        "deb_files_button": text("The single file's button (no longer used)", "Download the Debian package", max=80,
-                                 help="Since 1.14.0 each file's button is named after the file."),
-        "appimage_title": text("Name", "AppImage", max=80),
-        "appimage_desc": text("Description",
-                              "One file that runs on most distributions and updates from this site.", max=200),
-        "appimage_after": markdown("Under the downloads",
-                                   "**Open it with [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever)** "
-                                   "to add {app_name} to your applications and get its updates; AppImageLauncher "
-                                   "works too. Each AppImage already knows where its updates come from.",
-                                   max=2000),
-        "appimage_terminal": markdown("The terminal tip",
-                                      "Make the file executable with `chmod +x` and run it. `appimageupdatetool` "
-                                      "brings it up to date from this site.", max=1000,
-                                      help="Folded under the downloads, as Prefer the terminal? Empty leaves it out."),
+        # Every way to install has the same fields, in a fold of its own in
+        # the editor: whether it's offered, its name in the list, text above
+        # and below its buttons (or its commands), and folded tips. Every
+        # default is the built-in text; emptying a field leaves that piece out.
+        **_install_format("ref", "Offer the install file (.flatpakref)", "Install file",
+                          "A small file your app store opens, and keeps the app updated.",
+                          "**Open the downloaded file** and your app store (GNOME Software, KDE Discover or "
+                          "similar) installs {app_name} and keeps it updated. New to Flatpak? "
+                          "[Set it up for your distro]({flatpak_setup_url}) first.",
+                          [_TERMINAL_TIP]),
+        **_install_format("bundle", "Offer the full .flatpak download", "Full download",
+                          "The whole app in one .flatpak file.",
+                          "**Open it like any download** and your app store installs it. Flatpak has to be "
+                          "[set up]({flatpak_setup_url}) already.",
+                          [_TERMINAL_TIP],
+                          url=url("Address",
+                                  help="Empty serves the bundles uploaded here. Another address, such as a GitHub "
+                                       "release asset, offers the download from there; {arch} in it becomes "
+                                       "x86_64 or aarch64.")),
+        **_install_format("repo", "Offer adding the repository", "Add the repository",
+                          "For app stores that only search repositories they know.\n\n"
+                          "Add the repository once, then find {app_name} in your app store or install it from "
+                          "a terminal:",
+                          "", []),
+        **_install_format("rpm", "Offer the dnf repository", "Fedora and dnf",
+                          "Add the repository once; {app_name} then updates with the rest of the system.",
+                          "GNOME Software and KDE Discover show its updates too. Fedora, RHEL and their relatives.",
+                          [], help="Shown once an RPM is published under Releases."),
+        **_install_format("deb", "Offer the apt repository", "Debian, Ubuntu and apt",
+                          "Add the repository once; {app_name} then updates with the rest of the system.",
+                          "The file carries the repository's signing key. Debian 12, Ubuntu 22.04 and newer.",
+                          [], help="Shown once a Debian package is published under Releases."),
+        **_install_format("appimage", "Offer the AppImage", "AppImage",
+                          "One file that runs on most distributions and updates from this site.",
+                          "**Open it with [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever)** to add "
+                          "{app_name} to your applications and get its updates; AppImageLauncher works too. Each "
+                          "AppImage already knows where its updates come from.",
+                          [{"title": "Prefer the terminal?",
+                            "text": "Make the file executable with `chmod +x` and run it. `appimageupdatetool` "
+                                    "brings it up to date from this site.",
+                            "command": ""}],
+                          help="Shown once an AppImage is published under Releases."),
+        **_install_format("files", "Offer other downloads", "Other downloads", "",
+                          "Downloaded files don't update themselves: come back here for a new version.",
+                          [], help="Tarballs and other files published under Releases."),
     }, folds=[("ref", "Install file (.flatpakref)"), ("bundle", "Full .flatpak download"),
               ("repo", "Flatpak repository"), ("rpm", "dnf repository"), ("deb", "apt repository"),
               ("appimage", "AppImage"), ("files", "Other downloads")]),
@@ -826,7 +883,7 @@ def _check(value, f: F, path: str, errors: list, media_ok) -> Any:
         for name, sub in f.fields.items():
             out[name] = _check(value[name], sub, f"{path}.{name}", errors, media_ok) if name in value else sub.default_value()
         for extra in set(value) - set(f.fields):
-            moved = MOVED.get(f"{path}.{extra}")
+            moved = MOVED.get(f"{path}.{extra}") or (INSTALL_RETIRED.get(extra) if path == "$.install" else None)
             errors.append({"path": f"{path}.{extra}", "message": moved or "not a field here"})
         return out
     if f.type == "list":
@@ -914,6 +971,9 @@ def validate(doc: Any, media_ok=lambda url, kind: True) -> dict:
     errors: list[dict] = []
     if not isinstance(doc, dict):
         raise Invalid([{"path": "$", "message": "expected an object"}])
+    if isinstance(doc.get("install"), dict) and any(k in doc["install"] for k in INSTALL_RETIRED):
+        doc = {**doc, "install": dict(doc["install"])}
+        upgrade_install(doc)
     body = {k: v for k, v in doc.items() if k not in ("sections", "pages")}
     out = _check(body, DOCUMENT, "$", errors, media_ok)
     out.pop("sections", None)
@@ -992,4 +1052,5 @@ PLACEHOLDER_HELP = {
     "{source_url}": "The source code link",
     "{issues_url}": "The bug report link",
     "{year}": "The current year",
+    "{command}": "In an install dialog tip: that format's install command",
 }

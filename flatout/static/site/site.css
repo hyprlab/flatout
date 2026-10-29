@@ -957,8 +957,6 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 }
 .how[hidden] { display: none; }
 .install--single .how { margin-top: 0; }
-.how__desc { margin: 0 0 14px; font-size: .88rem; color: var(--ink-soft); }
-.dl-list + .how__desc { margin: 14px 0 0; }
 .how__after strong { color: var(--ink); }
 .how__after code, .how__lead code, .term code:not(.code-copy code) {
   background: var(--bg-tint);
@@ -969,9 +967,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 }
 .how__after { margin: 14px 0 0; font-size: .88rem; color: var(--ink-soft); }
 /* A package's files, one button per machine, under its repository. */
-.how__files { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
-.how__sub { font-size: .95rem; font-weight: 800; color: var(--ink); margin: 0 0 4px; }
-.how__files .how__lead { margin: 0 0 12px; font-size: .88rem; color: var(--ink-soft); }
+.dl-list.how__files { margin-top: 14px; }
 
 /* Other downloads: one button per file, what it is beside it. */
 .dl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }

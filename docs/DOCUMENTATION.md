@@ -88,10 +88,15 @@ Sections have finer controls where a layout calls for them:
 - **Install guide**: a distro's command can come right after its text, its
   steps can have a heading of their own, and a note can close it; closing
   blocks put text and its buttons in turn after the guide.
-- **Install dialog**: the wording of each way to install, a folded tip under
-  the install file, and an address for the full download elsewhere, such as
-  a GitHub release asset. Each format lists the machines it is built for, and
-  each file has a download button per machine with its version and size.
+- **Install dialog**: every way to install has the same fields, in a fold of
+  its own in the editor: whether it is offered, its name, text above and
+  below its buttons (or its commands), and any number of folded tips, each
+  with a title, text and a command to copy. In a tip, `{command}` is that
+  format's own install command, for the release or the beta. The full
+  download can also come from an address elsewhere, such as a GitHub release
+  asset. Each format lists the machines it is built for, and each file has a
+  download button per machine, named after the file, with its version and
+  size.
 
 In Markdown, `{: .center}`, `{: .left}` or `{: .note}` on the line after a
 paragraph or list aligns it or sets it in small print, and `{#name}` after a

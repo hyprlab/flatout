@@ -349,12 +349,18 @@ def _migrate(app: Flask) -> None:
     # live document's win over the draft's.
     import json
     from .models import SiteDocument, get_setting, set_setting
-    from .site_schema import take_moved
+    from .site_schema import take_moved, upgrade_install
     for name in ("live", "draft"):
         row = db.session.get(SiteDocument, name)
         if row is None:
             continue
         doc = json.loads(row.data)
+        # The install dialog's formats took the same fields each (1.15.0):
+        # the text a site had moves to where it showed.
+        if upgrade_install(doc):
+            row.data = json.dumps(doc)
+            db.session.commit()
+            app.logger.info("migrated: the %s site's install dialog took the fields every format shares", name)
         moved = take_moved(doc)
         if not moved:
             continue
