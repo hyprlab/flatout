@@ -6,6 +6,14 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Fixed
+- The beta's install dialog shows the beta section's icon, when it has one,
+  rather than the app's.
+
+### Changed
+- On a desktop, a thin line divides the install dialog's list of formats
+  from the chosen one's downloads.
+
 ## [1.14.4] — 2026-10-29
 
 ### Fixed
