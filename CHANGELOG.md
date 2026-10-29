@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.14.5] — 2026-10-29
+
 ### Fixed
 - The beta's install dialog shows the beta section's icon, when it has one,
   rather than the app's.
