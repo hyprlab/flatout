@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [1.14.3] — 2026-10-29
+
 ### Changed
 - The beta section's button has 2rem of room above and below it.
 
