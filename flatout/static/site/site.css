@@ -1753,8 +1753,12 @@ a.status__powered:hover { color: var(--hero-ink); text-decoration: underline; te
 /* ———————— The beta section's optional pieces ———————— */
 .beta__icon { display: block; width: 88px; height: auto; margin: 0 auto 14px; }
 .beta__body { margin-inline: auto; }
-.beta__body--button-text .actions { margin: 18px 0 8px; }
 .beta__note { text-align: center; margin: 0 0 14px; }
+/* The beta's button stands apart from what is around it: 2rem above and
+   below, the note (if any) kept close under it and the room after that. */
+.beta__body .actions { margin: 0; padding: 2rem 0; }
+.beta__body .actions:has(+ .beta__note) { padding-bottom: 12px; }
+.beta__body .actions + .beta__note { margin-bottom: 2rem; }
 .beta__command-intro { color: var(--ink-soft); margin: 0 0 10px; }
 .beta__after p { margin: 0; }
 
