@@ -87,7 +87,8 @@
 {%- endmacro %}
 {%- macro how_head(m) -%}
 {#- The list beside it already names the format; a description, if the site
-    has one, is all that goes above the instructions. #}
+    has one, is all that goes above the instructions. The full download's
+    goes under its buttons instead, where it reads as a note on the files. #}
 {%- set desc = method_desc(m) %}{% if desc %}<p class="how__desc">{{ desc }}</p>{% endif %}
 {%- endmacro %}
 <div class="modal" id="install-modal{{ sfx }}" data-install-channel="{{ channel }}" hidden>
@@ -150,13 +151,13 @@
     {%- if 'bundle' in methods %}
     {%- set bundle_file = bundle_url.rsplit('/', 1)[-1] %}
     <section class="how" data-method="bundle"{% if methods|first != 'bundle' %} hidden{% endif %}>
-      {{ how_head('bundle') }}
       <ul class="dl-list">
         {%- for a in bundle_arches %}
         {%- set build = info.builds.get(a, {}) %}
         {{ dl_item(bundle_url|replace('{arch}', a), bundle_file|replace('{arch}', a), build.get('version', info.version), repo.arch_names.get(a, a), build.get('size')) }}
         {%- endfor %}
       </ul>
+      {{ how_head('bundle') }}
       {%- if t('bundle_after') %}<div class="how__after">{{ s.arch_spans(s.md(t('bundle_after')), bundle_arches|join(' or '), bundle_names|join(' or ')) }}</div>{% endif %}
       <details class="term">
         <summary>Prefer the terminal?</summary>

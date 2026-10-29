@@ -958,6 +958,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .how[hidden] { display: none; }
 .install--single .how { margin-top: 0; }
 .how__desc { margin: 0 0 14px; font-size: .88rem; color: var(--ink-soft); }
+.dl-list + .how__desc { margin: 14px 0 0; }
 .how__after strong { color: var(--ink); }
 .how__after code, .how__lead code, .term code:not(.code-copy code) {
   background: var(--bg-tint);
