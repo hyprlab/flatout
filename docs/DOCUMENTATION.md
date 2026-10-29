@@ -90,8 +90,8 @@ Sections have finer controls where a layout calls for them:
   blocks put text and its buttons in turn after the guide.
 - **Install dialog**: the wording of each way to install, a folded tip under
   the install file, and an address for the full download elsewhere, such as
-  a GitHub release asset. A package built for some machines only is greyed
-  out, and says so, on the others.
+  a GitHub release asset. Each format lists the machines it is built for, and
+  each file has a download button per machine with its version and size.
 
 In Markdown, `{: .center}`, `{: .left}` or `{: .note}` on the line after a
 paragraph or list aligns it or sets it in small print, and `{#name}` after a

@@ -461,7 +461,7 @@ def test_the_apt_method_s_wording(client, admin, app):
     assert 'data-method="deb"' in page and "Debian, Ubuntu and apt" in page       # the built-in text to start with
     assert "sudo curl -fsSLo /etc/apt/sources.list.d/gnomish.sources http://localhost/deb/gnomish.sources\n" \
            "sudo apt update &amp;&amp; sudo apt install gnomish" in page
-    assert '<a href="http://localhost/download/gnomish-amd64.deb">gnomish 1.2.0 for' in page
+    assert "<span>gnomish_1.2.0-1_amd64.deb</span>" in page                  # its file, named as it downloads
 
     resp = client.patch("/api/v1/site", json={"install": {
         "deb_title": "Debian package", "deb_desc": "", "deb_lead": "Add the {app_name} repository:",
@@ -474,9 +474,9 @@ def test_the_apt_method_s_wording(client, admin, app):
     assert "Debian, Ubuntu and apt" not in page and "Debian package" in page
     assert "this site's apt repository" not in page                                # emptied, so left out
     assert "Add the Gnomish repository:" in page
-    assert "<strong>Debian 13</strong>" in page and "<summary>Prefer a download?</summary>" in page
-    assert 'class="btn btn--ghost" href="http://localhost/download/gnomish-amd64.deb"' in page
-    assert "Download the deb" in page
+    assert "<strong>Debian 13</strong>" in page and '<h4 class="how__sub">Prefer a download?</h4>' in page
+    assert 'class="btn btn--ghost dl-list__btn" href="http://localhost/download/gnomish-amd64.deb"' in page
+    assert "Download the deb" not in page             # the button is named after the file since 1.14.0
 
 
 def test_the_beta_has_an_install_dialog_of_its_own(client, admin, app):
@@ -500,16 +500,19 @@ def test_the_beta_has_an_install_dialog_of_its_own(client, admin, app):
     page = client.get("/").get_data(as_text=True)
     stable, beta = page.split('id="install-modal-beta"', 1)
     assert 'href="#install-beta" data-install-open="beta"' in stable
-    assert 'data-install-channel="beta"' in beta and 'name="install-arch-beta" value="aarch64"' in beta
-    assert 'name="install-arch"' not in beta and 'name="install-arch-beta"' not in stable
+    assert 'data-install-channel="beta"' in beta and 'name="install-method-beta"' in beta
+    assert 'name="install-method"' not in beta and 'name="install-method-beta"' not in stable
     assert "Version 1.3.0-beta.1" in beta and "-beta.flatpakref" in beta
-    assert re.search(r'data-href="http://localhost/download/[^"]+-beta-\{arch\}\.flatpak"', beta)
+    assert re.search(r'href="http://localhost/download/[^"]+-beta-x86_64\.flatpak"', beta)
+    assert re.search(r'href="http://localhost/download/[^"]+-beta-aarch64\.flatpak"', beta)
     assert "sudo curl -fsSLo /etc/yum.repos.d/gnomish-beta.repo http://localhost/rpm/gnomish-beta.repo\n" \
            "sudo dnf install gnomish" in beta
     assert "sudo curl -fsSLo /etc/apt/sources.list.d/gnomish-beta.sources http://localhost/deb/gnomish-beta.sources\n" \
            "sudo apt update &amp;&amp; sudo apt install -o Dpkg::Options::=--force-confold gnomish" in beta
-    # The Debian package is for ARM only: greyed out on Intel/AMD.
-    assert 'class="method" data-arches="aarch64"' in beta
+    # The Debian package is for ARM only: its chips say so, and its one file has a button.
+    deb = beta[beta.index('value="deb"'):beta.index("</label>", beta.index('value="deb"'))]
+    assert '<span class="arch-chip" data-arch="aarch64">ARM</span>' in deb and 'data-arch="x86_64"' not in deb
+    assert "<span>gnomish_1.3.0~beta.1-1_arm64.deb</span>" in beta
     # The release's own dialog is untouched by the beta's packages.
     assert 'data-method="rpm"' not in stable.split('id="install-modal"', 1)[1]
 

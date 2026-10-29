@@ -64,7 +64,8 @@ def _summary(rows: list[Release]) -> dict | None:
         "arches": arch_order(r.arch for r in rows),
         "bundles": {r.arch: bool(r.bundle_file) for r in rows},
         "builds": {r.arch: {"version": r.version, "published_at": _when(r).isoformat() + "Z",
-                            "bundle": bool(r.bundle_file)} for r in rows},
+                            "bundle": bool(r.bundle_file), "size": r.bundle_size if r.bundle_file else None}
+                   for r in rows},
         "behind": arch_order(r.arch for r in rows if r.version != top.version),
     }
 

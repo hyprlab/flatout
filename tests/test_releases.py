@@ -132,14 +132,15 @@ def test_an_architecture_left_behind_is_named(app, client, csrf, admin):
     stable = client.get("/api/v1/repo").get_json()["stable"]
     assert stable["version"] == "1.10" and stable["behind"] == ["aarch64"]
     assert stable["builds"]["aarch64"]["version"] == "1.9"
-    assert stable["arches"] == ["x86_64", "aarch64"]   # the dialog picks the first
+    assert stable["arches"] == ["x86_64", "aarch64"]   # the dialog lists Intel/AMD first
 
     client.post("/api/v1/site/publish", json={}, headers=h(csrf))
     home = client.get("/").data.decode()
     assert "Version 1.10 (ARM: 1.9)" in home
-    assert 'value="aarch64" data-version="1.9"' in home
-    # Intel/AMD is offered first, its download too, unless the page sees ARM.
-    assert re.search(r'data-bundle-link [^>]*href="[^"]*org\.example\.Hello-x86_64\.flatpak"', home)
+    # Each machine's download says its own version, Intel/AMD's first.
+    assert re.search(r'href="[^"]*org\.example\.Hello-x86_64\.flatpak".*?<span class="dl-list__meta">1\.10 · Intel/AMD',
+                     home, re.S)
+    assert re.search(r'href="[^"]*org\.example\.Hello-aarch64\.flatpak".*?<span class="dl-list__meta">1\.9 · ARM', home, re.S)
     assert "aarch64 is still on 1.9" in client.get("/admin").data.decode()
 
 

@@ -752,6 +752,11 @@ def _summary(rows: list[Package], base: str) -> dict | None:
         "published_at": (newest.published_at or newest.created_at).isoformat() + "Z",
         "arches": sorted({r.arch for r in main}, key=_arch_key),
         "downloads": {r.arch: f"{base}/download/{download_name(r)}" for r in sorted(main, key=lambda r: _arch_key(r.arch))},
+        # The same, with what the install dialog shows beside each button: the
+        # file's own name (what the browser saves), its version and size.
+        "files": [{"arch": r.arch, "url": f"{base}/download/{download_name(r)}",
+                   "file": os.path.basename(r.path or "") or download_name(r), "version": r.version, "size": r.size}
+                  for r in sorted(main, key=lambda r: _arch_key(r.arch))],
     }
 
 

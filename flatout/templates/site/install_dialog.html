@@ -1,8 +1,7 @@
 {#- The install dialog: every format in a list, each with the machines it is
     built for, and the chosen one's instructions beside it (below it on a
-    phone). A small switch in the header picks the machine, when ARM builds
-    exist; it greys out the formats that machine can't take and fills the
-    architecture into the full download. Every address comes from the repository
+    phone). Each file has a button of its own, one per machine, with its
+    version and size beside it, so nobody has to say which machine they have. Every address comes from the repository
     (releases.public_info), so it follows the uploads. The dnf and apt
     repositories, AppImages and other downloads (packages.public_info) are
     methods too, each shown once something is published there.
@@ -46,26 +45,22 @@
 {%- set ai_downloads = {} %}
 {%- for f in pk.appimage[channel] %}{% set _ = ai_downloads.update({f.arch or '': f.url}) %}{% endfor %}
 {%- if '' in ai_downloads %}{% set ai_downloads = {} %}{% endif %}
-{%- set first_arch = bundle_arches|first if bundle_arches else (arches|first or 'x86_64') %}
-{%- set first_name = repo.arch_names.get(first_arch, first_arch) %}
-{%- set picker = info and conf.show_arch_picker and arches|length > 1 %}
+{%- set arch_names = [] %}
+{%- for a in arches %}{% set _ = arch_names.append(repo.arch_names.get(a, a)) %}{% endfor %}
+{%- set bundle_names = [] %}
+{%- for a in bundle_arches %}{% set _ = bundle_names.append(repo.arch_names.get(a, a)) %}{% endfor %}
 {%- macro md_block(key, cls) %}{% if t(key) %}<div class="{{ cls }}">{{ s.md(t(key)) }}</div>{% endif %}{% endmacro %}
 {%- macro copy_box(id, text, multi=false) -%}
 <div class="code-copy{% if multi %} code-copy--multi{% endif %}"><code id="{{ id }}{{ sfx }}">{{ text }}</code>
   <button class="code-copy__btn" type="button" data-copy="#{{ id }}{{ sfx }}">{{ copy_icon }}<span class="code-copy__label">Copy</span></button></div>
 {%- endmacro %}
 {%- macro built_for(info) -%}
-{#- The machines a package is built for, by the names the picker uses: Debian
+{#- The machines a package is built for, by the names Flatpak uses: Debian
     says amd64 and arm64 where Flatpak says x86_64 and aarch64. A package for
     every machine (all, noarch) gives none, so it is never greyed out. -#}
 {%- set out = [] %}
 {%- for a in (info.downloads or {}).keys() %}{% set _ = out.append({'amd64': 'x86_64', 'arm64': 'aarch64'}.get(a, a)) %}{% endfor %}
 {%- if 'all' not in out and 'noarch' not in out %}{{ out|join(' ') }}{% endif %}
-{%- endmacro %}
-{%- macro arches_only(info) -%}
-{#- A package built for some machines only: greyed out, and flagged, on the others. -#}
-{%- set built = built_for(info) %}
-{%- if built and arches|length > 1 %} data-arches="{{ built }}"{% endif %}
 {%- endmacro %}
 {%- macro arch_chips(m) -%}
 {#- The machines a format is built for, as chips under its name; the one the
@@ -85,9 +80,14 @@
 {%- macro method_desc(m) -%}
 {%- if m == 'files' %}Files to download and run, which don't update themselves.{% elif t(m ~ '_desc') %}{{ s.fill(t(m ~ '_desc')) }}{% endif %}
 {%- endmacro %}
+{%- macro dl_item(url, label, version, arch, size) -%}
+<li><a class="btn btn--ghost dl-list__btn" href="{{ url }}">{{ dl_icon }}<span>{{ label }}</span></a>
+  <span class="dl-list__meta">{{ version }}{% if arch %} · {{ arch }}{% endif %}{% if size %} · {{ size|filesizeformat }}{% endif %}</span></li>
+{%- endmacro %}
 {%- macro how_head(m) -%}
-<div class="how__head"><h3 class="how__title">{{ method_title(m) }}</h3>
-  {%- set desc = method_desc(m) %}{% if desc %}<p class="how__desc">{{ desc }}</p>{% endif %}</div>
+{#- The list beside it already names the format; a description, if the site
+    has one, is all that goes above the instructions. #}
+{%- set desc = method_desc(m) %}{% if desc %}<p class="how__desc">{{ desc }}</p>{% endif %}
 {%- endmacro %}
 <div class="modal" id="install-modal{{ sfx }}" data-install-channel="{{ channel }}" hidden>
   <div class="modal__backdrop" data-install-close></div>
@@ -105,31 +105,15 @@
         {%- elif pkg_version %}<p class="modal__sub">Version {{ pkg_version }}</p>{% endif %}
         {%- endif %}
       </div>
-      {%- if methods and picker %}
-      <div class="arch-switch">
-        <span class="arch-switch__label" id="install-arch-label{{ sfx }}">Your computer</span>
-        <span class="arch-switch__opts" role="radiogroup" aria-labelledby="install-arch-label{{ sfx }}">
-          {%- for a in arches %}
-          <label class="arch-switch__opt" title="{{ {'x86_64': 'Most laptops and desktops', 'aarch64': 'Raspberry Pi, Snapdragon, Apple silicon'}.get(a, a) }}{% if info.behind %}, version {{ info.builds[a].version }}{% endif %}">
-            <input type="radio" name="install-arch{{ sfx }}" value="{{ a }}" data-version="{{ info.builds[a].version }}"{% if loop.first %} checked{% endif %}>
-            <span>{{ repo.arch_names.get(a, a) }}</span>
-          </label>
-          {%- endfor %}
-        </span>
-      </div>
-      {%- endif %}
     </div>
     {%- if not methods %}
     <p class="modal__empty">{{ app_name }} has no release yet. Check back soon.</p>
     {%- else %}
-    {%- if not picker %}
-    <input type="hidden" name="install-arch{{ sfx }}" value="{{ arches|first }}">
-    {%- endif %}
     <div class="install{% if methods|length < 2 %} install--single{% endif %}">
     {%- if methods|length > 1 %}
     <div class="methods" role="radiogroup" aria-label="Install method">
       {%- for m in methods %}
-      <label class="method"{% if m == 'rpm' %}{{ arches_only(pk.rpm[channel]) }}{% elif m == 'deb' %}{{ arches_only(pk.deb[channel]) }}{% elif m == 'appimage' %}{{ arches_only({'downloads': ai_downloads}) }}{% endif %}>
+      <label class="method">
         <input type="radio" name="install-method{{ sfx }}" value="{{ m }}"{% if loop.first %} checked{% endif %}>
         <span class="method__face">
           <span class="method__text"><span class="method__title">{{ method_title(m) }}</span>
@@ -144,7 +128,9 @@
     {%- if 'ref' in methods %}
     <section class="how" data-method="ref"{% if methods|first != 'ref' %} hidden{% endif %}>
       {{ how_head('ref') }}
-      <a class="btn btn--primary how__btn" href="{{ ref_url }}">{{ dl_icon }}{{ s.fill(t('ref_button')) }}</a>
+      <ul class="dl-list">
+        {{ dl_item(ref_url, s.fill(t('ref_button')), info.version, arch_names|join(' and '), none) }}
+      </ul>
       {{ md_block('ref_after', 'how__after') }}
       {%- if t('ref_tip_title') %}
       <details class="term">
@@ -165,15 +151,19 @@
     {%- set bundle_file = bundle_url.rsplit('/', 1)[-1] %}
     <section class="how" data-method="bundle"{% if methods|first != 'bundle' %} hidden{% endif %}>
       {{ how_head('bundle') }}
-      <a class="btn btn--primary how__btn" data-bundle-link data-href="{{ bundle_url }}" href="{{ bundle_url|replace('{arch}', first_arch) }}">{{ dl_icon }}<span>{{ s.fill(t('bundle_button')) }} <span class="dl-arch-name">{{ first_name }}</span></span></a>
-      {%- if t('bundle_after') %}<div class="how__after">{{ s.arch_spans(s.md(t('bundle_after')), first_arch, first_name) }}</div>{% endif %}
+      <ul class="dl-list">
+        {%- for a in bundle_arches %}
+        {%- set build = info.builds.get(a, {}) %}
+        {{ dl_item(bundle_url|replace('{arch}', a), bundle_file|replace('{arch}', a), build.get('version', info.version), repo.arch_names.get(a, a), build.get('size')) }}
+        {%- endfor %}
+      </ul>
+      {%- if t('bundle_after') %}<div class="how__after">{{ s.arch_spans(s.md(t('bundle_after')), bundle_arches|join(' or '), bundle_names|join(' or ')) }}</div>{% endif %}
       <details class="term">
         <summary>Prefer the terminal?</summary>
-        {%- if t('bundle_terminal_intro') %}{{ s.arch_spans(s.md(t('bundle_terminal_intro')), first_arch, first_name) }}{% endif %}
-        <div class="code-copy code-copy--multi"><code id="install-cmd-bundle{{ sfx }}" data-bundle-cmd data-template="curl -LO {{ bundle_url }}&#10;flatpak install ./{{ bundle_file }}">curl -LO {{ bundle_url|replace('{arch}', first_arch) }}
-flatpak install ./{{ bundle_file|replace('{arch}', first_arch) }}</code>
-          <button class="code-copy__btn" type="button" data-copy="#install-cmd-bundle{{ sfx }}">{{ copy_icon }}<span class="code-copy__label">Copy</span></button></div>
-        {%- if t('bundle_terminal_after') %}{{ s.arch_spans(s.md(t('bundle_terminal_after')), first_arch, first_name) }}{% endif %}
+        {%- if t('bundle_terminal_intro') %}{{ s.arch_spans(s.md(t('bundle_terminal_intro')), bundle_arches|join(' or '), bundle_names|join(' or ')) }}{% endif %}
+        {#- uname -m says x86_64 or aarch64, the names the files carry, so one command fits either machine. #}
+        {{ copy_box('install-cmd-bundle', 'curl -LO ' ~ bundle_url|replace('{arch}', '$(uname -m)') ~ '\n' ~ 'flatpak install ./' ~ bundle_file|replace('{arch}', '$(uname -m)'), true) }}
+        {%- if t('bundle_terminal_after') %}{{ s.arch_spans(s.md(t('bundle_terminal_after')), bundle_arches|join(' or '), bundle_names|join(' or ')) }}{% endif %}
       </details>
     </section>
     {%- endif %}
@@ -185,18 +175,21 @@ flatpak install ./{{ bundle_file|replace('{arch}', first_arch) }}</code>
     </section>
     {%- endif %}
     {%- macro package_files(kind, info) %}
-      {%- if t(kind ~ '_files_title') %}
-      <details class="term">
-        <summary>{{ s.fill(t(kind ~ '_files_title')) }}</summary>
-        {%- if t(kind ~ '_files_text') %}
-        {{ s.md(t(kind ~ '_files_text')) }}
-        {%- set many = info.downloads|length > 1 %}
-        <p>{% for arch, url in info.downloads.items() %}<a class="btn btn--ghost" href="{{ url }}">{{ dl_icon }}{{ s.fill(t(kind ~ '_files_button')) }}{% if many %} for {{ repo.arch_names.get(arch, arch) }}{% endif %}</a>{% if not loop.last %} {% endif %}{% endfor %}</p>
-        {%- else %}
-        <p>{% for arch, url in info.downloads.items() %}<a href="{{ url }}">{{ info.name }} {{ info.version }} for {{ repo.arch_names.get(arch, arch) }}</a>{% if not loop.last %} · {% endif %}{% endfor %}.
-          Installed from a file, it gets no updates until the repository is added too.</p>
-        {%- endif %}
-      </details>
+      {#- Each file with its name and size; a summary without them (an older
+          shape) still gets a button per address. #}
+      {%- set files = info.files if info.files else [] %}
+      {%- if not files %}{% for arch, url in (info.downloads or {}).items() %}{% set _ = files.append({'arch': arch, 'url': url, 'file': url.rsplit('/', 1)[-1], 'version': info.version, 'size': none}) %}{% endfor %}{% endif %}
+      {%- if files %}
+      <div class="how__files">
+        {%- if t(kind ~ '_files_title') %}<h4 class="how__sub">{{ s.fill(t(kind ~ '_files_title')) }}</h4>{% endif %}
+        {{- md_block(kind ~ '_files_text', 'how__lead') }}
+        <ul class="dl-list">
+          {%- for f in files %}
+          {%- set a = {'amd64': 'x86_64', 'arm64': 'aarch64'}.get(f.arch, f.arch) %}
+          {{ dl_item(f.url, f.file, f.version, repo.arch_names.get(a, a) if a not in ('all', 'noarch') else '', f.size) }}
+          {%- endfor %}
+        </ul>
+      </div>
       {%- endif %}
     {%- endmacro %}
     {%- if 'rpm' in methods %}
@@ -233,8 +226,7 @@ flatpak install ./{{ bundle_file|replace('{arch}', first_arch) }}</code>
       {{ how_head('appimage') }}
       <ul class="dl-list">
         {%- for f in pk.appimage[channel] %}
-        <li><a class="btn btn--ghost dl-list__btn" href="{{ f.url }}">{{ dl_icon }}<span>{{ f.name }}</span></a>
-          <span class="dl-list__meta">{{ f.version }}{% if f.arch %} · {{ repo.arch_names.get(f.arch, f.arch) }}{% endif %}{% if f.size %} · {{ f.size|filesizeformat }}{% endif %}</span></li>
+        {{ dl_item(f.url, f.name, f.version, repo.arch_names.get(f.arch, f.arch) if f.arch else '', f.size) }}
         {%- endfor %}
       </ul>
       {{ md_block('appimage_after', 'how__after') }}
@@ -251,8 +243,7 @@ flatpak install ./{{ bundle_file|replace('{arch}', first_arch) }}</code>
       {{ how_head('files') }}
       <ul class="dl-list">
         {%- for f in pk.files[channel] %}
-        <li><a class="btn btn--ghost dl-list__btn" href="{{ f.url }}">{{ dl_icon }}<span>{{ f.name }}</span></a>
-          <span class="dl-list__meta">{{ f.version }}{% if f.arch %} · {{ repo.arch_names.get(f.arch, f.arch) }}{% endif %}{% if f.size %} · {{ f.size|filesizeformat }}{% endif %}</span></li>
+        {{ dl_item(f.url, f.name, f.version, repo.arch_names.get(f.arch, f.arch) if f.arch else '', f.size) }}
         {%- endfor %}
       </ul>
       <p class="how__after">Downloaded files don't update themselves: come back here for a new version.</p>

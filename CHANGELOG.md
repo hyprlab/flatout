@@ -6,6 +6,19 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- The install dialog no longer asks which machine you have. Each format's
+  instructions offer a download button for every machine it is built for,
+  with the file's name, version and size, and the Fedora and Debian
+  packages' files are shown rather than folded away. The machine chips
+  under each format stay grey, and the instructions no longer repeat the
+  format's name above them.
+
+### Deprecated
+- The install dialog's "Ask Intel/AMD or ARM" switch and the full download's
+  and package files' button wording are no longer used; documents that set
+  them still load.
+
 ## [1.13.0] — 2026-10-28
 
 ### Changed

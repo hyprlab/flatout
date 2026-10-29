@@ -549,8 +549,10 @@ DOCUMENT = group("Site", {
     }),
     "install": group("Install dialog", {
         "title": text("Title", "Install {app_name}", max=120),
-        "show_arch_picker": boolean("Ask Intel/AMD or ARM", True,
-                                    help="Only shown when ARM builds exist."),
+        # Kept so documents saved with it still validate; the dialog no
+        # longer asks, every file has a button per machine.
+        "show_arch_picker": boolean("Ask Intel/AMD or ARM (no longer used)", True,
+                                    help="Since 1.14.0 each file has a button per machine, so the dialog no longer asks."),
         "ref_method": boolean("Offer the install file (.flatpakref)", True),
         "bundle_method": boolean("Offer the full .flatpak download", True),
         "repo_method": boolean("Offer adding the repository", True),
@@ -567,7 +569,7 @@ DOCUMENT = group("Site", {
         # The wording of each way to install. Every default is the built-in
         # text; emptying a field leaves that piece out. Markdown fields know
         # {flatpak_setup_url}, and in the full download's, {arch_name} and
-        # {arch} follow the machine the visitor picks.
+        # {arch} name the machines it is built for (Intel/AMD or ARM).
         "show_version": boolean("Show the version under the title", True),
         "ref_title": text("Install file: name", "Install file", max=80),
         "ref_desc": text("Install file: description", "A small file your app store opens, and keeps the app updated.",
@@ -591,8 +593,8 @@ DOCUMENT = group("Site", {
         "bundle_url": url("Full download: address",
                           help="Empty serves the bundles uploaded here. Another address, such as a GitHub release "
                                "asset, offers the download from there; {arch} in it becomes x86_64 or aarch64."),
-        "bundle_button": text("Full download: button", "Download for", max=80,
-                              help="The machine's name follows it: Download for Intel/AMD."),
+        "bundle_button": text("Full download: button (no longer used)", "Download for", max=80,
+                              help="Since 1.14.0 each machine's file has its own button, named after the file."),
         "bundle_after": markdown("Full download: under the button",
                                  "**Open it like any download** and your app store installs it. Flatpak has to be "
                                  "[set up]({flatpak_setup_url}) already.", max=2000),
@@ -616,8 +618,8 @@ DOCUMENT = group("Site", {
         "rpm_files_title": text("dnf: the single file's title", "Prefer a single file?", max=80),
         "rpm_files_text": markdown("dnf: the single file's text", "", max=1000,
                                    help="Empty lists each package file with its version."),
-        "rpm_files_button": text("dnf: the single file's button", "Download the RPM", max=80,
-                                 help="Shown under your own text, for each package file."),
+        "rpm_files_button": text("dnf: the single file's button (no longer used)", "Download the RPM", max=80,
+                                 help="Since 1.14.0 each file's button is named after the file."),
         "deb_title": text("apt: name", "Debian, Ubuntu and apt", max=80),
         "deb_desc": text("apt: description",
                          "A package from this site's apt repository, updated with the rest of the system.", max=200),
@@ -630,8 +632,8 @@ DOCUMENT = group("Site", {
         "deb_files_title": text("apt: the single file's title", "Prefer a single file?", max=80),
         "deb_files_text": markdown("apt: the single file's text", "", max=1000,
                                    help="Empty lists each package file with its version."),
-        "deb_files_button": text("apt: the single file's button", "Download the Debian package", max=80,
-                                 help="Shown under your own text, for each package file."),
+        "deb_files_button": text("apt: the single file's button (no longer used)", "Download the Debian package", max=80,
+                                 help="Since 1.14.0 each file's button is named after the file."),
         "appimage_title": text("AppImage: name", "AppImage", max=80),
         "appimage_desc": text("AppImage: description",
                               "One file that runs on most distributions and updates from this site.", max=200),

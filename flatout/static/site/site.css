@@ -908,49 +908,6 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   max-width: 440px;
 }
 
-/* The machine switch, in the header: small, since most visitors never
-   touch it (the machine is guessed). */
-.arch-switch {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  margin-top: 14px;
-}
-.arch-switch__label {
-  font-size: .72rem;
-  font-weight: 800;
-  letter-spacing: .05em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-.arch-switch__opts {
-  display: inline-flex;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 999px;
-  background: var(--bg-tint);
-  border: 1px solid var(--line);
-}
-.arch-switch__opt { position: relative; cursor: pointer; }
-.arch-switch__opt span {
-  display: block;
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: .88rem;
-  color: var(--ink-soft);
-  white-space: nowrap;
-  transition: background .15s ease, color .15s ease, box-shadow .15s ease;
-}
-.arch-switch__opt:hover span { color: var(--ink); }
-.arch-switch__opt input:checked + span {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-.arch-switch__opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
-.arch-switch__opt input,
 .method input {
   position: absolute;
   inset: 0;
@@ -974,15 +931,12 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .method:hover .method__face { background: var(--bg-tint); }
 .method input:checked + .method__face { background: color-mix(in srgb, var(--accent) 13%, var(--surface)); }
 .method input:focus-visible + .method__face { outline: 2px solid var(--accent); outline-offset: 2px; }
-.method.is-off { cursor: default; }
-.method.is-off .method__face { opacity: .45; }
-.method.is-off:hover .method__face { background: none; }
 .method__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .method__title {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   font-weight: 800; color: var(--ink); font-size: .95rem;
 }
-/* The machines a format is built for; the picked one stands out. */
+/* The machines a format is built for. */
 .method__arches { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
 .arch-chip {
   padding: 1px 7px;
@@ -993,11 +947,6 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   font-size: .72rem;
   font-weight: 700;
   line-height: 1.5;
-}
-.arch-chip.is-current {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
-  color: var(--accent);
 }
 .method__badge { margin-left: auto; align-self: flex-start; }
 .install-badge {
@@ -1021,9 +970,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 }
 .how[hidden] { display: none; }
 .install--single .how { margin-top: 0; }
-.how__head { margin: 0 0 14px; }
-.how__title { font-size: 1.05rem; font-weight: 800; color: var(--ink); }
-.how__desc { margin: 2px 0 0; font-size: .88rem; color: var(--ink-soft); }
+.how__desc { margin: 0 0 14px; font-size: .88rem; color: var(--ink-soft); }
 .how__after strong { color: var(--ink); }
 .how__after code, .how__lead code, .term code:not(.code-copy code) {
   background: var(--bg-tint);
@@ -1032,8 +979,11 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   padding: 1px 6px;
   font-size: .92em;
 }
-.how__btn { width: 100%; justify-content: center; }
 .how__after { margin: 14px 0 0; font-size: .88rem; color: var(--ink-soft); }
+/* A package's files, one button per machine, under its repository. */
+.how__files { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.how__sub { font-size: .95rem; font-weight: 800; color: var(--ink); margin: 0 0 4px; }
+.how__files .how__lead { margin: 0 0 12px; font-size: .88rem; color: var(--ink-soft); }
 
 /* Other downloads: one button per file, what it is beside it. */
 .dl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -1070,7 +1020,6 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
    names the method. On a desktop the dialog widens: the list on the left,
    the method beside it, and the header in one row. */
 @media (max-width: 859px) {
-  .how__title { display: none; }
   .install .methods + .install__how .how { padding-top: 16px; border-top: 1px solid var(--line); }
 }
 @media (min-width: 860px) {
@@ -1085,7 +1034,6 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   }
   .modal__head--install .modal__icon { width: 48px; margin: 0; }
   .modal__head--install .modal__sub { margin: 4px 0 0; }
-  .modal__head--install .arch-switch { flex-direction: row; gap: 10px; margin: 0 0 0 auto; }
   .install {
     display: grid;
     grid-template-columns: minmax(270px, 320px) minmax(0, 1fr);

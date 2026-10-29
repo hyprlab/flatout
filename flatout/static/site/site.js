@@ -315,64 +315,18 @@
     // A link to /#install (or /#install-beta) opens it straight away.
     if (location.hash === hash) open();
 
-    // The machine switch and the format list drive one state. The install
-    // file needs neither (flatpak resolves the architecture), the bundle
-    // download needs both.
-    var NAMES = { x86_64: "Intel/AMD", aarch64: "ARM" };
-    var archInputs = modal.querySelectorAll('input[name="install-arch' + sfx + '"]');
+    // The format list: only the chosen format's instructions show. Every
+    // file has a button per machine, so nothing here needs the machine.
     var methodInputs = modal.querySelectorAll('input[name="install-method' + sfx + '"]');
-    function value(list) {
-      for (var i = 0; i < list.length; i++) if (list[i].checked || list[i].type === "hidden") return list[i].value;
-      return list[0] ? list[0].value : "";
-    }
     function render() {
-      var arch = value(archInputs);
-      // A package built for some machines only is greyed out on the others
-      // (its chips say which it is for); the first method takes over if it
-      // was the one picked.
-      modal.querySelectorAll(".method[data-arches]").forEach(function (card) {
-        var off = card.getAttribute("data-arches").split(" ").indexOf(arch) < 0;
-        var input = card.querySelector("input");
-        input.disabled = off;
-        card.classList.toggle("is-off", off);
-        if (off && input.checked && methodInputs[0]) methodInputs[0].checked = true;
+      var method = "";
+      methodInputs.forEach(function (el) { if (el.checked) method = el.value; });
+      if (!method) return;
+      modal.querySelectorAll(".how").forEach(function (sec) {
+        sec.hidden = sec.getAttribute("data-method") !== method;
       });
-      modal.querySelectorAll(".arch-chip").forEach(function (chip) {
-        chip.classList.toggle("is-current", chip.getAttribute("data-arch") === arch);
-      });
-      var method = value(methodInputs);
-      if (method) {
-        modal.querySelectorAll(".how").forEach(function (sec) {
-          sec.hidden = sec.getAttribute("data-method") !== method;
-        });
-      }
-      var link = modal.querySelector("[data-bundle-link]");
-      if (link && arch) link.href = link.getAttribute("data-href").replace("{arch}", arch);
-      var cmd = modal.querySelector("[data-bundle-cmd]");
-      if (cmd && arch) cmd.textContent = cmd.getAttribute("data-template").split("{arch}").join(arch);
-      modal.querySelectorAll(".dl-arch-name").forEach(function (el) { el.textContent = NAMES[arch] || arch; });
-      // Architectures can be on different versions; say the chosen one's.
-      var picked = modal.querySelector('input[name="install-arch' + sfx + '"]:checked');
-      var sub = modal.querySelector("[data-install-version]");
-      if (picked && sub && picked.getAttribute("data-version")) sub.textContent = "Version " + picked.getAttribute("data-version");
     }
-    archInputs.forEach(function (el) { el.addEventListener("change", render); });
     methodInputs.forEach(function (el) { el.addEventListener("change", render); });
-
-    // Guess the machine. Chromium only tells the CPU through client hints;
-    // elsewhere the user-agent string carries it on Linux ("Linux aarch64").
-    function useArm() {
-      var arm = modal.querySelector('input[name="install-arch' + sfx + '"][value="aarch64"]');
-      if (arm && arm.type === "radio") { arm.checked = true; render(); }
-    }
-    var ua = navigator.userAgent || "";
-    if (/aarch64|arm64|armv8/i.test(ua)) {
-      useArm();
-    } else if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
-      navigator.userAgentData.getHighEntropyValues(["architecture", "bitness"]).then(function (hints) {
-        if (hints && hints.architecture === "arm" && hints.bitness === "64") useArm();
-      }).catch(function () {});
-    }
     render();
   });
 

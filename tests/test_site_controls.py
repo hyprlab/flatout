@@ -177,22 +177,27 @@ def test_the_install_dialog_s_wording(client, csrf, admin, repo_state):
     page = preview(client)
     assert "Version 1.0.0" not in page and "Install via Flatpakref" in page
     assert "<summary>Using Bazaar?</summary>" in page and "flatpak remote-add x http://localhost/x" in page
-    # The full download from the owner's address, though nothing was uploaded here.
-    assert 'data-href="https://github.com/x/y/releases/latest/download/App-{arch}.flatpak"' in page
-    assert "flatpak install ./App-x86_64.flatpak" in page
-    assert '<strong><span class="dl-arch-name">Intel/AMD</span></strong>' in page
+    # The full download from the owner's address, though nothing was uploaded here:
+    # a button per machine, named after its file, and one command for either.
+    assert 'href="https://github.com/x/y/releases/latest/download/App-x86_64.flatpak"' in page
+    assert 'href="https://github.com/x/y/releases/latest/download/App-aarch64.flatpak"' in page
+    assert "<span>App-aarch64.flatpak</span>" in page
+    assert "curl -LO https://github.com/x/y/releases/latest/download/App-$(uname -m).flatpak\n" \
+           "flatpak install ./App-$(uname -m).flatpak" in page
+    assert '<strong><span class="dl-arch-name">Intel/AMD or ARM</span></strong>' in page
     assert "The whole app in one .flatpak file." not in page        # emptied, so left out
-    # The RPM: greyed out on ARM, its chips name Intel/AMD alone, and its own download button.
-    assert 'data-arches="x86_64"' in page
+    # No machine to pick, so nothing is greyed out.
+    assert "install-arch" not in page and "data-arches" not in page
+    # The RPM: its chips name Intel/AMD alone, and its file has its own button.
     rpm = page[page.index('value="rpm"'):page.index("</label>", page.index('value="rpm"'))]
     assert '<span class="arch-chip" data-arch="x86_64">Intel/AMD</span>' in rpm and 'data-arch="aarch64"' not in rpm
-    # The chosen method names itself above its instructions.
-    assert '<h3 class="how__title">Install via Flatpakref</h3>' in page
-    # The Debian package's amd64 is the picker's x86_64, so it is offered on Intel/AMD.
-    deb = page[page.index('value="deb"') - 400:page.index('value="deb"')]
-    assert 'data-arches="x86_64"' in deb and "amd64" not in deb
-    assert 'class="btn btn--ghost" href="http://localhost/download/gnomish-x86_64.rpm"' in page
-
+    # The list names the method; its instructions don't repeat the name.
+    assert "how__title" not in page
+    # The Debian package's amd64 is Flatpak's x86_64, so it is shown as Intel/AMD.
+    deb = page[page.index('value="deb"'):page.index("</label>", page.index('value="deb"'))]
+    assert '<span class="arch-chip" data-arch="x86_64">Intel/AMD</span>' in deb and "amd64" not in deb
+    assert 'class="btn btn--ghost dl-list__btn" href="http://localhost/download/gnomish-x86_64.rpm"' in page
+    assert '<h4 class="how__sub">Prefer a download?</h4>' in page
 
 def test_a_site_saved_before_the_wording_fields_gets_the_built_in_text(app, client, csrf, admin, repo_state):
     from flatout import site
