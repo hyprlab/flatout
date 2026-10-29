@@ -934,7 +934,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .method__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .method__title {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  font-weight: 800; color: var(--ink); font-size: .95rem;
+  font-weight: 600; color: var(--ink); font-size: 1.05rem;
 }
 /* The machines a format is built for. */
 .method__arches { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
@@ -976,6 +976,14 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .dl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .dl-list li { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .dl-list__btn { max-width: 100%; }
+/* On hover a download turns the site's own button color, flat, as the
+   primary buttons are, rather than the ghost button's tint. */
+.dl-list__btn:hover {
+  --btn-bg: var(--button);
+  --btn-fg: var(--button-ink);
+  border-color: var(--button);
+  box-shadow: none;
+}
 .dl-list__btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dl-list__meta { font-size: .86rem; color: var(--ink-soft); }
 

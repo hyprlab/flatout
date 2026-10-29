@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- In the install dialog, a download button turns the site's button color on
+  hover, and the formats' names are larger and lighter.
+
 ## [1.14.1] — 2026-10-29
 
 ### Changed
