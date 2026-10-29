@@ -918,7 +918,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 
 /* The formats, as a list of rows; the chosen one is a pale tint of the
    accent. */
-.methods { display: grid; gap: 2px; align-content: start; }
+.methods { display: grid; gap: 1rem; align-content: start; }
 .method { position: relative; cursor: pointer; }
 .method__face {
   display: flex;

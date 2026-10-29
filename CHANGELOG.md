@@ -6,6 +6,9 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- More space between the formats in the install dialog's list.
+
 ## [1.14.0] — 2026-10-29
 
 ### Changed
