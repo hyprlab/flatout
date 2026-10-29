@@ -1032,10 +1032,16 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   .install {
     display: grid;
     grid-template-columns: minmax(270px, 320px) minmax(0, 1fr);
-    gap: 20px;
+    gap: 1rem;
     align-items: start;
   }
   .install--single { grid-template-columns: minmax(0, 1fr); }
+  /* The line runs the height of the list, whichever column is taller. */
+  .install .methods + .install__how {
+    align-self: stretch;
+    padding-left: 1rem;
+    border-left: 1px solid var(--line);
+  }
   .install .how { margin-top: 0; }
   .modal__dialog--install .modal__foot { margin-top: 20px; }
 }
