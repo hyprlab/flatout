@@ -22,6 +22,13 @@ All notable changes to Flatout are documented here. The format follows
 - The install file's button is named after the file, like every other
   download button. A package's files follow its commands without a heading.
 
+### Removed
+- Breaking for API clients: the install dialog's old per-format fields are
+  gone from the site document, replaced by the shared ones above. A GET
+  returns only the new names, and a PATCH or PUT that sets an old one, such
+  as `install.bundle_desc`, is refused with a 422 naming its replacement. A
+  whole document in the old shape is still converted when it is saved.
+
 ### Fixed
 - A list item added in the site editor opens, ready to fill in.
 - An address with a trailing slash, such as /admin/, goes to the one without
