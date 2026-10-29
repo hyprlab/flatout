@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [2.0.0] — 2026-10-29
+
 ### Added
 - Every way to install in the install dialog has the same fields: its name,
   text above and below its buttons (or commands), and any number of folded
