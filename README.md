@@ -55,8 +55,15 @@ and an MCP server.
 ```sh
 mkdir flatout && cd flatout
 curl -O https://raw.githubusercontent.com/hyprlab/flatout/main/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/hyprlab/flatout/main/.env.example
 docker compose up -d
 ```
+
+The `.env` file holds the settings, one `NAME=value` per line, each explained
+in a comment. All are optional, so Flatout starts with the file as it comes.
+For a public site behind a reverse proxy with HTTPS, set `TRUST_PROXY=1` and
+`SESSION_COOKIE_SECURE=1`, then run `docker compose up -d` again
+([all the settings](docs/DOCUMENTATION.md#the-env-file)).
 
 Then open http://localhost:8102. The first visit opens the setup wizard; the
 admin then walks you through the rest. Put a reverse proxy with HTTPS in

@@ -11,6 +11,7 @@ and the uploaded bundles.
 ```sh
 mkdir flatout && cd flatout
 curl -O https://raw.githubusercontent.com/hyprlab/flatout/main/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/hyprlab/flatout/main/.env.example
 docker compose up -d
 ```
 
@@ -20,7 +21,38 @@ password. The admin is at `/admin`; the homepage is at `/`.
 
 From a clone of the repository, `docker compose up -d --build` builds the
 image from source instead: `docker-compose.override.yml` is picked up
-automatically.
+automatically. Make the `.env` with `cp .env.example .env`.
+
+### The .env file
+
+Docker Compose reads a file named `.env` in the same folder as
+`docker-compose.yml` and puts its values into the `${...}` placeholders of
+the compose file, which hands them to the container. The second `curl` above
+saves Flatout's `.env.example` as that file: every setting, commented, with
+its default. Every setting is optional, so the file can stay as it comes, be
+empty or not exist at all.
+
+The format:
+
+- One setting per line, `NAME=value`, with no spaces around the `=`.
+- Values need no quotes. An empty value (`SECRET_KEY=`) means the default.
+- Lines starting with `#` are comments.
+
+A public site behind a reverse proxy with HTTPS needs two lines changed:
+
+```sh
+TRUST_PROXY=1
+SESSION_COOKIE_SECURE=1
+```
+
+`SECRET_KEY` can stay empty: Flatout then generates one and keeps it in the
+volume. To set your own, generate it with `openssl rand -hex 32`. Changing it
+later signs everyone out.
+
+After editing `.env`, run `docker compose up -d` to apply it. That recreates
+the container with the new values; `docker compose restart` does not read
+the file again. The data in the volume is untouched either way.
+[Configuration](#configuration) lists every setting.
 
 ## Getting started
 
@@ -519,9 +551,9 @@ AppImage updaters or from the site, in the releases view below the chart.
 
 ## Configuration
 
-Everything is optional. Put values in a `.env` file next to
-`docker-compose.yml` (`.env.example` lists them all), then
-`docker compose up -d` to apply.
+Everything is optional. Put values in the `.env` file next to
+`docker-compose.yml` ([how](#the-env-file)), then `docker compose up -d` to
+apply.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
@@ -531,6 +563,16 @@ Everything is optional. Put values in a `.env` file next to
 | `TRUST_PROXY` | `0` | How many reverse proxies are in front; see below |
 | `MAX_UPLOAD_MB` | `2048` | The largest bundle accepted |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | empty | Cloudflare Turnstile keys for the sign-in page; usually set in the admin instead |
+
+The variables below are read by Flatout but are not in `docker-compose.yml`,
+so a line in `.env` does not reach them. To set one, add it under
+`environment:` in `docker-compose.yml`, for example
+`- ALLOW_REGISTRATION=1`, then run `docker compose up -d`.
+`ALLOW_REGISTRATION` is only the default for a fresh install: once an admin
+turns sign-up on or off in Settings, that choice wins.
+
+| Variable | Default | What it does |
+| --- | --- | --- |
 | `ALLOW_REGISTRATION` | `0` | Whether anyone can create their own account |
 | `WORKER_MINUTES` | `60` | How often housekeeping runs (pruning old stats); `0` turns it off |
 | `APP_NAME` | `Flatout` | What the admin calls itself |
