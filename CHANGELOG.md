@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [2.0.1] — 2026-11-01
+
 ### Changed
 - The setup wizard's welcome names every kind of package Flatout serves:
   Flatpak, dnf, apt and AppImage.
