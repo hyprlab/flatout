@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [2.1.0] — 2026-11-02
+
 ### Changed
 - In the site editor, a section's or page's header (the back arrow, its
   name, duplicate and delete) stays at the top of the panel while its
