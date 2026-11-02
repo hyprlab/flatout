@@ -6,6 +6,11 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- In the site editor, a section's or page's header (the back arrow, its
+  name, duplicate and delete) stays at the top of the panel while its
+  fields scroll.
+
 ### Fixed
 - The header's light/dark switch shows when the site is set to always light
   or always dark. The chosen mode is where visitors start, and they can

@@ -287,6 +287,12 @@
     openFolds: {}, installMethod: null
   };
 
+  // A detail view's header (back, title, actions) sticks to the panel's top;
+  // it gets its rule once something has scrolled under it.
+  panel.addEventListener("scroll", function () {
+    panel.classList.toggle("is-scrolled", panel.scrollTop > 0);
+  }, { passive: true });
+
   var GROUPS = [
     ["app", "Name and links", "Name, tagline, source and bug links, license"],
     ["images", "Images", "Icon, wordmark, social preview"],
