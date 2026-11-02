@@ -5,7 +5,7 @@
 {%- set doc = s.doc -%}
 {%- set app_name = s.fill(doc.app.name) -%}
 <!DOCTYPE html>
-<html lang="en"{% if doc.theme.mode != 'system' %} data-theme="{{ doc.theme.mode }}" data-theme-fixed{% endif %}>
+<html lang="en"{% if doc.theme.mode != 'system' %} data-theme="{{ doc.theme.mode }}" {{ 'data-theme-default' if doc.theme.show_toggle else 'data-theme-fixed' }}="{{ doc.theme.mode }}"{% endif %}>
 <head>
   {% include "site/head.html" %}
   <title>{{ s.fill(page.title) }} · {{ app_name }}</title>

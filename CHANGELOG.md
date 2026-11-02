@@ -6,6 +6,11 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Fixed
+- The header's light/dark switch shows when the site is set to always light
+  or always dark. The chosen mode is where visitors start, and they can
+  switch from it; turn the switch off to keep the site in one mode.
+
 ## [2.0.1] — 2026-11-01
 
 ### Changed

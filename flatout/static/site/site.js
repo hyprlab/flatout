@@ -11,8 +11,9 @@
   /* ————— Theme switch ————— */
   // The head script already set data-theme. The button flips it and
   // remembers the choice; every <picture data-theme-swap> follows the mode in
-  // use rather than the system's. Without a saved choice, a system change
-  // still flows through. A site fixed to one mode has no switch.
+  // use rather than the system's. Without a saved choice, the site's own
+  // mode applies if it has one, else the system's, whose changes flow
+  // through. A site fixed to one mode without the switch stays in it.
   (function () {
     var html = document.documentElement;
     if (html.hasAttribute("data-theme-fixed")) {
@@ -20,6 +21,7 @@
       return;
     }
     var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    var fallback = html.getAttribute("data-theme-default");
     function saved() {
       try { var t = localStorage.getItem("site-theme"); return (t === "dark" || t === "light") ? t : null; }
       catch (e) { return null; }
@@ -33,7 +35,7 @@
         b.title = label;
       });
     }
-    apply(saved() || (mq.matches ? "dark" : "light"));
+    apply(saved() || fallback || (mq.matches ? "dark" : "light"));
     document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
       b.addEventListener("click", function () {
         var next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
@@ -41,7 +43,7 @@
         apply(next);
       });
     });
-    mq.addEventListener("change", function (e) { if (!saved()) apply(e.matches ? "dark" : "light"); });
+    mq.addEventListener("change", function (e) { if (!saved() && !fallback) apply(e.matches ? "dark" : "light"); });
   })();
 
   function swapPictures(theme) {

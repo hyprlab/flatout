@@ -85,7 +85,8 @@ Everything on the homepage is set in the admin; there is no template to edit.
   palette, the fonts (Cantarell, Inter, system fonts, or an uploaded font
   file), the base text size, the heading weight, the corner rounding and the
   content width. A site can follow the visitor's light or dark setting, or
-  stay in one mode. **Custom CSS** is added after the theme, for a touch the
+  start in one mode; with the header's light/dark switch on, visitors can
+  still change it, and without it the site stays in that mode. **Custom CSS** is added after the theme, for a touch the
   settings don't reach; it can use and change the page's variables, such as
   `--accent`.
 - **Pages** are extra pages at their own address, such as `/privacy`,

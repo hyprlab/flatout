@@ -147,6 +147,22 @@ def test_theme_reaches_the_page(client, csrf, admin):
     assert "--accent: #123456" in body and '"Inter"' in body and "--font-size: 18px" in body
 
 
+@pytest.mark.parametrize("mode, toggle, attr, switch", [
+    ("system", True, None, True),
+    ("system", False, None, False),
+    ("dark", True, 'data-theme-default="dark"', True),
+    ("light", False, 'data-theme-fixed="light"', False),
+])
+def test_the_light_dark_switch_follows_its_setting(client, csrf, admin, mode, toggle, attr, switch):
+    client.patch("/api/v1/site", json={"theme": {"mode": mode, "show_toggle": toggle}}, headers=h(csrf))
+    body = client.get("/admin/preview").data.decode()
+    assert ("data-theme-toggle" in body) is switch
+    if attr:
+        assert f'data-theme="{mode}" {attr}' in body
+    else:
+        assert 'data-theme-default="' not in body and 'data-theme-fixed="' not in body
+
+
 def test_pages_live_at_their_address(client, csrf, admin):
     client.patch("/api/v1/site", json={"pages": [
         {"slug": "privacy", "title": "Privacy", "body": "## Data\nNone kept.", "published": True},
