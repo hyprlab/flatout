@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [2.2.0] — 2026-11-03
+
 ### Added
 - Release notes pages: under Pages, a page can show every release and its
   notes after its text, sorted by version, newest or oldest first, and
