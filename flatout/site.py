@@ -260,6 +260,19 @@ class Renderer:
             return conf[key]
         return site_schema.DOCUMENT.fields["install"].fields[key].default
 
+    def section_value(self, sec: dict, key: str):
+        """A section's field: the owner's value, or the built-in one for a
+        site saved before the field existed."""
+        if key in sec:
+            return sec[key]
+        return site_schema.SECTION_TYPES[sec["type"]].fields[key].default_value()
+
+    def releases_section(self) -> dict:
+        """The first What's new section, shown or not: its fields word the
+        release notes page. A site without one gets the built-in wording."""
+        return next((x for x in self.doc["sections"] if x["type"] == "releases"),
+                    {"type": "releases", "id": "whats-new", "channel": "stable"})
+
     @staticmethod
     def arch_spans(html: Markup, arch: str, name: str) -> Markup:
         """{arch} and {arch_name} in the full download's text, as spans the

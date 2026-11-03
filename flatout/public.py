@@ -36,6 +36,33 @@ def render_page(doc: dict, slug: str, preview: bool = False):
     return render_template("site/page.html", s=_renderer(doc, preview), page=page)
 
 
+def render_release_notes(doc: dict, preview: bool = False):
+    """Every release and its notes, filtered by channel and sorted by
+    version, both from the address (?channel=, ?sort=) so a view can be
+    linked. A page of the owner's at /releases, made before this one
+    existed, keeps the address."""
+    from . import releases
+    own = render_page(doc, "releases", preview)
+    if own is not None:
+        return own
+    s = _renderer(doc, preview)
+    sec = s.releases_section()
+    entries = releases.release_notes()
+    has_beta = any(e["channel"] == "beta" for e in entries)
+    has_stable = any(e["channel"] == "stable" for e in entries)
+    channel = request.args.get("channel", "")
+    if channel not in ("all", "stable", "beta"):
+        channel = "stable" if sec.get("channel", "stable") == "stable" and has_stable else "all"
+    if not has_beta:
+        channel = "all"
+    sort = "oldest" if request.args.get("sort") == "oldest" else "newest"
+    shown = [e for e in entries if channel == "all" or e["channel"] == channel]
+    if sort == "oldest":
+        shown.reverse()
+    return render_template("site/release_notes.html", s=s, sec=sec, entries=shown, channel=channel,
+                           sort=sort, has_beta=has_beta)
+
+
 def visitor_status() -> str | None:
     """maintenance, unpublished or off when this request should get the
     status page instead of the site; None when it gets the site."""
@@ -83,7 +110,7 @@ def _gate():
     """The homepage and the pages honor the status; media stays served (the
     status page shows the icon), and robots and the sitemap follow it on
     their own."""
-    if request.endpoint in ("public.home", "public.page"):
+    if request.endpoint in ("public.home", "public.page", "public.release_notes"):
         state = visitor_status()
         if state == "off" and request.endpoint == "public.page":
             slug = (request.view_args or {}).get("slug")
@@ -97,6 +124,11 @@ def _gate():
 @bp.route("/")
 def home():
     return render_home(site.get("live"))
+
+
+@bp.route("/releases")
+def release_notes():
+    return render_release_notes(site.get("live"))
 
 
 @bp.route("/media/<path:filename>")
@@ -128,9 +160,12 @@ def robots():
 
 @bp.route("/sitemap.xml")
 def sitemap():
+    from . import releases
     base = site.base_url()
     doc = site.get("live")
     urls = [base + "/"] + [f"{base}/{p['slug']}" for p in doc["pages"] if p["published"]]
+    if releases.history(None, 1) and f"{base}/releases" not in urls:
+        urls.append(f"{base}/releases")
     if site.status() != "published":
         urls = []
     body = "".join(f"<url><loc>{_xml_escape(u)}</loc></url>" for u in urls)

@@ -6,6 +6,12 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- A release notes page at `/releases`: every release on the site's
+  channels with its notes, sorted by version, newest or oldest first, and
+  filtered to stable or beta. The What's new section links to it with a
+  button whose label is set in the editor.
+
 ## [2.1.0] — 2026-11-02
 
 ### Changed

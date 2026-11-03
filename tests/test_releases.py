@@ -260,3 +260,47 @@ def test_each_file_of_a_version_brings_its_newest_job(app, client, csrf, admin):
     job_id = resp.get_json()["job"]["id"]
     version = client.get("/api/v1/versions").get_json()["versions"][0]
     assert version["packages"][0]["job"]["id"] == job_id
+
+
+def test_prereleases_come_before_their_release():
+    from flatout.releases import release_key
+    assert release_key("2.1.0") > release_key("2.1.0-beta.2") > release_key("2.1.0-beta.1") > release_key("2.0.10")
+    assert release_key("1.10") > release_key("1.9") and release_key("v1.2") == release_key("1.2")
+
+
+def test_the_release_notes_page_sorts_by_version(app, client, csrf, admin):
+    add_build(app, "x86_64", "1.10", notes="Ten.")
+    add_build(app, "x86_64", "1.9", notes="Nine.", minutes=5)    # uploaded later, still older
+    add_build(app, "x86_64", "1.11.0-beta.1", notes="Trying.", channel="beta")
+    client.post("/api/v1/site/publish", json={}, headers=h(csrf))
+    body = client.get("/releases").data.decode()
+    # The section shows stable only, so the page starts there.
+    assert body.index(">1.10<") < body.index(">1.9<") and "Trying." not in body
+    assert 'id="v-1-10"' in body and 'href="#v-1-9"' in body
+    oldest = client.get("/releases?channel=all&sort=oldest").data.decode()
+    assert oldest.index("Nine.") < oldest.index("Ten.") < oldest.index("Trying.")
+    beta = client.get("/releases?channel=beta").data.decode()
+    assert "Trying." in beta and "Ten." not in beta
+    assert "/releases" in client.get("/sitemap.xml").data.decode()
+
+
+def test_whats_new_links_to_the_release_notes(app, client, csrf, admin):
+    add_build(app, "x86_64", "1.0", notes="First.")
+    client.post("/api/v1/site/publish", json={}, headers=h(csrf))
+    assert re.search(r'<a class="btn btn--ghost" href="/releases">All release notes</a>', client.get("/").data.decode())
+    doc = client.get("/api/v1/site").get_json()["document"]
+    sec = next(x for x in doc["sections"] if x["type"] == "releases")
+    sec.update(notes_label="", page_title="Changes in {app_name}")
+    assert client.put("/api/v1/site", json=doc, headers=h(csrf)).status_code == 200
+    client.post("/api/v1/site/publish", json={}, headers=h(csrf))
+    assert "All release notes" not in client.get("/").data.decode()
+    assert f"Changes in {doc['app']['name']}</h1>" in client.get("/releases").data.decode()
+
+
+def test_a_page_of_the_owners_keeps_releases(app, client, csrf, admin):
+    add_build(app, "x86_64", "1.0", notes="First.")
+    doc = client.get("/api/v1/site").get_json()["document"]
+    doc["pages"].append({"slug": "releases", "title": "Our history", "body": "Hand written.", "published": True})
+    assert client.put("/api/v1/site", json=doc, headers=h(csrf)).status_code == 200
+    client.post("/api/v1/site/publish", json={}, headers=h(csrf))
+    assert "Hand written." in client.get("/releases").data.decode()

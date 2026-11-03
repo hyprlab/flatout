@@ -38,6 +38,18 @@ def version_key(version: str) -> tuple:
                  for part in re.findall(r"\d+|[A-Za-z]+", version or ""))
 
 
+def release_key(version: str) -> tuple:
+    """Orders versions as SemVer does: like version_key, but a prerelease
+    comes before its release (2.1.0-beta.2, then 2.1.0). The leading run of
+    numbers is the release; anything after it marks a prerelease."""
+    m = re.match(r"^\s*[vV]?(\d+(?:\.\d+)*)(.*)$", version or "")
+    if not m:
+        return ((), 0, version_key(version))
+    numbers = tuple(int(n) for n in m.group(1).split("."))
+    rest = m.group(2).lstrip("-~+._")
+    return (numbers, 0 if rest else 1, version_key(rest))
+
+
 def _when(r: Release):
     return r.published_at or r.created_at
 
@@ -70,15 +82,17 @@ def _summary(rows: list[Release]) -> dict | None:
     }
 
 
-def history(channel: str | None = "stable", limit: int = 20) -> list[dict]:
+def history(channel: str | None = "stable", limit: int | None = 20) -> list[dict]:
     """Published versions, newest first, one entry per version however many
     architectures it was built for. Rollbacks and promotions are left out:
-    they bring back or move a build, they don't make a new version."""
+    they bring back or move a build, they don't make a new version. No
+    limit is every version there is, for the release notes page."""
     query = Release.query.filter(Release.status.in_(("live", "superseded")),
                                  Release.origin != "rollback")
     if channel:
         query = query.filter_by(channel=channel)
-    rows = query.order_by(Release.published_at.desc(), Release.id.desc()).limit(limit * 4).all()
+    query = query.order_by(Release.published_at.desc(), Release.id.desc())
+    rows = (query.limit(limit * 4) if limit else query).all()
     seen: "OrderedDict[tuple, dict]" = OrderedDict()
     for r in rows:
         key = (r.channel, r.version)
@@ -93,7 +107,25 @@ def history(channel: str | None = "stable", limit: int = 20) -> list[dict]:
             entry["arches"].append(r.arch)
             if not entry["notes"] and r.notes:
                 entry["notes"] = r.notes
-    return list(seen.values())[:limit]
+    return list(seen.values())[:limit] if limit else list(seen.values())
+
+
+def release_notes() -> list[dict]:
+    """Every published version on both channels, the newest version first
+    (releases.release_key), each with an ``anchor`` naming its place on the
+    release notes page: v-2-1-0, v-2-2-0-beta-1."""
+    out = history("stable", None) + history("beta", None)
+    out.sort(key=lambda e: (release_key(e["version"]), e["channel"] == "stable", e["published_at"]),
+             reverse=True)
+    taken: set[str] = set()
+    for entry in out:
+        base = "v-" + (re.sub(r"[^a-z0-9]+", "-", (entry["version"] or "").lower()).strip("-") or "build")
+        anchor, n = base, 2
+        while anchor in taken:
+            anchor, n = f"{base}-{n}", n + 1
+        taken.add(anchor)
+        entry["anchor"] = anchor
+    return out
 
 
 APP_ID_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_-]*(\.[A-Za-z_][A-Za-z0-9_-]*){2,}$")

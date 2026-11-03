@@ -60,3 +60,19 @@
 {% macro versions(repo, info) -%}
 {{ info.version }}{% for a in info.behind %}{% if loop.first %} ({% else %}, {% endif %}{{ repo.arch_names.get(a, a) }}: {{ info.builds[a].version }}{% if loop.last %}){% endif %}{% endfor %}
 {%- endmacro %}
+
+{#- One release and its notes, for What's new and the release notes page.
+    `tag` is the version's heading level; `anchor` gives it an id to link to. #}
+{% macro release(s, r, tag='h3', extra='', anchor=false) -%}
+<li class="release{% if extra %} {{ extra }}{% endif %}"{% if anchor %} id="{{ r.anchor }}"{% endif %}>
+  <div class="release__head">
+    <{{ tag }} class="release__version">{{ r.version or 'Untitled build' }}</{{ tag }}>
+    {%- if r.channel == 'beta' %}<span class="release__chip">beta</span>{% endif %}
+    {%- if s.repo.arches|length > 1 and r.arches|length < s.repo.arches|length %}
+    <span class="release__chip">{% for a in r.arches %}{{ s.repo.arch_names.get(a, a) }}{% if not loop.last %}, {% endif %}{% endfor %} only</span>
+    {%- endif %}
+    <time class="release__date" datetime="{{ r.published_at }}">{{ r.published_at[:10] }}</time>
+  </div>
+  {%- if r.notes %}<div class="prose release__notes">{{ s.md(r.notes) }}</div>{% endif %}
+</li>
+{%- endmacro %}

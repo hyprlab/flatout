@@ -1456,6 +1456,58 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .release__notes { margin-top: 10px; }
 .release__notes > :first-child { margin-top: 0; }
 .release__notes > :last-child { margin-bottom: 0; }
+.releases__more { margin-top: 24px; }
+
+/* The release notes page: filters and a version index beside every release. */
+.page.release-notes > .container { max-width: 1080px; }
+.release-notes__head { margin-bottom: 36px; }
+.release-notes__layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+.release-notes__side { position: sticky; top: 24px; display: grid; gap: 22px; }
+.release-notes__label {
+  font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-soft); margin: 0 0 8px;
+}
+.release-notes__seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.release-notes__seg a {
+  border: 1px solid var(--line);
+  background: var(--bg-tint);
+  color: var(--ink-soft);
+  font-weight: 700; font-size: .88rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.release-notes__seg a:hover { text-decoration: none; color: var(--ink); border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.release-notes__seg a.is-active { background: var(--accent-gradient); border-color: transparent; color: var(--accent-ink); }
+.release-notes__index ol {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; gap: 2px;
+  max-height: calc(100vh - 260px); overflow-y: auto;
+}
+.release-notes__index a {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; margin-left: -12px; border-radius: 10px;
+  color: var(--ink-soft); font-weight: 600; font-size: .95rem;
+}
+.release-notes__index a:hover { background: var(--bg-tint); color: var(--accent); text-decoration: none; }
+.release-notes__beta { font-size: .68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--status-warn-fg); }
+.release-notes__list .release { scroll-margin-top: 24px; }
+.release-notes__list .release:target { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.release-notes__empty { color: var(--ink-soft); }
+@media (max-width: 860px) {
+  .release-notes__layout { grid-template-columns: 1fr; gap: 24px; }
+  .release-notes__side { position: static; display: flex; flex-wrap: wrap; gap: 18px 28px; }
+  .release-notes__index { display: none; }
+}
+@media (max-width: 760px) {
+  /* The header sticks on narrow screens. */
+  .release-notes__list .release { scroll-margin-top: 84px; }
+}
 
 /* Questions. */
 .faq { display: grid; gap: 10px; }

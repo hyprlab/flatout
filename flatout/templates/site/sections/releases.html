@@ -1,22 +1,18 @@
-{% from "site/macros.html" import head %}
+{% from "site/macros.html" import head, release %}
 {%- set entries = s.repo.history if sec.channel == 'all' else s.repo.history|selectattr('channel', 'equalto', 'stable')|list %}
+{%- set notes_label = s.section_value(sec, 'notes_label') %}
 <section id="{{ sec.id }}" class="section" data-section="{{ sec.id }}">
   <div class="container narrow">
     {{ head(s, sec) }}
     <ol class="releases">
       {%- for r in entries[:sec.count] %}
-      <li class="release reveal-me">
-        <div class="release__head">
-          <h3 class="release__version">{{ r.version or 'Untitled build' }}</h3>
-          {%- if r.channel == 'beta' %}<span class="release__chip">beta</span>{% endif %}
-          {%- if s.repo.arches|length > 1 and r.arches|length < s.repo.arches|length %}
-          <span class="release__chip">{% for a in r.arches %}{{ s.repo.arch_names.get(a, a) }}{% if not loop.last %}, {% endif %}{% endfor %} only</span>
-          {%- endif %}
-          <time class="release__date" datetime="{{ r.published_at }}">{{ r.published_at[:10] }}</time>
-        </div>
-        {%- if r.notes %}<div class="prose release__notes">{{ s.md(r.notes) }}</div>{% endif %}
-      </li>
+      {{ release(s, r, extra='reveal-me') }}
       {%- endfor %}
     </ol>
+    {%- if notes_label %}
+    <div class="actions releases__more reveal-me">
+      <a class="btn btn--ghost" href="{{ url_for('admin.preview_page', slug='releases') if s.preview else url_for('public.release_notes') }}">{{ s.fill(notes_label) }}</a>
+    </div>
+    {%- endif %}
   </div>
 </section>

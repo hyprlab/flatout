@@ -391,6 +391,11 @@ SECTION_TYPES: dict[str, SectionType] = {
             "lead": textarea("Introduction", max=600),
             "count": integer("How many releases", 3, 1, 20),
             "channel": select("Channel", [("stable", "Stable only"), ("all", "Stable and beta")], "stable"),
+            "notes_label": text("Button to all release notes", "All release notes", max=60,
+                                help="Under the list, to /releases: every release and its notes, sorted by "
+                                     "version. Leave empty to hide the button."),
+            "page_title": text("Release notes page title", "Release notes", max=160),
+            "page_lead": textarea("Release notes page introduction", max=600),
         },
     ),
     "faq": SectionType(
