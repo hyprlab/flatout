@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- The About section's tagline names every format Flatout publishes: "A
+  self-hosted Flatpak, AppImage, DEB and RPM repo builder".
+
 ## [2.2.0] — 2026-11-03
 
 ### Added
