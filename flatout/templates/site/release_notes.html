@@ -1,19 +1,16 @@
-{#- Every release and its notes (public.render_release_notes). The filters
-    and the order are plain links, so a view can be shared and works
-    without script. -#}
+{#- A release notes page (public._release_notes): the page's text, then
+    every release and its notes. The filters and the order are plain links,
+    so a view can be shared and works without script. -#}
 {% extends "site/layout.html" %}
 {% from "site/macros.html" import release %}
-{%- set title = s.fill(s.section_value(sec, 'page_title')) or 'Release notes' %}
-{%- set lead = s.section_value(sec, 'page_lead') %}
-{% block title %}{{ title }} · {{ s.fill(s.doc.app.name) }}{% endblock %}
-{% block description %}{{ s.fill(lead) if lead else s.fill(s.doc.seo.description) }}{% endblock %}
+{% block title %}{{ s.fill(page.title) or 'Release notes' }} · {{ s.fill(s.doc.app.name) }}{% endblock %}
 {% block body %}
 {%- macro view(ch, so) -%}{{ request.path }}?channel={{ ch }}&amp;sort={{ so }}{%- endmacro %}
 <main id="main" class="page release-notes">
   <div class="container">
     <div class="section__head section__head--left release-notes__head">
-      <h1 class="section__title">{{ title }}</h1>
-      {%- if lead %}<p class="section__lead">{{ s.fill(lead) }}</p>{% endif %}
+      <h1 class="section__title">{{ s.fill(page.title) or 'Release notes' }}</h1>
+      {%- if page.body %}<div class="prose release-notes__intro">{{ s.md(page.body) }}</div>{% endif %}
     </div>
     <div class="release-notes__layout">
       <aside class="release-notes__side">

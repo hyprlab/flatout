@@ -650,7 +650,8 @@
     ]));
     if (!E.doc.pages.length) wrap.appendChild(el("p", { class: "hint", text: "No pages yet. A page has its own address, such as /privacy, and can be linked from the header or the footer." }));
     E.doc.pages.forEach(function (page) {
-      wrap.appendChild(listRow(page.title || "Untitled", "/" + page.slug + (page.published ? "" : " · not published"), function () {
+      var about = "/" + page.slug + (page.kind === "releases" ? " · release notes" : "") + (page.published ? "" : " · not published");
+      wrap.appendChild(listRow(page.title || "Untitled", about, function () {
         show({ kind: "page", obj: page });
       }));
     });
@@ -660,7 +661,7 @@
     var slugs = E.doc.pages.map(function (p) { return p.slug; });
     var slug = "new-page", n = 2;
     while (slugs.indexOf(slug) !== -1) { slug = "new-page-" + n; n++; }
-    var page = { slug: slug, title: "New page", body: "", published: false, in_footer: true, in_nav: false };
+    var page = { slug: slug, title: "New page", kind: "text", body: "", published: false, in_footer: true, in_nav: false };
     E.doc.pages.push(page);
     changed();
     show({ kind: "page", obj: page });

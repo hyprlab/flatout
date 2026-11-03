@@ -138,13 +138,14 @@ heading makes it a link target, `#name`.
 Some sections follow the repository on their own: the beta section appears
 only while a beta release is live, and What's new once a release exists.
 
-What's new ends with a button to `/releases`, the release notes page: every
-version published on either channel, with its notes, sorted by version
-(newest or oldest first), filtered to stable or beta while a beta exists,
-and with an index of versions to jump to. It reads the repository as the
-section does, so it needs no editing. The section's fields name the button
-(empty hides it) and give the page its title and introduction. A page of
-your own at `/releases`, made before this one existed, keeps the address.
+A page under Pages can show release notes (its **Shows** field): its text
+as an introduction, then every version published on either channel with its
+notes, sorted by version (newest or oldest first), filtered to stable or
+beta while a beta exists, and with an index of versions to jump to. It reads
+the repository as What's new does, so it needs no editing. A new site has
+one at `/releases`; its address, title, text and links in the header and
+footer are set like any page's. What's new ends with a button to the first
+published one, labeled in the section's settings (empty hides it).
 
 ### Who sees the site
 

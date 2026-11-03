@@ -1,6 +1,7 @@
 {% from "site/macros.html" import head, release %}
 {%- set entries = s.repo.history if sec.channel == 'all' else s.repo.history|selectattr('channel', 'equalto', 'stable')|list %}
 {%- set notes_label = s.section_value(sec, 'notes_label') %}
+{%- set notes_url = s.release_notes_url() %}
 <section id="{{ sec.id }}" class="section" data-section="{{ sec.id }}">
   <div class="container narrow">
     {{ head(s, sec) }}
@@ -9,9 +10,9 @@
       {{ release(s, r, extra='reveal-me') }}
       {%- endfor %}
     </ol>
-    {%- if notes_label %}
+    {%- if notes_label and notes_url %}
     <div class="actions releases__more reveal-me">
-      <a class="btn btn--ghost" href="{{ url_for('admin.preview_page', slug='releases') if s.preview else url_for('public.release_notes') }}">{{ s.fill(notes_label) }}</a>
+      <a class="btn btn--ghost" href="{{ notes_url }}">{{ s.fill(notes_label) }}</a>
     </div>
     {%- endif %}
   </div>

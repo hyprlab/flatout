@@ -13,7 +13,7 @@ import re
 from datetime import datetime, timezone
 
 import markdown as md_lib
-from flask import request
+from flask import request, url_for
 from markupsafe import Markup, escape
 
 from . import site_schema
@@ -268,10 +268,20 @@ class Renderer:
         return site_schema.SECTION_TYPES[sec["type"]].fields[key].default_value()
 
     def releases_section(self) -> dict:
-        """The first What's new section, shown or not: its fields word the
-        release notes page. A site without one gets the built-in wording."""
+        """The first What's new section, shown or not: the release notes page
+        starts on the channel it shows."""
         return next((x for x in self.doc["sections"] if x["type"] == "releases"),
                     {"type": "releases", "id": "whats-new", "channel": "stable"})
+
+    def release_notes_url(self) -> str:
+        """The address of the first published release notes page (under
+        Pages), or "" when there is none."""
+        page = next((p for p in self.doc["pages"] if p.get("kind") == "releases" and p["published"]), None)
+        if page is None:
+            return ""
+        if self.preview:
+            return url_for("admin.preview_page", slug=page["slug"])
+        return url_for("public.page", slug=page["slug"])
 
     @staticmethod
     def arch_spans(html: Markup, arch: str, name: str) -> Markup:

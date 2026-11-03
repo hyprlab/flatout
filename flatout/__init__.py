@@ -387,6 +387,22 @@ def _migrate(app: Flask) -> None:
     if moved:
         app.logger.info("migrated: %d published file%s became AppImages", moved, "s" if moved != 1 else "")
 
+    # Pages can be release notes (2.2.0). A site made before that gets its
+    # release notes page once, live and in the draft alike; the setting is the
+    # guard, so a page the owner deletes stays deleted.
+    from .site_schema import add_release_notes_page
+    if not get_setting("release_notes_page_added"):
+        for name in ("live", "draft"):
+            row = db.session.get(SiteDocument, name)
+            if row is None:
+                continue
+            doc = json.loads(row.data)
+            if add_release_notes_page(doc):
+                row.data = json.dumps(doc)
+                app.logger.info("migrated: the %s site got a release notes page", name)
+        set_setting("release_notes_page_added", "1")
+        db.session.commit()
+
 
 def _start_worker(app: Flask) -> None:
     """Background thread for periodic work (worker.py).

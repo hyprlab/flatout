@@ -104,8 +104,6 @@ def preview_status(state):
 
 @bp.route("/preview/<slug>")
 def preview_page(slug):
-    if slug == "releases":
-        return public.render_release_notes(site.get("draft"), preview=True)
     resp = public.render_page(site.get("draft"), slug, preview=True)
     if resp is None:
         abort(404)

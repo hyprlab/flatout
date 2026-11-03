@@ -199,6 +199,31 @@ def link_item():
     })
 
 
+PAGE_KINDS = [("text", "Text"), ("releases", "Release notes")]
+
+
+def release_notes_page(slug: str = "releases") -> dict:
+    """The release notes page a new site starts with, and the one an older
+    site is given once (flatout._migrate)."""
+    return {"slug": slug, "title": "Release notes", "kind": "releases", "body": "", "published": True,
+            "in_footer": False, "in_nav": False}
+
+
+def add_release_notes_page(doc: dict) -> bool:
+    """Give a document made before pages could be release notes its page,
+    at /releases, or /release-notes when an owner's page has that address.
+    False when it has one already."""
+    pages = doc.setdefault("pages", [])
+    if any(p.get("kind") == "releases" for p in pages):
+        return False
+    taken = {p.get("slug") for p in pages}
+    slug = next((x for x in ("releases", "release-notes", "changes") if x not in taken), None)
+    if slug is None or len(pages) >= 40:
+        return False
+    pages.append(release_notes_page(slug))
+    return True
+
+
 # ———————————————————————————— Section types ————————————————————————————
 
 @dataclass
@@ -392,10 +417,8 @@ SECTION_TYPES: dict[str, SectionType] = {
             "count": integer("How many releases", 3, 1, 20),
             "channel": select("Channel", [("stable", "Stable only"), ("all", "Stable and beta")], "stable"),
             "notes_label": text("Button to all release notes", "All release notes", max=60,
-                                help="Under the list, to /releases: every release and its notes, sorted by "
-                                     "version. Leave empty to hide the button."),
-            "page_title": text("Release notes page title", "Release notes", max=160),
-            "page_lead": textarea("Release notes page introduction", max=600),
+                                help="Under the list, to the release notes page (under Pages), while it is "
+                                     "published. Leave empty to hide the button."),
         },
     ),
     "faq": SectionType(
@@ -733,6 +756,9 @@ DOCUMENT = group("Site", {
     "pages": items("Pages", group("Page", {
         "slug": text("Address", max=48, help="The page lives at /<address>, such as /privacy."),
         "title": text("Title", max=160),
+        "kind": select("Shows", PAGE_KINDS, "text",
+                       help="Release notes shows the text as an introduction, then every release and its "
+                            "notes, sorted by version. The What's new section's button opens it."),
         "body": markdown("Text", max=100000,
                          help="Markdown: **bold**, *italic*, [links](https://…), lists, `code`. {: .note} on the line "
                               "after a paragraph sets it in small print; {#name} after a heading makes it #name."),
@@ -854,10 +880,11 @@ def default_document() -> dict:
                  buttons=[{"label": "Report a bug", "url": "{issues_url}", "icon": "github", "style": "dark"}]),
     ]
     doc["pages"] = [
-        {"slug": "privacy", "title": "Privacy policy", "published": False, "in_footer": True, "in_nav": False,
+        {"slug": "privacy", "title": "Privacy policy", "kind": "text", "published": False, "in_footer": True, "in_nav": False,
          "body": "Say what {app_name} and this site collect, and what they don't."},
-        {"slug": "terms", "title": "Terms of use", "published": False, "in_footer": True, "in_nav": False,
+        {"slug": "terms", "title": "Terms of use", "kind": "text", "published": False, "in_footer": True, "in_nav": False,
          "body": "The terms that apply to {app_name} and this site."},
+        release_notes_page(),
     ]
     return doc
 

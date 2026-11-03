@@ -1460,7 +1460,9 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 
 /* The release notes page: filters and a version index beside every release. */
 .page.release-notes > .container { max-width: 1080px; }
-.release-notes__head { margin-bottom: 36px; }
+.release-notes__head { margin-bottom: 36px; max-width: 760px; }
+.release-notes__intro { margin-top: 14px; font-size: 1.08rem; }
+.release-notes__intro > :last-child { margin-bottom: 0; }
 .release-notes__layout {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
