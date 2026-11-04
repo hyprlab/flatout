@@ -10,6 +10,10 @@ All notable changes to Flatout are documented here. The format follows
 - The About section's tagline names every format Flatout publishes: "A
   self-hosted Flatpak, AppImage, DEB and RPM repo builder".
 
+### Fixed
+- The release notes page is as wide as the site's header and footer. It was
+  held to the narrower column of a text page.
+
 ## [2.2.0] — 2026-11-03
 
 ### Added
