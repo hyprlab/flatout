@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [2.3.0] — 2026-11-11
+
 ### Added
 - Mac apps: upload a `.dmg`, a `.pkg`, or a `.zip` or tarball with the `.app`
   inside, and Flatout signs it for Sparkle and lists it in an appcast at
