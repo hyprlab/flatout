@@ -9,6 +9,180 @@ All notable changes to Flatout are documented here. The format follows
 ## [1.9.0-beta.2] — 2026-10-12
 
 ### Added
+- Mac apps: upload a `.dmg`, a `.pkg`, or a `.zip` or tarball with the `.app`
+  inside, and Flatout signs it for Sparkle and lists it in an appcast at
+  `/sparkle/appcast.xml`, so the app updates itself from the site. A beta
+  appcast at `/sparkle/appcast-beta.xml` carries both channels. Flatout reads
+  the build number, version, lowest macOS and processors from the app.
+- Repository > Signing and addresses has the Sparkle key: the public key and
+  the lines for the app's `Info.plist` to copy, a backup of the private key,
+  and importing the key an app already trusts from `generate_keys -x`.
+- The install dialog offers the Mac app, chosen first for visitors on a Mac,
+  and the Installs page counts Macs checking the appcast.
+- The API takes a Mac app's `build` and `minimum_system_version` when the file
+  doesn't say them, and the MCP server can create the Sparkle key.
+
+### Changed
+- The About section's tagline names macOS among the formats: "A self-hosted
+  Flatpak, AppImage, DEB, RPM and macOS repo builder".
+
+## [2.2.1] — 2026-11-04
+
+### Changed
+- The About section's tagline names every format Flatout publishes: "A
+  self-hosted Flatpak, AppImage, DEB and RPM repo builder".
+
+### Fixed
+- The release notes page is as wide as the site's header and footer. It was
+  held to the narrower column of a text page.
+
+## [2.2.0] — 2026-11-03
+
+### Added
+- Release notes pages: under Pages, a page can show every release and its
+  notes after its text, sorted by version, newest or oldest first, and
+  filtered to stable or beta. Every site gets one at `/releases` (or
+  `/release-notes` if that address is taken), and the What's new section
+  links to it with a button whose label is set in the editor.
+
+## [2.1.0] — 2026-11-02
+
+### Changed
+- In the site editor, a section's or page's header (the back arrow, its
+  name, duplicate and delete) stays at the top of the panel while its
+  fields scroll.
+
+### Fixed
+- The header's light/dark switch shows when the site is set to always light
+  or always dark. The chosen mode is where visitors start, and they can
+  switch from it; turn the switch off to keep the site in one mode.
+
+## [2.0.1] — 2026-11-01
+
+### Changed
+- The setup wizard's welcome names every kind of package Flatout serves:
+  Flatpak, dnf, apt and AppImage.
+
+## [2.0.0] — 2026-10-29
+
+### Added
+- Every way to install in the install dialog has the same fields: its name,
+  text above and below its buttons (or commands), and any number of folded
+  tips, each with a title, text and a command to copy. `{command}` in a tip
+  is that format's own install command. A site's text moves across on
+  upgrade: descriptions and leads above, after-texts below, the install
+  file's tip and the terminal wording into tips. The API names the new
+  field for an old one; a whole document in the old shape still saves.
+- In the site editor, the install dialog's fields fold by format, each fold
+  named as the site names the format. Opening one shows that format in the
+  preview, and it stays open while the editor is.
+
+### Changed
+- The install file's button is named after the file, like every other
+  download button. A package's files follow its commands without a heading.
+
+### Removed
+- Breaking for API clients: the install dialog's old per-format fields are
+  gone from the site document, replaced by the shared ones above. A GET
+  returns only the new names, and a PATCH or PUT that sets an old one, such
+  as `install.bundle_desc`, is refused with a 422 naming its replacement. A
+  whole document in the old shape is still converted when it is saved.
+
+### Fixed
+- A list item added in the site editor opens, ready to fill in.
+- An address with a trailing slash, such as /admin/, goes to the one without
+  it instead of answering that there is nothing there.
+- Typing in the install dialog's fields in the site editor no longer loses
+  the caret each time the preview reloads and reopens the dialog.
+
+## [1.14.5] — 2026-10-29
+
+### Fixed
+- The beta's install dialog shows the beta section's icon, when it has one,
+  rather than the app's.
+
+### Changed
+- On a desktop, a thin line divides the install dialog's list of formats
+  from the chosen one's downloads.
+
+## [1.14.4] — 2026-10-29
+
+### Fixed
+- On a phone, a hero that fades into the page with a screenshot started the
+  fade behind its buttons and badges, and their white text vanished into it.
+  The copy now stays on the hero's color and the fade runs behind the window.
+
+## [1.14.3] — 2026-10-29
+
+### Changed
+- The beta section's button has 2rem of room above and below it.
+
+## [1.14.2] — 2026-10-29
+
+### Changed
+- In the install dialog, a download button turns the site's button color on
+  hover, and the formats' names are larger and lighter.
+
+## [1.14.1] — 2026-10-29
+
+### Changed
+- More space between the formats in the install dialog's list.
+- The install file no longer carries an "Easiest" badge in the install dialog.
+
+## [1.14.0] — 2026-10-29
+
+### Changed
+- The install dialog no longer asks which machine you have. Each format's
+  instructions offer a download button for every machine it is built for,
+  with the file's name, version and size, and the Fedora and Debian
+  packages' files are shown rather than folded away. The machine chips
+  under each format stay grey, and the instructions no longer repeat the
+  format's name above them.
+
+### Deprecated
+- The install dialog's "Ask Intel/AMD or ARM" switch and the full download's
+  and package files' button wording are no longer used; documents that set
+  them still load.
+
+## [1.13.0] — 2026-10-28
+
+### Changed
+- The install dialog lists every format with the machines it is built for,
+  and shows the chosen one's instructions beside the list on a desktop, in a
+  wider dialog, or below it on a phone. The machine is a small switch in the
+  header instead of a step of its own; formats it can't take are greyed out.
+
+## [1.12.0] — 2026-10-28
+
+### Added
+- The beta section's button opens an install dialog of the beta's own, like
+  the release's: a choice of machine, and the beta's install file, bundles,
+  repository and dnf and apt packages. A link to `/#install-beta` opens it.
+  A switch in the section returns the button to downloading the install file
+
+## [1.11.0] — 2026-10-23
+
+### Added
+- The footer's small print can carry links and bold text, written as
+  Markdown (`[label](https://…)`) or as plain `<a>` tags
+
+## [1.10.1] — 2026-10-22
+
+### Fixed
+- The install dialog no longer greys out a Debian package on the machine it
+  is built for: Debian's amd64 and arm64 now match the picker's Intel/AMD
+  and ARM, and a package for every machine is never greyed out
+
+## [1.10.0] — 2026-10-22
+
+### Added
+- The install dialog's apt option has its own wording, as the dnf option
+  does: its name and description, the text before and after the commands,
+  and a single-file download with a title, text and button of its own
+
+## [1.9.0] — 2026-10-22
+
+### Added
 - Filter the release history by channel, status (live, earlier, withdrawn,
   failed) and format, or find a version by typing it; beside the History
   title, how many releases show out of how many
@@ -25,6 +199,10 @@ All notable changes to Flatout are documented here. The format follows
 ### Fixed
 - Uploading several files in a row no longer fails for some of them with a
   server error while the one before is still being published
+- A package's first upload, on either channel, gives the other channel an
+  empty, signed dnf or apt index, so a package that carries the repository
+  files of both channels no longer breaks `dnf` or `apt update` until
+  something is published on the second one
 
 ## [1.8.0] — 2026-10-12
 

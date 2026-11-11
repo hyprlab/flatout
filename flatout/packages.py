@@ -2,8 +2,10 @@
 
 Beside the Flatpak repository, Flatout publishes RPMs in a dnf repository,
 Debian packages in an apt repository, AppImages that update themselves from
-here, and any other file (a tarball) as a plain download, each on the stable
-and beta channels. Packages are signed with the repository's own key.
+here, Mac apps that update themselves with Sparkle (sparkle.py), and any
+other file (a tarball) as a plain download, each on the stable and beta
+channels. Packages are signed with the repository's own key, Mac apps with
+the Sparkle key.
 
 Layout under DATA_DIR/packages:
 
@@ -13,6 +15,7 @@ Layout under DATA_DIR/packages:
     deb/pool/<channel>/       the Debian packages             } /deb/, an apt archive
     deb/dists/<channel>/      Packages, Release, InRelease    } with a suite per channel
     appimage/<channel>/<id>/  an AppImage and its .zsync               } /appimage/<id>/
+    macos/<channel>/<id>/     a Mac app: .dmg, .zip, .pkg or a tarball } /macos/<id>/
     files/<channel>/<id>/     everything else
 
 How an upload is published:
@@ -20,7 +23,8 @@ How an upload is published:
 1. Its first bytes say what it is. An RPM is read with ``rpm -qp`` and signed
    with ``rpmsign``, so dnf's gpgcheck holds whoever built it; a Debian
    package is read with ``dpkg-deb``. An AppImage gets update information
-   pointing here and a zsync file (appimage.py).
+   pointing here and a zsync file (appimage.py). A Mac app's Info.plist
+   gives its build number, and the file is signed for Sparkle (sparkle.py).
 2. It moves into its channel. A version already there is refused: the
    repository would offer two different files under one name and version,
    and clients that cached one would reject the other.
@@ -39,6 +43,7 @@ rollback as with Flatpak: withdrawing a bad version keeps new installs from
 getting it, and installed copies stay on it until a newer one is published.
 AppImage updaters compare checksums, not versions, so for an AppImage
 withdrawing is a rollback: installed copies go back to the one before.
+Sparkle, like dnf and apt, only ever moves to a newer build.
 
 Every function that changes something runs in the job thread (jobs.py).
 """
@@ -56,13 +61,14 @@ from urllib.parse import unquote, urlparse
 
 from flask import current_app
 
-from . import appimage, repo
+from . import appimage, releases, repo, sparkle
 from .models import Package, db, get_setting, int_setting, utcnow
 from .repo import RepoError
 
-FORMATS = ("rpm", "deb", "appimage", "file")
-FORMAT_NAMES = {"rpm": "RPM", "deb": "Debian", "appimage": "AppImage", "file": "File"}
-DOWNLOADS = ("appimage", "file")   # served as they are, ranked by upload, not version
+FORMATS = ("rpm", "deb", "appimage", "macos", "file")
+FORMAT_NAMES = {"rpm": "RPM", "deb": "Debian", "appimage": "AppImage", "macos": "macOS", "file": "File"}
+DOWNLOADS = ("appimage", "macos", "file")   # served as they are, under a name of their own
+VERSIONED = ("rpm", "deb", "macos")         # ranked by their own version; one version is one file
 IN_REPO = ("live", "superseded")
 KEPT = 3            # versions of each package kept per channel, unless set (packages_kept)
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+~-]{0,200}$")
@@ -92,12 +98,15 @@ def tools() -> dict:
     have = {name: shutil.which(name) is not None
             for name in ("rpm", "rpmsign", "createrepo_c", "dpkg-deb", "gpg", "zsyncmake")}
     return {"rpm": have["rpm"] and have["rpmsign"] and have["createrepo_c"] and have["gpg"],
-            "deb": have["dpkg-deb"] and have["gpg"], "appimage": have["zsyncmake"]}
+            "deb": have["dpkg-deb"] and have["gpg"], "appimage": have["zsyncmake"],
+            # Mac apps publish anywhere; reading a disk image's version takes 7-Zip.
+            "dmg": sparkle.seven_zip() is not None}
 
 
 def not_ready(fmt: str) -> str | None:
     """Why a format can't be published now, as a sentence, or None."""
-    if fmt == "file":
+    if fmt in ("file", "macos"):
+        # A Mac app needs its key, which Flatout makes when there is none.
         return None
     if fmt == "appimage":
         return None if tools()["appimage"] else \
@@ -111,8 +120,9 @@ def not_ready(fmt: str) -> str | None:
 
 
 def sniff(path: Path, filename: str = "") -> str:
-    """rpm, deb, appimage, flatpak or file, from the first bytes (and, for a
-    Flatpak bundle, which has no magic number of its own, the name)."""
+    """rpm, deb, appimage, macos, flatpak or file, from the first bytes (and,
+    for a Flatpak bundle, which has no magic number of its own, the name).
+    A zip or a tarball is a Mac app when it holds one (sparkle.sniff)."""
     with open(path, "rb") as f:
         head = f.read(24)
     if appimage.kind(head):
@@ -123,6 +133,8 @@ def sniff(path: Path, filename: str = "") -> str:
         return "deb"
     if filename.lower().endswith(".flatpak"):
         return "flatpak"
+    if sparkle.sniff(path, filename):
+        return "macos"
     return "file"
 
 
@@ -263,6 +275,8 @@ def newest_first(rows: list[Package]) -> list[Package]:
             result = compare_rpm(x.evr, y.evr)
         elif x.format == "deb":
             result = compare_deb(x.evr, y.evr)
+        elif x.format == "macos":
+            result = sparkle.compare(x.evr, y.evr)
         else:
             result = 0
         return result or (x.id > y.id) - (x.id < y.id)
@@ -376,15 +390,21 @@ def _target(pkg: Package, filename: str) -> str:
         return f"deb/pool/{pkg.channel}/{filename}"
     if pkg.format == "appimage":
         return f"appimage/{pkg.channel}/{pkg.id}/{filename}"
+    if pkg.format == "macos":
+        return f"macos/{pkg.channel}/{pkg.id}/{filename}"
     return f"files/{pkg.channel}/{pkg.id}/{filename}"
 
 
 def _clash(pkg: Package) -> None:
-    if pkg.format in DOWNLOADS:
+    if pkg.format not in VERSIONED:
         return
     other = Package.query.filter(Package.id != pkg.id, Package.format == pkg.format, Package.channel == pkg.channel,
                                  Package.name == pkg.name, Package.arch == pkg.arch, Package.evr == pkg.evr,
                                  Package.status.in_(IN_REPO)).first()
+    if other and pkg.format == "macos":
+        raise RepoError(f"Build {pkg.evr} of {pkg.name} is already on the {pkg.channel} channel. Sparkle only "
+                        "installs a higher build number (CFBundleVersion): build it with a new one, or withdraw "
+                        "the one there first.")
     if other:
         raise RepoError(f"{pkg.name} {pkg.evr} ({pkg.arch}) is already in the {pkg.channel} repository. "
                         "Build it with a new version or release number, or withdraw the one there first.")
@@ -464,6 +484,39 @@ def _point_here(pkg: Package, base: str, log: list) -> None:
         raise
 
 
+def _read_mac(pkg: Package, src: Path, original: str, log: list) -> dict:
+    """A Mac app's versions and machines, from inside the file, with what
+    the upload gave taking precedence: a build number (``evr``), a version
+    (``version``), the lowest macOS (``min_os``) and an architecture."""
+    kind = sparkle.sniff(src, original)
+    meta = sparkle.read(src, kind)
+    build = pkg.evr or meta.get("bundle_version", "")
+    if not build:
+        raise RepoError(f"Flatout couldn't read this app's build number: {meta.get('problem') or 'unknown'}. "
+                        "Upload it again with its CFBundleVersion as the build number.")
+    if not sparkle.BUILD_RE.match(build):
+        raise RepoError(f"{build} isn't a build number Sparkle can compare. Give the CFBundleVersion, such as 142 "
+                        "or 1.4.2.")
+    if not pkg.evr and meta.get("bundle_id"):
+        log.append(f"Read {meta['bundle_id']} {meta.get('short_version') or ''} (build {build}) from its Info.plist.")
+    if kind == "dmg" and meta.get("installer"):
+        raise RepoError("This disk image holds an installer package. Upload the .pkg itself.")
+    arch = sparkle.mac_arch(pkg.arch) or meta.get("arch") or sparkle.mac_arch(original) or "universal"
+    if not original or not sparkle.kind_of(original):
+        original = f"{meta.get('name') or 'App'}.{kind if kind != 'tar' else 'tar.gz'}"
+    version = pkg.version or meta.get("short_version") or guess_version(original) or build
+    name = pkg.name or sparkle.download_name(original, version if version in original else guess_version(original), arch)
+    if not NAME_RE.match(name):
+        raise RepoError("Give the app a download name of letters, digits, dots, dashes and underscores, such as "
+                        "MyApp.dmg.")
+    min_os = (pkg.min_os or meta.get("minimum_system_version") or "").strip()
+    # control says how Sparkle installs it: "package" runs an installer, as
+    # a .pkg, bare or zipped, needs.
+    return {"name": name, "version": version, "evr": build, "arch": arch, "summary": meta.get("bundle_id", "")[:500],
+            "control": "package" if meta.get("installer") else "", "filename": sparkle.served_name(original),
+            "min_os": min_os if sparkle.SYSTEM_RE.match(min_os) else ""}
+
+
 def publish_upload(pkg: Package, src: Path, original: str, log: list, base: str = "") -> None:
     """Read, sign and place an uploaded file, then make it live (or not, if
     a newer version is already there) and reindex its channel. ``base`` is
@@ -479,6 +532,8 @@ def publish_upload(pkg: Package, src: Path, original: str, log: list, base: str 
         info = read_rpm(src)
     elif fmt == "deb":
         info = read_deb(src)
+    elif fmt == "macos":
+        info = _read_mac(pkg, src, original, log)
     elif fmt == "appimage":
         meta = appimage.read(src)
         arch = pkg.arch or meta.get("arch") or guess_arch(original)
@@ -500,8 +555,9 @@ def publish_upload(pkg: Package, src: Path, original: str, log: list, base: str 
         info = {"name": name, "version": guess_version(original) or guess_version(name), "evr": "",
                 "arch": guess_arch(name) or guess_arch(original), "summary": "", "control": "", "filename": name}
     pkg.name, pkg.evr, pkg.summary, pkg.control = info["name"], info["evr"], info["summary"], info["control"]
+    pkg.min_os = info.get("min_os", "")
     pkg.version = pkg.version or info["version"] or utcnow().strftime("%Y.%m.%d")
-    pkg.arch = pkg.arch if fmt in DOWNLOADS and pkg.arch else info["arch"]
+    pkg.arch = pkg.arch if fmt in ("appimage", "file") and pkg.arch else info["arch"]
     if not NAME_RE.match(info["filename"]):
         raise RepoError(f"{info['filename']} isn't a name Flatout can serve.")
     _clash(pkg)
@@ -512,6 +568,11 @@ def publish_upload(pkg: Package, src: Path, original: str, log: list, base: str 
                f"{pkg.arch or 'any architecture'}).")
     if fmt == "appimage":
         _point_here(pkg, base, log)
+    if fmt == "macos":
+        sparkle.ensure_key(log)
+        pkg.signature = sparkle.sign(root() / pkg.path)
+        log.append(f"Signed it for Sparkle: build {pkg.evr}" +
+                   (f", macOS {pkg.min_os} or later" if pkg.min_os else "") + ".")
     pkg.size, pkg.sha256 = _hash(root() / pkg.path)
     pkg.published_at = utcnow()
     pkg.status = "superseded"   # in the repository; settle says whether it is the newest
@@ -530,7 +591,7 @@ def publish_copy(pkg: Package, log: list, base: str = "") -> None:
     problem = not_ready(source.format)
     if problem:
         raise RepoError(problem)
-    for field in ("format", "name", "evr", "arch", "summary", "control", "size", "sha256"):
+    for field in ("format", "name", "evr", "arch", "summary", "control", "size", "sha256", "min_os", "signature"):
         setattr(pkg, field, getattr(source, field))
     pkg.version = pkg.version or source.version
     _clash(pkg)
@@ -559,6 +620,9 @@ def withdraw(pkg: Package, log: list) -> None:
         log.append(f"Installed copies that check for updates go back to {head.version}: AppImage updaters follow "
                    "the file, not its version." if head else
                    "Installed copies find no update address now, and stay as they are.")
+    elif was_live and pkg.format == "macos":
+        log.append(f"Macs that installed {pkg.version} keep it until a newer build is published; Sparkle never "
+                   "goes back to an older one." + (f" New downloads get {head.version}." if head else ""))
     elif was_live and pkg.format != "file":
         tool = "dnf" if pkg.format == "rpm" else "apt"
         log.append(f"Installed copies keep {pkg.version} until a newer version is published; {tool} doesn't "
@@ -599,6 +663,21 @@ def index(fmt: str, channel: str, log: list) -> None:
         index_rpm(channel, log)
     elif fmt == "deb":
         index_deb(channel, log)
+    else:
+        return
+    # A package may carry the repository files of every channel (Hylki's has
+    # the stable one on and the beta one off), so its first upload, on either
+    # channel, gives the other an empty, signed index: dnf and apt report a
+    # repository with no index as broken, and refuse to update past it.
+    for other in releases.CHANNELS:
+        if other != channel and not _indexed(fmt, other):
+            index(fmt, other, log)
+
+
+def _indexed(fmt: str, channel: str) -> bool:
+    if fmt == "rpm":
+        return (rpm_dir() / channel / "repodata" / "repomd.xml").exists()
+    return (deb_dir() / "dists" / channel / "InRelease").exists()
 
 
 def index_rpm(channel: str, log: list) -> None:
@@ -737,6 +816,11 @@ def _summary(rows: list[Package], base: str) -> dict | None:
         "published_at": (newest.published_at or newest.created_at).isoformat() + "Z",
         "arches": sorted({r.arch for r in main}, key=_arch_key),
         "downloads": {r.arch: f"{base}/download/{download_name(r)}" for r in sorted(main, key=lambda r: _arch_key(r.arch))},
+        # The same, with what the install dialog shows beside each button: the
+        # file's own name (what the browser saves), its version and size.
+        "files": [{"arch": r.arch, "url": f"{base}/download/{download_name(r)}",
+                   "file": os.path.basename(r.path or "") or download_name(r), "version": r.version, "size": r.size}
+                  for r in sorted(main, key=lambda r: _arch_key(r.arch))],
     }
 
 
@@ -748,7 +832,11 @@ def public_info(base: str, remote: str) -> dict:
 
     def files(channel, fmt="file"):
         out = []
-        for r in sorted(rows(fmt, channel), key=lambda r: (_arch_key(r.arch), r.name)):
+        # A Mac visitor most likely wants the build for every Mac, as a disk image.
+        order = (lambda r: (sparkle.ARCHES.index(r.arch) if r.arch in sparkle.ARCHES else 9,
+                            sparkle.kind_of(r.name) != "dmg", r.name)) if fmt == "macos" else \
+            (lambda r: (_arch_key(r.arch), r.name))
+        for r in sorted(rows(fmt, channel), key=order):
             url = f"{base}/download/{download_name(r)}"
             out.append({"name": r.name, "version": r.version, "arch": r.arch, "size": r.size, "url": url,
                         "published_at": (r.published_at or r.created_at).isoformat() + "Z"})
@@ -756,6 +844,9 @@ def public_info(base: str, remote: str) -> dict:
                 # What Gear Lever and AppImageUpdate read, for one that was
                 # published before Flatout wrote it in.
                 out[-1]["zsync_url"] = f"{url}.zsync" if zsync_path(r) else None
+            if fmt == "macos":
+                out[-1].update(file=os.path.basename(r.path or ""), build=r.evr, minimum_system_version=r.min_os or None,
+                               arch_name=sparkle.ARCH_NAMES.get(r.arch, ""))
         return out
 
     return {
@@ -772,6 +863,8 @@ def public_info(base: str, remote: str) -> dict:
             "key_url": f"{base}/deb/{remote}.gpg",
         },
         "appimage": {"stable": files("stable", "appimage"), "beta": files("beta", "appimage")},
+        "macos": {"stable": files("stable", "macos"), "beta": files("beta", "macos"),
+                  "appcast_url": sparkle.feed_url(base), "beta_appcast_url": sparkle.feed_url(base, "beta")},
         "files": {"stable": files("stable"), "beta": files("beta")},
     }
 

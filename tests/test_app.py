@@ -117,6 +117,17 @@ def test_errors_are_json_for_the_api_and_the_site_404_for_people(client, csrf, a
     assert admin_page.status_code == 404 and b"error-code" in admin_page.data
 
 
+def test_a_trailing_slash_goes_to_the_address_without_it(client, admin):
+    resp = client.get("/admin/")
+    assert resp.status_code == 308 and resp.headers["Location"] == "/admin"
+    resp = client.get("/admin/site/?x=1")
+    assert resp.status_code == 308 and resp.headers["Location"] == "/admin/site?x=1"
+    assert client.get("/admin/", follow_redirects=True).status_code == 200
+    # Nothing at the address without it either: still a 404.
+    assert client.get("/admin/no-such-page/").status_code == 404
+    assert client.post("/admin/").status_code != 308       # only a GET or HEAD is sent on
+
+
 def test_signed_out_api_calls_get_json_401(app, admin):
     stranger = app.test_client()
     resp = stranger.get("/api/v1/site")

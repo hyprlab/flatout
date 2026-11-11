@@ -3,7 +3,7 @@
 {%- set doc = s.doc -%}
 {%- set app_name = s.fill(doc.app.name) -%}
 <!DOCTYPE html>
-<html lang="en"{% if doc.theme.mode != 'system' %} data-theme="{{ doc.theme.mode }}" data-theme-fixed{% endif %}>
+<html lang="en"{% if doc.theme.mode != 'system' %} data-theme="{{ doc.theme.mode }}" {{ 'data-theme-default' if doc.theme.show_toggle else 'data-theme-fixed' }}="{{ doc.theme.mode }}"{% endif %}>
 <head>
   {% include "site/head.html" %}
   <title>{% block title %}{{ s.fill(doc.seo.title) }}{% endblock %}</title>
@@ -57,7 +57,7 @@
         {%- endfor %}
       </nav>
       <div class="nav__cta">
-        {%- if doc.theme.mode == 'system' and doc.theme.show_toggle %}
+        {%- if doc.theme.show_toggle %}
         <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark mode" title="Switch to dark mode">
           <svg class="theme-toggle__sun" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Zm0-5a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1Zm0 17a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1ZM2 12a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2H3a1 1 0 0 1-1-1Zm17 0a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2h-2a1 1 0 0 1-1-1ZM4.9 4.9a1 1 0 0 1 1.4 0l1.5 1.5a1 1 0 0 1-1.4 1.4L4.9 6.3a1 1 0 0 1 0-1.4Zm11.3 11.3a1 1 0 0 1 1.4 0l1.5 1.5a1 1 0 0 1-1.4 1.4l-1.5-1.5a1 1 0 0 1 0-1.4Zm2.9-11.3a1 1 0 0 1 0 1.4l-1.5 1.5a1 1 0 1 1-1.4-1.4l1.5-1.5a1 1 0 0 1 1.4 0ZM7.8 16.2a1 1 0 0 1 0 1.4l-1.5 1.5a1 1 0 0 1-1.4-1.4l1.5-1.5a1 1 0 0 1 1.4 0Z"/></svg>
           <svg class="theme-toggle__moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 2.5a1 1 0 0 1 .9 1.4A8 8 0 0 0 20.1 15a1 1 0 0 1 1.4 1.1A10 10 0 1 1 13.5 2.6a1 1 0 0 1 1-.1Z"/></svg>
@@ -123,11 +123,18 @@
     </div>
     {%- endif %}
     <div class="container footer__legal">
-      <p>{{ s.fill(doc.footer.legal) }}{% if doc.app.license %} · {{ doc.app.license }}{% endif %}</p>
+      <p>{{ s.md_inline(doc.footer.legal) }}{% if doc.app.license %} · {{ doc.app.license }}{% endif %}</p>
     </div>
   </footer>
 
-  {% include "site/install_dialog.html" %}
+  {% with channel = 'stable' %}{% include "site/install_dialog.html" %}{% endwith %}
+  {#- The beta section's own chooser, while the section is on the page (it is
+      only while a beta exists) with its chooser switched on; sites saved
+      before the switch existed have it on. #}
+  {%- set beta_sec = s.sections()|selectattr('type', 'equalto', 'beta')|first %}
+  {%- if beta_sec and beta_sec.get('chooser', true) %}
+  {% with channel = 'beta', title = beta_sec.title, icon = beta_sec.icon %}{% include "site/install_dialog.html" %}{% endwith %}
+  {%- endif %}
 
   <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot" tabindex="-1" hidden>
     <div class="lightbox__backdrop" data-lightbox-close></div>

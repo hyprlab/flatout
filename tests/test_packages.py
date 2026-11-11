@@ -296,6 +296,7 @@ def test_rpms_make_a_signed_dnf_repository(client, csrf, signed, run_jobs, tmp_p
     (tmp_path / "repomd.xml").write_bytes(repomd.data)
     (tmp_path / "repomd.xml.asc").write_bytes(client.get("/rpm/stable/repodata/repomd.xml.asc").data)
     verify(tmp_path, key.encode(), tmp_path / "repomd.xml.asc", tmp_path / "repomd.xml")
+    assert client.get("/rpm/beta/repodata/repomd.xml").status_code == 200   # empty, but there
 
     # The package itself carries the repository's signature.
     served = client.get("/rpm/stable/packages/hello-1.0.0-1.noarch.rpm")
@@ -351,7 +352,11 @@ def test_debian_packages_make_a_signed_apt_archive(client, csrf, signed, run_job
     sources = client.get("/deb/gnomish-beta.sources").get_data(as_text=True)
     assert "URIs: http://localhost/deb" in sources and "Suites: beta" in sources
     assert "Signed-By:\n -----BEGIN PGP PUBLIC KEY BLOCK-----\n .\n" in sources
-    assert client.get("/deb/gnomish.sources").status_code == 404   # nothing on stable yet
+    # Nothing on stable yet, but its suite is there, empty and signed, for a
+    # package that carries both channels' sources.
+    assert "Suites: stable" in client.get("/deb/gnomish.sources").get_data(as_text=True)
+    assert client.get("/deb/dists/stable/main/binary-amd64/Packages").data == b""
+    assert client.get("/deb/dists/stable/InRelease").status_code == 200
 
     inrelease = client.get("/deb/dists/beta/InRelease")
     assert inrelease.headers["Cache-Control"] == "no-store"
@@ -439,6 +444,96 @@ def test_the_install_dialog_offers_what_is_published(client, admin, app):
     assert client.post("/api/v1/site/publish", json={}, headers=h(token_of(client))).status_code == 200
     page = client.get("/").get_data(as_text=True)
     assert 'data-method="rpm"' not in page and 'data-method="files"' in page
+
+
+def test_the_apt_method_s_wording(client, admin, app):
+    from flatout.models import utcnow
+    with app.app_context():
+        db.session.add(Package(format="deb", channel="stable", name="gnomish", version="1.2.0", evr="1.2.0-1",
+                               arch="amd64", status="live", path="deb/pool/stable/gnomish_1.2.0-1_amd64.deb",
+                               published_at=utcnow()))
+        # A second method, so the dialog shows its picker and the method's name.
+        db.session.add(Package(format="rpm", channel="stable", name="gnomish", version="1.2.0", evr="1.2.0-1",
+                               arch="x86_64", status="live", path="rpm/stable/packages/gnomish-1.2.0-1.x86_64.rpm",
+                               published_at=utcnow()))
+        db.session.commit()
+    page = client.get("/").get_data(as_text=True)
+    assert 'data-method="deb"' in page and "Debian, Ubuntu and apt" in page       # the built-in text to start with
+    assert "sudo curl -fsSLo /etc/apt/sources.list.d/gnomish.sources http://localhost/deb/gnomish.sources\n" \
+           "sudo apt update &amp;&amp; sudo apt install gnomish" in page
+    assert "<span>gnomish_1.2.0-1_amd64.deb</span>" in page                  # its file, named as it downloads
+
+    resp = client.patch("/api/v1/site", json={"install": {
+        "deb_title": "Debian package", "deb_above": "Add the {app_name} repository:",
+        "deb_below": "For **Debian 13** and newer."}},
+        headers=h(token_of(client)))
+    assert resp.status_code == 200, resp.get_json()
+    assert client.post("/api/v1/site/publish", json={}, headers=h(token_of(client))).status_code == 200
+    page = client.get("/").get_data(as_text=True)
+    assert "Debian, Ubuntu and apt" not in page and "Debian package" in page
+    assert "this site's apt repository" not in page                                # emptied, so left out
+    assert "Add the Gnomish repository:" in page
+    assert "<strong>Debian 13</strong>" in page
+    # Above the commands, then the commands, the file's button, and below them.
+    deb = page[page.index('data-method="deb"'):page.index("</section>", page.index('data-method="deb"'))]
+    assert deb.index("Add the Gnomish repository:") < deb.index("install-cmd-deb") \
+        < deb.index('href="http://localhost/download/gnomish-amd64.deb"') < deb.index("Debian 13")
+
+
+def test_the_beta_has_an_install_dialog_of_its_own(client, admin, app):
+    """The beta section's button opens a dialog like the release's: its own
+    machines, and the beta's install file, bundles and repositories."""
+    from flatout.models import Release, utcnow
+    with app.app_context():
+        for channel, app_id, version in (("stable", "org.example.Gnomish", "1.2.0"),
+                                         ("beta", "org.example.Gnomish.Beta", "1.3.0-beta.1")):
+            for arch in ("x86_64", "aarch64"):
+                db.session.add(Release(app_id=app_id, arch=arch, channel=channel, version=version, status="live",
+                                       bundle_file=f"{channel}-{arch}.flatpak", published_at=utcnow()))
+        for arch in ("x86_64", "aarch64"):
+            db.session.add(Package(format="rpm", channel="beta", name="gnomish", version="1.3.0~beta.1",
+                                   evr="1.3.0~beta.1-1", arch=arch, status="live",
+                                   path=f"rpm/beta/packages/gnomish-1.3.0~beta.1-1.{arch}.rpm", published_at=utcnow()))
+        db.session.add(Package(format="deb", channel="beta", name="gnomish", version="1.3.0~beta.1",
+                               evr="1.3.0~beta.1-1", arch="arm64", status="live",
+                               path="deb/pool/beta/gnomish_1.3.0~beta.1-1_arm64.deb", published_at=utcnow()))
+        db.session.commit()
+    page = client.get("/").get_data(as_text=True)
+    stable, beta = page.split('id="install-modal-beta"', 1)
+    assert 'href="#install-beta" data-install-open="beta"' in stable
+    assert 'data-install-channel="beta"' in beta and 'name="install-method-beta"' in beta
+    assert 'name="install-method"' not in beta and 'name="install-method-beta"' not in stable
+    assert "Version 1.3.0-beta.1" in beta and "-beta.flatpakref" in beta
+    assert re.search(r'href="http://localhost/download/[^"]+-beta-x86_64\.flatpak"', beta)
+    assert re.search(r'href="http://localhost/download/[^"]+-beta-aarch64\.flatpak"', beta)
+    assert "sudo curl -fsSLo /etc/yum.repos.d/gnomish-beta.repo http://localhost/rpm/gnomish-beta.repo\n" \
+           "sudo dnf install gnomish" in beta
+    assert "sudo curl -fsSLo /etc/apt/sources.list.d/gnomish-beta.sources http://localhost/deb/gnomish-beta.sources\n" \
+           "sudo apt update &amp;&amp; sudo apt install -o Dpkg::Options::=--force-confold gnomish" in beta
+    # The Debian package is for ARM only: its chips say so, and its one file has a button.
+    deb = beta[beta.index('value="deb"'):beta.index("</label>", beta.index('value="deb"'))]
+    assert '<span class="arch-chip" data-arch="aarch64">ARM</span>' in deb and 'data-arch="x86_64"' not in deb
+    assert "<span>gnomish_1.3.0~beta.1-1_arm64.deb</span>" in beta
+    # The release's own dialog is untouched by the beta's packages.
+    assert 'data-method="rpm"' not in stable.split('id="install-modal"', 1)[1]
+
+    # The beta's dialog shows the beta section's icon once it has one.
+    icon = '<img class="modal__icon" src="https://example.org/beta.png"'
+    assert icon not in beta
+    resp = client.patch("/api/v1/site/sections/beta", json={"icon": "https://example.org/beta.png"},
+                        headers=h(token_of(client)))
+    assert resp.status_code == 200, resp.get_json()
+    assert client.post("/api/v1/site/publish", json={}, headers=h(token_of(client))).status_code == 200
+    stable, beta = client.get("/").get_data(as_text=True).split('id="install-modal-beta"', 1)
+    assert icon in beta and icon not in stable
+
+    # Off, the button downloads the beta's install file, and there's no dialog.
+    resp = client.patch("/api/v1/site/sections/beta", json={"chooser": False}, headers=h(token_of(client)))
+    assert resp.status_code == 200, resp.get_json()
+    assert client.post("/api/v1/site/publish", json={}, headers=h(token_of(client))).status_code == 200
+    page = client.get("/").get_data(as_text=True)
+    assert 'id="install-modal-beta"' not in page and 'data-install-open="beta"' not in page
+    assert "-beta.flatpakref\" download>" in page
 
 
 def token_of(client):

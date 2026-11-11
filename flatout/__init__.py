@@ -23,7 +23,7 @@ from .models import User, db, utcnow
 #: The single source of truth for the version. tools/bump-version.sh edits this
 #: line; the About section, /healthz, the release scripts and the Docker tags all
 #: read it from here.
-__version__ = "1.9.0-beta.2"
+__version__ = "2.2.1"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("flatout")
@@ -179,6 +179,18 @@ def create_app(config_class=Config) -> Flask:
 
     @app.errorhandler(HTTPException)
     def http_error(err):
+        # /admin/ for /admin: an address typed or linked with a trailing slash
+        # goes to the one without it, when that one exists.
+        if err.code == 404 and request.method in ("GET", "HEAD") and len(request.path) > 1 \
+                and request.path.endswith("/"):
+            bare = request.path.rstrip("/")
+            try:
+                app.url_map.bind_to_environ(request.environ).match(bare, method=request.method)
+            except HTTPException:
+                pass
+            else:
+                qs = request.query_string.decode()
+                return redirect(bare + ("?" + qs if qs else ""), 308)
         if _wants_json():
             return jsonify(error=err.description or err.name), err.code
         if err.code == 404 and public.is_public_path() and not setup.needs_setup():
@@ -337,12 +349,18 @@ def _migrate(app: Flask) -> None:
     # live document's win over the draft's.
     import json
     from .models import SiteDocument, get_setting, set_setting
-    from .site_schema import take_moved
+    from .site_schema import take_moved, upgrade_install
     for name in ("live", "draft"):
         row = db.session.get(SiteDocument, name)
         if row is None:
             continue
         doc = json.loads(row.data)
+        # The install dialog's formats took the same fields each (1.15.0):
+        # the text a site had moves to where it showed.
+        if upgrade_install(doc):
+            row.data = json.dumps(doc)
+            db.session.commit()
+            app.logger.info("migrated: the %s site's install dialog took the fields every format shares", name)
         moved = take_moved(doc)
         if not moved:
             continue
@@ -361,6 +379,15 @@ def _migrate(app: Flask) -> None:
         db.session.commit()
         app.logger.info("migrated: added jobs.package_id")
 
+    # Mac apps (2.3.0): the Sparkle appcast needs each build's lowest macOS
+    # and its signature. Before any step below that reads packages: the
+    # model already has the columns.
+    for column, kind in (("min_os", "VARCHAR(20)"), ("signature", "VARCHAR(120)")):
+        if column not in columns("packages"):
+            db.session.execute(text(f"ALTER TABLE packages ADD COLUMN {column} {kind} NOT NULL DEFAULT ''"))
+            db.session.commit()
+            app.logger.info("migrated: added packages.%s", column)
+
     # AppImages were plain files until they could update from here. The ones
     # still published become AppImages, so a new upload of one supersedes it.
     # Each file's first bytes are the guard: a second run finds none to move.
@@ -368,6 +395,22 @@ def _migrate(app: Flask) -> None:
     moved = adopt_appimages()
     if moved:
         app.logger.info("migrated: %d published file%s became AppImages", moved, "s" if moved != 1 else "")
+
+    # Pages can be release notes (2.2.0). A site made before that gets its
+    # release notes page once, live and in the draft alike; the setting is the
+    # guard, so a page the owner deletes stays deleted.
+    from .site_schema import add_release_notes_page
+    if not get_setting("release_notes_page_added"):
+        for name in ("live", "draft"):
+            row = db.session.get(SiteDocument, name)
+            if row is None:
+                continue
+            doc = json.loads(row.data)
+            if add_release_notes_page(doc):
+                row.data = json.dumps(doc)
+                app.logger.info("migrated: the %s site got a release notes page", name)
+        set_setting("release_notes_page_added", "1")
+        db.session.commit()
 
 
 def _start_worker(app: Flask) -> None:

@@ -41,6 +41,8 @@ def repo_state(monkeypatch):
         out["stable"], out["beta"] = build("1.0.0"), build("1.1.0-beta.1")
         out["packages"]["rpm"]["stable"] = {"name": "gnomish", "version": "1.0.0",
                                             "downloads": {"x86_64": base + "/download/gnomish-x86_64.rpm"}}
+        out["packages"]["deb"]["stable"] = {"name": "gnomish", "version": "1.0.0",
+                                            "downloads": {"amd64": base + "/download/gnomish-amd64.deb"}}
         return out
     monkeypatch.setattr(releases, "public_info", info)
 
@@ -151,29 +153,133 @@ def test_the_footer_can_have_a_wordmark_of_its_own(client, csrf, admin):
     assert "wm.svg" not in header                       # the header keeps the name as text
 
 
+def test_the_small_print_takes_links(client, csrf, admin):
+    client.patch("/api/v1/site", json={"footer": {"legal": "© {year} [Hyprlab](https://hyprlab.co) · "
+                                                           '<a href="https://example.com/license">AGPLv3</a>'}},
+                 headers=h(csrf))
+    footer = preview(client).split('class="container footer__legal"')[1]
+    assert '<a href="https://hyprlab.co"' in footer and ">Hyprlab</a>" in footer
+    assert '<a href="https://example.com/license"' in footer and ">AGPLv3</a>" in footer
+    assert "&lt;a" not in footer and "<p><p>" not in footer
+
+
 def test_the_install_dialog_s_wording(client, csrf, admin, repo_state):
     page = preview(client)
     assert "Install file" in page and "Version 1.0.0" in page        # the built-in text to start with
     resp = client.patch("/api/v1/site", json={"install": {
-        "show_version": False, "ref_title": "Install via Flatpakref", "ref_tip_title": "Using Bazaar?",
-        "ref_tip_text": "Add the repository once:", "ref_tip_command": "flatpak remote-add x {site_url}/x",
+        "show_version": False, "ref_title": "Install via Flatpakref",
+        "ref_tips": [{"title": "Using Bazaar?", "text": "Add the repository once:",
+                      "command": "flatpak remote-add x {site_url}/x"},
+                     {"title": "Prefer the terminal?", "text": "", "command": "{command}"}],
         "bundle_url": "https://github.com/x/y/releases/latest/download/App-{arch}.flatpak",
-        "bundle_button": "Download Gnomish for", "bundle_after": "Built for **{arch_name}**.",
-        "rpm_files_title": "Prefer a download?", "rpm_files_text": "The same package as a file.",
-        "rpm_files_button": "Download the RPM", "bundle_desc": ""}}, headers=h(csrf))
+        "bundle_below": "Built for **{arch_name}**.", "bundle_above": ""}}, headers=h(csrf))
     assert resp.status_code == 200, resp.get_json()
     page = preview(client)
     assert "Version 1.0.0" not in page and "Install via Flatpakref" in page
     assert "<summary>Using Bazaar?</summary>" in page and "flatpak remote-add x http://localhost/x" in page
-    # The full download from the owner's address, though nothing was uploaded here.
-    assert 'data-href="https://github.com/x/y/releases/latest/download/App-{arch}.flatpak"' in page
-    assert "flatpak install ./App-x86_64.flatpak" in page
-    assert '<strong><span class="dl-arch-name">Intel/AMD</span></strong>' in page
+    # Its tips in order, the second with the install command in place of {command}.
+    ref = page[page.index('data-method="ref"'):page.index("</section>", page.index('data-method="ref"'))]
+    assert ref.index("Using Bazaar?") < ref.index("Prefer the terminal?")
+    assert "flatpak install --from http://localhost/" in ref and "{command}" not in ref
+    # The full download from the owner's address, though nothing was uploaded here:
+    # a button per machine, named after its file, and one command for either.
+    assert 'href="https://github.com/x/y/releases/latest/download/App-x86_64.flatpak"' in page
+    assert 'href="https://github.com/x/y/releases/latest/download/App-aarch64.flatpak"' in page
+    assert "<span>App-aarch64.flatpak</span>" in page
+    assert "curl -LO https://github.com/x/y/releases/latest/download/App-$(uname -m).flatpak\n" \
+           "flatpak install ./App-$(uname -m).flatpak" in page
+    assert '<strong><span class="dl-arch-name">Intel/AMD or ARM</span></strong>' in page
     assert "The whole app in one .flatpak file." not in page        # emptied, so left out
-    # The RPM: greyed out on ARM, and its own download button.
-    assert 'data-arches="x86_64"' in page and "Intel/AMD only</span>" in page
-    assert 'class="btn btn--ghost" href="http://localhost/download/gnomish-x86_64.rpm"' in page
-    assert ">rpm</span>" in page
+    # No machine to pick, so nothing is greyed out.
+    assert "install-arch" not in page and "data-arches" not in page
+    # The RPM: its chips name Intel/AMD alone, and its file has its own button.
+    rpm = page[page.index('value="rpm"'):page.index("</label>", page.index('value="rpm"'))]
+    assert '<span class="arch-chip" data-arch="x86_64">Intel/AMD</span>' in rpm and 'data-arch="aarch64"' not in rpm
+    # The list names the method; its instructions don't repeat the name.
+    assert "how__title" not in page
+    # The Debian package's amd64 is Flatpak's x86_64, so it is shown as Intel/AMD.
+    deb = page[page.index('value="deb"'):page.index("</label>", page.index('value="deb"'))]
+    assert '<span class="arch-chip" data-arch="x86_64">Intel/AMD</span>' in deb and "amd64" not in deb
+    assert 'class="btn btn--ghost dl-list__btn" href="http://localhost/download/gnomish-x86_64.rpm"' in page
+
+
+def test_every_format_has_text_above_and_below_its_buttons_and_tips(client, csrf, admin, repo_state):
+    install = site_schema.DOCUMENT.fields["install"].fields
+    for m in ("ref", "bundle", "repo", "rpm", "deb", "appimage", "files"):
+        assert {f"{m}_method", f"{m}_title", f"{m}_above", f"{m}_below", f"{m}_tips"} \
+            == {k for k in install if k.startswith(m + "_")} - {"bundle_url"}
+    resp = client.patch("/api/v1/site", json={"install": {
+        "bundle_url": "https://example.org/App-{arch}.flatpak",
+        "bundle_above": "Before the files.", "bundle_below": "After the files.",
+        "bundle_tips": [{"title": "One", "text": "First tip.", "command": ""},
+                        {"title": "Two", "text": "", "command": "echo two"},
+                        {"title": "", "text": "No title, so not shown.", "command": ""}]}}, headers=h(csrf))
+    assert resp.status_code == 200, resp.get_json()
+    page = preview(client)
+    bundle = page[page.index('data-method="bundle"'):page.index("</section>", page.index('data-method="bundle"'))]
+    assert bundle.index("Before the files.") < bundle.index("dl-list__btn") < bundle.index("After the files.") \
+        < bundle.index("<summary>One</summary>") < bundle.index("<summary>Two</summary>")
+    assert "echo two" in bundle and "No title" not in bundle and "Prefer the terminal?" not in bundle
+    # An old field is refused with the one that took its place.
+    resp = client.patch("/api/v1/site", json={"install": {"bundle_after": "x"}}, headers=h(csrf))
+    assert resp.status_code == 422 and "now install.bundle_below" in resp.get_json()["error"]
+
+
+def test_an_install_dialog_from_before_the_shared_fields_keeps_its_text():
+    doc = site_schema.default_document()
+    install = doc["install"]
+    for m in ("ref", "bundle", "repo", "rpm", "deb", "appimage", "files"):
+        for part in ("above", "below", "tips"):
+            install.pop(f"{m}_{part}")
+    install.pop("files_title")
+    for field in [k for k in install if k.startswith("macos_")]:   # a format added since
+        install.pop(field)
+    install.update({
+        "show_arch_picker": True, "ref_desc": "", "ref_button": "Get it", "ref_after": "Open it.",
+        "ref_tip_title": "Using Bazaar?", "ref_tip_text": "Add it once:", "ref_tip_command": "flatpak remote-add x",
+        "ref_terminal_intro": "", "ref_terminal_after": "",
+        "bundle_desc": "Under the files.", "bundle_after": "", "bundle_button": "x",
+        "bundle_terminal_intro": "Or:", "bundle_terminal_after": "",
+        "repo_desc": "For app stores.", "repo_lead": "Add it:",
+        "rpm_desc": "", "rpm_lead": "Once:", "rpm_after": "Fedora.", "rpm_files_title": "Prefer a download?",
+        "rpm_files_text": "", "rpm_files_button": "x",
+        "deb_desc": "", "deb_lead": "", "deb_after": "", "deb_files_title": "", "deb_files_text": "As a file.",
+        "deb_files_button": "x", "appimage_desc": "One file.", "appimage_after": "", "appimage_terminal": "chmod +x it.",
+    })
+    legacy = dict(install)
+    assert site_schema.upgrade_install(doc)
+    clean = site_schema.validate(doc)["install"]
+    assert clean["ref_above"] == "" and clean["ref_below"] == "Open it."
+    assert clean["ref_tips"] == [{"title": "Using Bazaar?", "text": "Add it once:", "command": "flatpak remote-add x"},
+                                 {"title": "Prefer the terminal?", "text": "", "command": "{command}"}]
+    assert clean["bundle_above"] == "" and clean["bundle_below"] == "Under the files."
+    assert clean["bundle_tips"] == [{"title": "Prefer the terminal?", "text": "Or:", "command": "{command}"}]
+    assert clean["repo_above"] == "For app stores.\n\nAdd it:"
+    assert clean["rpm_above"] == "Once:" and clean["rpm_below"] == "Fedora."
+    assert clean["deb_below"] == "As a file."
+    assert clean["appimage_above"] == "One file."
+    assert clean["appimage_tips"] == [{"title": "Prefer the terminal?", "text": "chmod +x it.", "command": ""}]
+    assert not site_schema.upgrade_install(clean)          # once only
+    # A whole document in the old shape validates as the new one, as a PUT
+    # from a client that saved it before.
+    old = site_schema.default_document()
+    old["install"] = legacy
+    assert "bundle_desc" in old["install"] and "bundle_below" not in old["install"]
+    assert site_schema.validate(old)["install"]["bundle_below"] == "Under the files."
+
+
+def test_the_install_dialog_s_fields_fold_by_format():
+    """The editor shows each format's fields behind a fold of its own, named
+    as the site names that format; the dialog's own settings stay out of them."""
+    install = site_schema.schema_json()["document"]["fields"]["install"]
+    folds = {f["key"]: f for f in install["folds"]}
+    assert list(folds) == ["ref", "bundle", "repo", "rpm", "deb", "appimage", "macos", "files"]
+    assert all(f["title_field"] == k + "_title" for k, f in folds.items())
+    assert folds["bundle"]["fields"] == ["bundle_method", "bundle_title", "bundle_url", "bundle_above",
+                                         "bundle_below", "bundle_tips"]
+    folded = [n for f in install["folds"] for n in f["fields"]]
+    assert len(folded) == len(set(folded))
+    assert set(install["fields"]) - set(folded) == {"title", "flatpak_setup_url", "footer", "show_version"}
 
 
 def test_a_site_saved_before_the_wording_fields_gets_the_built_in_text(app, client, csrf, admin, repo_state):
@@ -181,7 +287,7 @@ def test_a_site_saved_before_the_wording_fields_gets_the_built_in_text(app, clie
     from flatout.models import SiteDocument, db
     with app.app_context():
         doc = site.get("draft")
-        wording = [k for k in doc["install"] if k.startswith(("ref_", "bundle_", "repo_", "rpm_"))
+        wording = [k for k in doc["install"] if k.startswith(("ref_", "bundle_", "repo_", "rpm_", "deb_"))
                    and not k.endswith("_method")] + ["show_version"]
         for key in wording:
             del doc["install"][key]
@@ -191,7 +297,8 @@ def test_a_site_saved_before_the_wording_fields_gets_the_built_in_text(app, clie
         row.data = json.dumps(doc)
         db.session.commit()
     page = preview(client)
-    assert "Install file" in page and "Download the install file" in page and "Version 1.0.0" in page
+    assert "Install file" in page and "Open the downloaded file" in page and "Version 1.0.0" in page
+    assert "<summary>Prefer the terminal?</summary>" in page
 
 
 def test_the_not_found_page_s_wording(app, client, csrf, admin):

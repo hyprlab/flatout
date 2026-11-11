@@ -887,6 +887,10 @@ def _package_json(p, with_log: bool = False, job=_LOOK_UP) -> dict:
         "file": {"size": p.size, "sha256": p.sha256, "url": url,
                  # What an installed AppImage checks for updates.
                  "zsync_url": f"{url}.zsync" if url and packages.zsync_path(p) else None},
+        # A Mac app: the build number Sparkle compares (also evr), the lowest
+        # macOS it runs on, and the signature the appcast gives.
+        "sparkle": {"build": p.evr or None, "minimum_system_version": p.min_os or None,
+                    "ed_signature": p.signature or None} if p.format == "macos" else None,
         "error": p.error or None, "created_by": p.created_by,
         "created_at": p.created_at.isoformat() + "Z",
         "published_at": p.published_at.isoformat() + "Z" if p.published_at else None,
@@ -897,14 +901,14 @@ def _package_json(p, with_log: bool = False, job=_LOOK_UP) -> dict:
 def _format_filter(value) -> str:
     from .packages import FORMATS
     if value not in FORMATS:
-        raise ApiError(400, "format is rpm, deb, appimage or file.")
+        raise ApiError(400, "format is rpm, deb, appimage, macos or file.")
     return value
 
 
 @bp.route("/packages")
 @needs("read")
 def packages_list():
-    """Packages and files, newest first. Filter with ?format=rpm|deb|appimage|file,
+    """Packages and files, newest first. Filter with ?format=rpm|deb|appimage|macos|file,
     ?channel= and ?status=."""
     from .models import Package
     query = Package.query
@@ -942,9 +946,14 @@ def packages_create():
     the apt repository, signed. An AppImage is told to update from this site
     and gets a zsync file; its "name" defaults to the file's name without the
     version, so each upload takes over the address installed copies check.
-    Anything else becomes a download, named by "name" (default: the file's
-    own name). Both take an optional "version" and "arch". Or JSON with "upload" (an id from POST /uploads, with "filename")
-    or "url", and the same fields. Answers 202 at once; a job publishes it."""
+    A Mac app (.dmg, .pkg, or a .zip or tarball holding an .app) is signed
+    for Sparkle and offered in the appcast; its build number and lowest
+    macOS come from its Info.plist, or from "build" (CFBundleVersion) and
+    "minimum_system_version" when given. Anything else becomes a download,
+    named by "name" (default: the file's own name). All take an optional
+    "version" and "arch". Or JSON with "upload" (an id from POST /uploads,
+    with "filename") or "url", and the same fields. Answers 202 at once; a
+    job publishes it."""
     from . import chunks, jobs, packages
     from .models import Package
     db.session.commit()   # end the read before taking in the file (see releases_create)
@@ -967,9 +976,16 @@ def packages_create():
     name = str(fields.get("name") or "").strip()
     if name and not packages.NAME_RE.match(name):
         raise ApiError(400, "name may use letters, digits, dots, dashes and underscores, such as App-x86_64.AppImage.")
+    build = str(fields.get("build") or "").strip()
+    if build and not packages.sparkle.BUILD_RE.match(build):
+        raise ApiError(400, "build is a Mac app's CFBundleVersion, such as 142 or 1.4.2.")
+    min_os = str(fields.get("minimum_system_version") or "").strip()
+    if min_os and not packages.sparkle.SYSTEM_RE.match(min_os):
+        raise ApiError(400, "minimum_system_version is a macOS version, such as 12.0.")
     pkg = Package(channel=_channel(fields.get("channel")), status="queued", created_by=g.actor, name=name,
                   version=str(fields.get("version") or "").strip()[:120],
                   arch=str(fields.get("arch") or "").strip()[:20],
+                  evr=build, min_os=min_os,
                   notes=str(fields.get("notes") or "")[:20000])
     payload = {"filename": original, "base": site.base_url()}
     if upload is not None:
@@ -1057,7 +1073,7 @@ def packages_promote():
     if data.get("format"):
         heads = [h for h in heads if h.format == _format_filter(data["format"])]
     in_dest = Package.query.filter(Package.channel == dest, Package.status.in_(packages.IN_REPO)).all()
-    there = {(p.format, p.name, p.arch, p.evr) for p in in_dest if p.format not in packages.DOWNLOADS}
+    there = {(p.format, p.name, p.arch, p.evr) for p in in_dest if p.format in packages.VERSIONED}
     # An AppImage is changed on the way (it updates from its new channel),
     # so the one already promoted is known by where it came from.
     copied = {p.origin_package_id for p in in_dest if p.format == "appimage"}
@@ -1280,13 +1296,13 @@ REPO_SETTINGS = {
     "public_url": "The site's public address, such as https://app.example.org",
     "runtime_repo": "Where installs fetch the runtime from (a .flatpakrepo address)",
     "prune_depth": "How many past builds of each channel to keep for rollback (1-100)",
-    "packages_kept": "How many versions of each RPM, Debian package or file to keep per channel, "
+    "packages_kept": "How many versions of each RPM, Debian package, Mac app or file to keep per channel, "
                      "for a downgrade (1-50)",
 }
 
 
 def _repo_json() -> dict:
-    from . import packages, releases, repo
+    from . import packages, releases, repo, sparkle
     from .models import Release, get_setting
     doc = site.get("live")
     info = releases.public_info(doc, site.base_url())
@@ -1306,6 +1322,8 @@ def _repo_json() -> dict:
         # The dnf and apt repositories and other downloads: their addresses,
         # the newest of each, and which formats this server can publish.
         "packages": {**info["packages"], "tools": packages.tools()},
+        # Mac apps: the key Sparkle checks updates against, and the feeds.
+        "sparkle": sparkle.info(site.base_url()),
         # What is set; empty means the default described in REPO_SETTINGS.
         "settings": {
             "app_id": get_setting("app_id") or "",
@@ -1443,6 +1461,53 @@ def repo_key_secret():
     try:
         return jsonify(fingerprint=repo.key_fingerprint(), armored=repo.secret_key_armored())
     except repo.RepoError as err:
+        raise ApiError(404, str(err))
+
+
+@bp.route("/sparkle/key", methods=["POST"])
+@needs("releases")
+def sparkle_key():
+    """{"action": "generate"} or {"action": "import", "key": "…"}, the key
+    as Sparkle's generate_keys -x exports it. Mac apps check every update
+    against the public half, so replacing a key needs "replace": true; the
+    builds already published are signed again with the new one."""
+    from . import jobs, sparkle
+    from .models import Package
+    from .repo import RepoError
+    if not g.api_user.is_admin:
+        raise ApiError(403, "Only an admin can create or replace the Sparkle key.")
+    data = body()
+    if sparkle.has_key() and not data.get("replace"):
+        raise ApiError(409, "There is a Sparkle key already. Mac apps trust that key and refuse updates signed with "
+                            "another, so only replace it with the one the app has. Send \"replace\": true to do it "
+                            "anyway.")
+    action = data.get("action")
+    if action == "generate":
+        sparkle.generate()
+    elif action == "import":
+        try:
+            sparkle.import_key(str(data.get("key") or ""))
+        except RepoError as err:
+            raise ApiError(400, str(err))
+    else:
+        raise ApiError(400, 'action is "generate" or "import".')
+    job = None
+    if Package.query.filter(Package.format == "macos", Package.status.in_(("live", "superseded"))).first():
+        db.session.commit()
+        job = jobs.enqueue("sparkle-sign", None, {}, g.actor)
+    return jsonify(sparkle=sparkle.info(site.base_url()), job=_job_json(job) if job else None)
+
+
+@bp.route("/sparkle/key/secret")
+def sparkle_key_secret():
+    """The Sparkle private key as generate_keys -x writes it, for the owner's
+    backup or to sign by hand. An admin, signed in: never a token."""
+    from . import sparkle
+    from .repo import RepoError
+    _admin_session("Only an admin can take the Sparkle key.")
+    try:
+        return jsonify(public_key=sparkle.public_key(), key=sparkle.secret_key())
+    except RepoError as err:
         raise ApiError(404, str(err))
 
 

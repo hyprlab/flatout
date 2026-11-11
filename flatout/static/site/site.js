@@ -11,8 +11,9 @@
   /* ————— Theme switch ————— */
   // The head script already set data-theme. The button flips it and
   // remembers the choice; every <picture data-theme-swap> follows the mode in
-  // use rather than the system's. Without a saved choice, a system change
-  // still flows through. A site fixed to one mode has no switch.
+  // use rather than the system's. Without a saved choice, the site's own
+  // mode applies if it has one, else the system's, whose changes flow
+  // through. A site fixed to one mode without the switch stays in it.
   (function () {
     var html = document.documentElement;
     if (html.hasAttribute("data-theme-fixed")) {
@@ -20,6 +21,7 @@
       return;
     }
     var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    var fallback = html.getAttribute("data-theme-default");
     function saved() {
       try { var t = localStorage.getItem("site-theme"); return (t === "dark" || t === "light") ? t : null; }
       catch (e) { return null; }
@@ -33,7 +35,7 @@
         b.title = label;
       });
     }
-    apply(saved() || (mq.matches ? "dark" : "light"));
+    apply(saved() || fallback || (mq.matches ? "dark" : "light"));
     document.querySelectorAll("[data-theme-toggle]").forEach(function (b) {
       b.addEventListener("click", function () {
         var next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
@@ -41,7 +43,7 @@
         apply(next);
       });
     });
-    mq.addEventListener("change", function (e) { if (!saved()) apply(e.matches ? "dark" : "light"); });
+    mq.addEventListener("change", function (e) { if (!saved() && !fallback) apply(e.matches ? "dark" : "light"); });
   })();
 
   function swapPictures(theme) {
@@ -283,10 +285,14 @@
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !box.hidden) close(); });
   })();
 
-  /* ————— Install dialog ————— */
-  (function () {
-    var modal = document.getElementById("install-modal");
-    if (!modal) return;
+  /* ————— Install dialogs ————— */
+  // One per channel: #install-modal for the release, #install-modal-beta for
+  // the beta section's button (data-install-open="beta"). Each keeps its own
+  // picker; /#install and /#install-beta open them.
+  document.querySelectorAll(".modal[data-install-channel]").forEach(function (modal) {
+    var channel = modal.getAttribute("data-install-channel");
+    var hash = channel === "beta" ? "#install-beta" : "#install";
+    var sfx = channel === "beta" ? "-beta" : "";
     var dialog = modal.querySelector(".modal__scroll");
     var lastFocus = null;
 
@@ -301,72 +307,34 @@
       modal.hidden = true;
       document.body.style.overflow = "";
       if (lastFocus && lastFocus.focus) lastFocus.focus();
-      if (location.hash === "#install") history.replaceState(null, "", location.pathname + location.search);
+      if (location.hash === hash) history.replaceState(null, "", location.pathname + location.search);
     }
-    document.querySelectorAll("[data-install-open]").forEach(function (el) { el.addEventListener("click", open); });
+    document.querySelectorAll("[data-install-open]").forEach(function (el) {
+      if ((el.getAttribute("data-install-open") === "beta") === (channel === "beta")) el.addEventListener("click", open);
+    });
     modal.querySelectorAll("[data-install-close]").forEach(function (el) { el.addEventListener("click", close); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !modal.hidden) close(); });
-    // A link to /#install opens it straight away.
-    if (location.hash === "#install") open();
+    // A link to /#install (or /#install-beta) opens it straight away.
+    if (location.hash === hash) open();
 
-    // The picker: the machine and the method drive one state. The install
-    // file needs neither (flatpak resolves the architecture), the bundle
-    // download needs both.
-    var NAMES = { x86_64: "Intel/AMD", aarch64: "ARM" };
-    var archInputs = modal.querySelectorAll('input[name="install-arch"]');
-    var methodInputs = modal.querySelectorAll('input[name="install-method"]');
-    function value(list) {
-      for (var i = 0; i < list.length; i++) if (list[i].checked || list[i].type === "hidden") return list[i].value;
-      return list[0] ? list[0].value : "";
-    }
+    // The format list: only the chosen format's instructions show. Every
+    // file has a button per machine, so nothing here needs the machine.
+    var methodInputs = modal.querySelectorAll('input[name="install-method' + sfx + '"]');
     function render() {
-      var arch = value(archInputs);
-      // A package built for some machines only is greyed out, and says so,
-      // on the others; the first method takes over if it was the one picked.
-      modal.querySelectorAll(".method[data-arches]").forEach(function (card) {
-        var off = card.getAttribute("data-arches").split(" ").indexOf(arch) < 0;
-        var input = card.querySelector("input");
-        var flag = card.querySelector(".method__flag");
-        input.disabled = off;
-        card.classList.toggle("is-off", off);
-        if (flag) flag.hidden = !off;
-        if (off && input.checked && methodInputs[0]) methodInputs[0].checked = true;
+      var method = "";
+      methodInputs.forEach(function (el) { if (el.checked) method = el.value; });
+      if (!method) return;
+      modal.querySelectorAll(".how").forEach(function (sec) {
+        sec.hidden = sec.getAttribute("data-method") !== method;
       });
-      var method = value(methodInputs);
-      if (method) {
-        modal.querySelectorAll(".how").forEach(function (sec) {
-          sec.hidden = sec.getAttribute("data-method") !== method;
-        });
-      }
-      var link = modal.querySelector("[data-bundle-link]");
-      if (link && arch) link.href = link.getAttribute("data-href").replace("{arch}", arch);
-      var cmd = document.getElementById("install-cmd-bundle");
-      if (cmd && arch) cmd.textContent = cmd.getAttribute("data-template").split("{arch}").join(arch);
-      modal.querySelectorAll(".dl-arch-name").forEach(function (el) { el.textContent = NAMES[arch] || arch; });
-      // Architectures can be on different versions; say the chosen one's.
-      var picked = modal.querySelector('input[name="install-arch"]:checked');
-      var sub = modal.querySelector("[data-install-version]");
-      if (picked && sub && picked.getAttribute("data-version")) sub.textContent = "Version " + picked.getAttribute("data-version");
     }
-    archInputs.forEach(function (el) { el.addEventListener("change", render); });
     methodInputs.forEach(function (el) { el.addEventListener("change", render); });
-
-    // Guess the machine. Chromium only tells the CPU through client hints;
-    // elsewhere the user-agent string carries it on Linux ("Linux aarch64").
-    function useArm() {
-      var arm = modal.querySelector('input[name="install-arch"][value="aarch64"]');
-      if (arm && arm.type === "radio") { arm.checked = true; render(); }
-    }
-    var ua = navigator.userAgent || "";
-    if (/aarch64|arm64|armv8/i.test(ua)) {
-      useArm();
-    } else if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
-      navigator.userAgentData.getHighEntropyValues(["architecture", "bitness"]).then(function (hints) {
-        if (hints && hints.architecture === "arm" && hints.bitness === "64") useArm();
-      }).catch(function () {});
-    }
+    // A visitor on a Mac starts on the Mac app. An iPad says Macintosh too,
+    // but has a touch screen.
+    var onMac = /Macintosh|Mac OS X/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1);
+    methodInputs.forEach(function (el) { if (onMac && el.value === "macos") el.checked = true; });
     render();
-  })();
+  });
 
   /* ————— Copy buttons ————— */
   document.querySelectorAll("[data-copy]").forEach(function (btn) {

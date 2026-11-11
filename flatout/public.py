@@ -33,7 +33,33 @@ def render_page(doc: dict, slug: str, preview: bool = False):
     page = next((p for p in doc["pages"] if p["slug"] == slug and (p["published"] or preview)), None)
     if page is None:
         return None
-    return render_template("site/page.html", s=_renderer(doc, preview), page=page)
+    s = _renderer(doc, preview)
+    if page.get("kind") == "releases":
+        return _release_notes(s, page)
+    return render_template("site/page.html", s=s, page=page)
+
+
+def _release_notes(s: "site.Renderer", page: dict):
+    """A release notes page: its text, then every release and its notes,
+    filtered by channel and sorted by version, both from the address
+    (?channel=, ?sort=) so a view can be linked. It starts on the channel
+    the What's new section shows."""
+    from . import releases
+    entries = releases.release_notes()
+    has_beta = any(e["channel"] == "beta" for e in entries)
+    has_stable = any(e["channel"] == "stable" for e in entries)
+    channel = request.args.get("channel", "")
+    if channel not in ("all", "stable", "beta"):
+        stable_only = s.releases_section().get("channel", "stable") == "stable"
+        channel = "stable" if stable_only and has_stable else "all"
+    if not has_beta:
+        channel = "all"
+    sort = "oldest" if request.args.get("sort") == "oldest" else "newest"
+    shown = [e for e in entries if channel == "all" or e["channel"] == channel]
+    if sort == "oldest":
+        shown.reverse()
+    return render_template("site/release_notes.html", s=s, page=page, entries=shown, channel=channel,
+                           sort=sort, has_beta=has_beta)
 
 
 def visitor_status() -> str | None:
@@ -169,11 +195,12 @@ def not_found_page():
 
 
 # Addresses that aren't the website: the admin and the API, and everything
-# Flatpak, dnf, apt and AppImage clients fetch. A missing repository file
+# Flatpak, dnf, apt, AppImage and Sparkle clients fetch. A missing repository file
 # must stay a plain 404, never the site's page or a maintenance 503: clients
 # probe for optional files, and a 503 would fail their update.
 NOT_THE_SITE = ("/admin", "/api/", "/mcp", "/setup", "/login", "/register", "/logout",
-                "/repo/", "/flatpak/", "/rpm/", "/deb/", "/download/", "/appimage/", "/media/", "/static/")
+                "/repo/", "/flatpak/", "/rpm/", "/deb/", "/download/", "/appimage/", "/sparkle/", "/macos/",
+                "/media/", "/static/")
 
 
 def is_public_path() -> bool:

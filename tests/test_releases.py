@@ -132,14 +132,15 @@ def test_an_architecture_left_behind_is_named(app, client, csrf, admin):
     stable = client.get("/api/v1/repo").get_json()["stable"]
     assert stable["version"] == "1.10" and stable["behind"] == ["aarch64"]
     assert stable["builds"]["aarch64"]["version"] == "1.9"
-    assert stable["arches"] == ["x86_64", "aarch64"]   # the dialog picks the first
+    assert stable["arches"] == ["x86_64", "aarch64"]   # the dialog lists Intel/AMD first
 
     client.post("/api/v1/site/publish", json={}, headers=h(csrf))
     home = client.get("/").data.decode()
     assert "Version 1.10 (ARM: 1.9)" in home
-    assert 'value="aarch64" data-version="1.9"' in home
-    # Intel/AMD is offered first, its download too, unless the page sees ARM.
-    assert re.search(r'data-bundle-link [^>]*href="[^"]*org\.example\.Hello-x86_64\.flatpak"', home)
+    # Each machine's download says its own version, Intel/AMD's first.
+    assert re.search(r'href="[^"]*org\.example\.Hello-x86_64\.flatpak".*?<span class="dl-list__meta">1\.10 · Intel/AMD',
+                     home, re.S)
+    assert re.search(r'href="[^"]*org\.example\.Hello-aarch64\.flatpak".*?<span class="dl-list__meta">1\.9 · ARM', home, re.S)
     assert "aarch64 is still on 1.9" in client.get("/admin").data.decode()
 
 
@@ -259,3 +260,80 @@ def test_each_file_of_a_version_brings_its_newest_job(app, client, csrf, admin):
     job_id = resp.get_json()["job"]["id"]
     version = client.get("/api/v1/versions").get_json()["versions"][0]
     assert version["packages"][0]["job"]["id"] == job_id
+
+
+def test_prereleases_come_before_their_release():
+    from flatout.releases import release_key
+    assert release_key("2.1.0") > release_key("2.1.0-beta.2") > release_key("2.1.0-beta.1") > release_key("2.0.10")
+    assert release_key("1.10") > release_key("1.9") and release_key("v1.2") == release_key("1.2")
+
+
+def test_the_release_notes_page_sorts_by_version(app, client, csrf, admin):
+    add_build(app, "x86_64", "1.10", notes="Ten.")
+    add_build(app, "x86_64", "1.9", notes="Nine.", minutes=5)    # uploaded later, still older
+    add_build(app, "x86_64", "1.11.0-beta.1", notes="Trying.", channel="beta")
+    client.post("/api/v1/site/publish", json={}, headers=h(csrf))
+    body = client.get("/releases").data.decode()
+    # The section shows stable only, so the page starts there.
+    assert body.index(">1.10<") < body.index(">1.9<") and "Trying." not in body
+    assert 'id="v-1-10"' in body and 'href="#v-1-9"' in body
+    oldest = client.get("/releases?channel=all&sort=oldest").data.decode()
+    assert oldest.index("Nine.") < oldest.index("Ten.") < oldest.index("Trying.")
+    beta = client.get("/releases?channel=beta").data.decode()
+    assert "Trying." in beta and "Ten." not in beta
+    assert "/releases" in client.get("/sitemap.xml").data.decode()
+
+
+def release_notes_page(doc):
+    return next(p for p in doc["pages"] if p.get("kind") == "releases")
+
+
+def test_the_release_notes_are_a_page(app, client, csrf, admin):
+    add_build(app, "x86_64", "1.0", notes="First.")
+    client.post("/api/v1/site/publish", json={}, headers=h(csrf))
+    assert re.search(r'<a class="btn btn--ghost" href="/releases">All release notes</a>', client.get("/").data.decode())
+    doc = client.get("/api/v1/site").get_json()["document"]
+    page = release_notes_page(doc)
+    page.update(slug="changes", title="Changes in {app_name}", body="What *changed*.", in_footer=True)
+    assert client.put("/api/v1/site", json=doc, headers=h(csrf)).status_code == 200
+    client.post("/api/v1/site/publish", json={}, headers=h(csrf))
+    home = client.get("/").data.decode()
+    assert 'href="/changes">All release notes</a>' in home and '<a href="/changes">Changes in' in home
+    body = client.get("/changes").data.decode()
+    assert f"Changes in {doc['app']['name']}</h1>" in body and "<em>changed</em>" in body and "First." in body
+    assert client.get("/releases").status_code == 404
+    # Unpublished, the page is gone and so is the button.
+    page["published"] = False
+    client.put("/api/v1/site", json=doc, headers=h(csrf))
+    client.post("/api/v1/site/publish", json={}, headers=h(csrf))
+    assert "All release notes" not in client.get("/").data.decode()
+    assert client.get("/changes").status_code == 404
+    assert "First." in client.get("/admin/preview/changes").data.decode()
+
+
+def test_an_older_site_gets_its_release_notes_page_once(app, client, csrf, admin):
+    from flatout import _migrate
+    from flatout.models import set_setting
+    with app.app_context():
+        for row in SiteDocument.query.all():
+            doc = json.loads(row.data)
+            doc["pages"] = [p for p in doc["pages"] if p.get("kind") != "releases"]
+            for p in doc["pages"]:
+                p.pop("kind", None)
+            doc["pages"].append({"slug": "releases", "title": "Ours", "body": "Hand written.", "published": True,
+                                 "in_footer": True, "in_nav": False})
+            row.data = json.dumps(doc)
+        db.session.commit()
+        set_setting("release_notes_page_added", "")
+        _migrate(app)
+        live = json.loads(db.session.get(SiteDocument, "live").data)
+        assert release_notes_page(live)["slug"] == "release-notes"
+        assert get_setting("release_notes_page_added") == "1"
+    assert "Hand written." in client.get("/releases").data.decode()   # the owner's page keeps its address
+    assert client.get("/release-notes").status_code == 200
+    doc = client.get("/api/v1/site").get_json()["document"]
+    doc["pages"] = [p for p in doc["pages"] if p.get("kind") != "releases"]
+    client.put("/api/v1/site", json=doc, headers=h(csrf))
+    with app.app_context():
+        _migrate(app)   # deleted stays deleted
+        assert not any(p.get("kind") == "releases" for p in json.loads(db.session.get(SiteDocument, "draft").data)["pages"])

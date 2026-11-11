@@ -15,8 +15,9 @@
           <span class="dropzone-text" id="upload-name"><strong>Choose files</strong> or drop them here</span>
           <span class="hint">A <code>.flatpak</code> bundle goes into the Flatpak repository, an <code>.rpm</code>
             into the dnf repository and a <code>.deb</code> into the apt repository, all signed. An AppImage is set
-            to update from this site. Anything else, such as a tarball, is offered as a download. Choose every file
-            of a version at once.</span>
+            to update from this site. A Mac app (<code>.dmg</code>, <code>.pkg</code>, or a <code>.zip</code> with
+            the <code>.app</code>) is signed for Sparkle and listed in its appcast. Anything else, such as a tarball,
+            is offered as a download. Choose every file of a version at once.</span>
         </label>
         <ul class="upload-files" id="upload-list" aria-live="polite" hidden></ul>
       </div>
@@ -39,6 +40,15 @@
           <p class="hint">With a fixed name, each upload replaces the last at the same address. An AppImage's name is
             its file's name without the version unless you give one; installed copies check that address for
             updates. Bundles and packages take their name from inside the file.</p>
+        </details>
+        <details class="term-like">
+          <summary>A Mac app whose build number can't be read</summary>
+          <label class="field"><span class="field-label">Build number (CFBundleVersion)</span>
+            <input id="upload-build" maxlength="60" spellcheck="false" placeholder="142"></label>
+          <label class="field"><span class="field-label">Lowest macOS</span>
+            <input id="upload-min-os" maxlength="20" spellcheck="false" placeholder="12.0"></label>
+          <p class="hint">Flatout reads both from the app's Info.plist. Give them when it can't, as with a disk image
+            on a server without 7-Zip; given, they win over what the file says.</p>
         </details>
         <details class="term-like">
           <summary>Or fetch a file from an address</summary>
@@ -74,7 +84,7 @@
     <h3 class="panel-title">Package repositories and updates</h3>
     <p class="hint">What people run once; their system's own updates bring every version after. The install
       dialog on the site shows the same commands. An AppImage carries the address it checks for updates inside
-      it.</p>
+      it; a Mac app names its Sparkle appcast in its Info.plist.</p>
     <div id="pkg-commands"></div>
     <dl class="addresses" id="pkg-addresses"></dl>
   </section>
@@ -84,7 +94,7 @@
     <form id="pkg-kept-form" class="stack" autocomplete="off">
       <label class="field field--narrow"><span class="field-label">Versions of each package kept, per channel</span>
         <input id="pkg-kept" type="number" min="1" max="50"></label>
-      <p class="hint">For RPM and Debian packages, AppImages and other files. The newest is the one installed; the
+      <p class="hint">For RPM and Debian packages, AppImages, Mac apps and other files. The newest is the one installed; the
         ones before it stay for a downgrade. Older versions are deleted. Flatpak builds kept for rollback are set
         under App.</p>
       <p class="form-error" id="pkg-kept-error" hidden></p>

@@ -283,8 +283,15 @@
     hasChanges: false,
     view: null,           // { kind: "list" } | { kind: "group", key } | { kind: "section", obj } | { kind: "page", obj } | { kind: "theme" }
     timer: null, saving: false, again: false, dirty: false, failed: false,
-    restoreY: null, scrollTarget: null
+    restoreY: null, scrollTarget: null,
+    openFolds: {}, installMethod: null
   };
+
+  // A detail view's header (back, title, actions) sticks to the panel's top;
+  // it gets its rule once something has scrolled under it.
+  panel.addEventListener("scroll", function () {
+    panel.classList.toggle("is-scrolled", panel.scrollTop > 0);
+  }, { passive: true });
 
   var GROUPS = [
     ["app", "Name and links", "Name, tagline, source and bug links, license"],
@@ -431,7 +438,12 @@
     }
     if (E.view && E.view.kind === "group" && E.view.key === "install") {
       var opener = doc.querySelector("[data-install-open]");
+      // Opening the dialog focuses it, which would pull the caret out of
+      // the field being typed in; the field gets it back.
+      var typing = document.activeElement;
       if (opener) opener.click();
+      showInstallMethod();
+      if (typing && typing !== frame && typing !== document.body) typing.focus({ preventScroll: true });
     }
     E.restoreY = null;
     E.scrollTarget = null;
@@ -446,6 +458,15 @@
   document.querySelectorAll('input[name="preview-mode"]').forEach(function (r) {
     r.addEventListener("change", function () { E.restoreY = null; refreshPreview(); });
   });
+  // The format whose fold is open in the editor, chosen in the preview's
+  // dialog, so the preview shows the part being edited.
+  function showInstallMethod() {
+    if (!E.installMethod) return;
+    try {
+      var input = frame.contentDocument.querySelector('#install-modal input[name="install-method"][value="' + E.installMethod + '"]');
+      if (input && !input.checked) { input.checked = true; input.dispatchEvent(new Event("change")); }
+    } catch (_) {}
+  }
   function scrollPreviewTo(id) {
     try {
       var doc = frame.contentDocument;
@@ -629,7 +650,8 @@
     ]));
     if (!E.doc.pages.length) wrap.appendChild(el("p", { class: "hint", text: "No pages yet. A page has its own address, such as /privacy, and can be linked from the header or the footer." }));
     E.doc.pages.forEach(function (page) {
-      wrap.appendChild(listRow(page.title || "Untitled", "/" + page.slug + (page.published ? "" : " · not published"), function () {
+      var about = "/" + page.slug + (page.kind === "releases" ? " · release notes" : "") + (page.published ? "" : " · not published");
+      wrap.appendChild(listRow(page.title || "Untitled", about, function () {
         show({ kind: "page", obj: page });
       }));
     });
@@ -639,7 +661,7 @@
     var slugs = E.doc.pages.map(function (p) { return p.slug; });
     var slug = "new-page", n = 2;
     while (slugs.indexOf(slug) !== -1) { slug = "new-page-" + n; n++; }
-    var page = { slug: slug, title: "New page", body: "", published: false, in_footer: true, in_nav: false };
+    var page = { slug: slug, title: "New page", kind: "text", body: "", published: false, in_footer: true, in_nav: false };
     E.doc.pages.push(page);
     changed();
     show({ kind: "page", obj: page });
@@ -719,9 +741,13 @@
     }
     wrap.appendChild(placeholderHelp());
     var form = el("div", { class: "ed-form" });
+    var folds = v.kind === "group" ? (S.document.fields[v.key].folds || []) : [];
+    var folded = {};
+    folds.forEach(function (fd) { fd.fields.forEach(function (n) { folded[n] = true; }); });
     Object.keys(fields).forEach(function (name) {
-      form.appendChild(field(fields[name], path.concat([name]), 0));
+      if (!folded[name]) form.appendChild(field(fields[name], path.concat([name]), 0));
     });
+    folds.forEach(function (fd) { form.appendChild(foldControl(fd, fields, path, v.key)); });
     wrap.appendChild(form);
     panel.appendChild(wrap);
     linkSuggestions();
@@ -942,6 +968,27 @@
     return sel;
   }
 
+  // A group's fields behind folds of their own (site_schema.group's folds),
+  // so a long group opens at the part wanted rather than a page of fields.
+  // A fold is named as the site names it; one left open stays open while the
+  // editor is. In the install dialog, opening one shows that format.
+  function foldControl(fd, fields, path, key) {
+    var id = key + "/" + fd.key;
+    var name = fd.title_field && getAt(E.doc, path.concat([fd.title_field]));
+    var details = el("details", { class: "ed-group ed-fold", "data-fold": fd.key, open: E.openFolds[id] ? true : null }, [
+      el("summary", { class: "ed-group-title" }, [
+        el("span", { text: name || fd.label }),
+        name && name !== fd.label ? el("span", { class: "ed-fold-kind", text: fd.label }) : null
+      ]),
+      el("div", { class: "ed-group-body" }, fd.fields.map(function (n) { return field(fields[n], path.concat([n]), 1); }))
+    ]);
+    details.addEventListener("toggle", function () {
+      E.openFolds[id] = details.open;
+      if (details.open && key === "install") { E.installMethod = fd.key; showInstallMethod(); }
+    });
+    return details;
+  }
+
   function groupControl(f, path, depth) {
     var body = el("div", { class: "ed-group-body" });
     Object.keys(f.fields).forEach(function (name) { body.appendChild(field(f.fields[name], path.concat([name]), depth + 1)); });
@@ -1000,9 +1047,11 @@
       });
       var full = f.max && items.length >= f.max;
       box.appendChild(el("button", { type: "button", class: "btn btn--ghost btn--xs ed-add", disabled: full, onclick: function () {
-        getAt(E.doc, path).push(defaultFor(f.item));
+        // items is that same list, already one longer: open the new last one.
+        var list = getAt(E.doc, path);
+        list.push(defaultFor(f.item));
         changed();
-        draw(items.length);
+        draw(list.length - 1);
         var last = box.querySelectorAll(".ed-item");
         last = last[last.length - 1];
         if (last) { var input = last.querySelector("input, textarea, select"); if (input) input.focus(); }

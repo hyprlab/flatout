@@ -22,11 +22,13 @@ flatout/
   packages.py      the dnf and apt repositories, AppImages and other downloads:
                    on disk, rpm/createrepo_c/dpkg-deb, and which version is live
   appimage.py      an AppImage's update information, and its zsync file
+  sparkle.py       Mac apps: reading their Info.plist, the Sparkle key and
+                   signatures, the appcast
   jobs.py          the thread that runs repository work, one job at a time
   backup.py        encrypted backups of everything, and restoring one
   chunks.py        large files sent in pieces, for proxies that cap bodies
   serve.py         what clients fetch: /repo, install files, bundles, packages,
-                   AppImages and their zsync files
+                   AppImages and their zsync files, the Sparkle appcasts
   stats.py         install numbers from repository traffic
   api.py           the JSON API under /api/v1, and its tokens
   openapi.py       the API's OpenAPI description, built from the code
@@ -123,6 +125,20 @@ checksums describe. A promoted AppImage is copied, not linked, and pointed at
 its new channel. A signed AppImage is left alone: the signature covers the
 section.
 
+**Mac apps are signed here, and the appcast is written per request.**
+Sparkle checks every update against an Ed25519 key whose public half is in
+the app, so Flatout keeps the private half (`DATA_DIR/sparkle/`, the 32-byte
+seed in base64, the form Sparkle's `generate_keys -x` exports) and signs each
+upload once, storing the signature with the package. The appcast holds
+nothing that isn't in the database, so it is written on each request, like
+the install files. Sparkle compares `CFBundleVersion`, so that is what is
+read from the upload and what ranks a Mac app's builds (Sparkle's comparator,
+ported); a disk image's file system needs 7-Zip to read, the rest is
+Python's own zip, tar, plist and XML modules. The stable feed has no beta
+items at all rather than items tagged with `<sparkle:channel>`, which
+Sparkle 1 ignores; the beta feed has both channels, so testers move on to
+the release.
+
 **One gunicorn worker, eight threads.** The job thread and the housekeeping
 thread must each exist exactly once, and SQLite is happiest with one writing
 process. Threads carry the concurrency.
@@ -205,7 +221,8 @@ answer 503.
 | `DATA_DIR/staging/` | Scratch space for unpacking bundles |
 | `DATA_DIR/gnupg/` | The signing key |
 | `DATA_DIR/bundles/` | Uploaded bundles, for the download button |
-| `DATA_DIR/packages/` | The dnf repository (`rpm/`), the apt archive (`deb/`), AppImages and their zsync files (`appimage/`), other downloads (`files/`), and uploads waiting for their job (`incoming/`) |
+| `DATA_DIR/packages/` | The dnf repository (`rpm/`), the apt archive (`deb/`), AppImages and their zsync files (`appimage/`), Mac apps (`macos/`), other downloads (`files/`), and uploads waiting for their job (`incoming/`) |
+| `DATA_DIR/sparkle/` | The Sparkle key Mac builds are signed with |
 | `DATA_DIR/.secret_key`, `.stats_salt` | Generated secrets |
 | `DATA_DIR/backups/` | The newest backup made in Settings, waiting to be downloaded |
 | `DATA_DIR/uploads/` | Bundles arriving in pieces, until their release is made |

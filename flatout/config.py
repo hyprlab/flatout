@@ -47,7 +47,7 @@ def _int(name: str, default: int) -> int:
 
 class Config:
     APP_NAME = os.environ.get("APP_NAME", "Flatout")
-    APP_TAGLINE = os.environ.get("APP_TAGLINE", "A self-hosted Flatpak repository with a homepage for your app.")
+    APP_TAGLINE = os.environ.get("APP_TAGLINE", "A self-hosted Flatpak, AppImage, DEB, RPM and macOS repo builder")
     # Where the About section's Source link points. Empty hides the link.
     SOURCE_URL = os.environ.get("SOURCE_URL", "https://github.com/hyprlab/flatout")
 

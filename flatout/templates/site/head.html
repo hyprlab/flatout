@@ -3,15 +3,17 @@
 {%- set doc = s.doc -%}
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  {%- if doc.theme.mode == 'system' %}
+  {%- if doc.theme.mode == 'system' or doc.theme.show_toggle %}
   <script nonce="{{ csp_nonce() }}">
     // Resolve the theme before first paint: the visitor's saved choice, else
-    // the system's, so data-theme always names the mode in use.
+    // the site's own mode, else the system's, so data-theme always names the
+    // mode in use.
     (function () {
       try {
         var t = localStorage.getItem('site-theme');
         if (t !== 'dark' && t !== 'light') {
-          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          t = document.documentElement.getAttribute('data-theme-default') ||
+            (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         }
         document.documentElement.setAttribute('data-theme', t);
       } catch (e) {}

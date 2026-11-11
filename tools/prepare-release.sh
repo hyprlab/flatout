@@ -25,11 +25,14 @@ case "$CHANNEL" in
     beta)   [ "$branch" = main ] || { echo "Prepare a beta from main (you are on $branch)." >&2; exit 1; }
             SUGGESTED=$(tools/next-version.sh beta) ;;
     stable) [[ "$branch" = main || "$branch" == stable-* ]] || { echo "A stable ships from main or stable-X.Y." >&2; exit 1; }
-            SUGGESTED=$(tools/next-version.sh stable) ;;
+            # Nothing user-visible (style, docs, ...) suggests no version at
+            # all; a maintainer can still ship it, as a patch, by naming one.
+            SUGGESTED=$(tools/next-version.sh stable) || SUGGESTED="" ;;
     *) echo "beta or stable" >&2; exit 1 ;;
 esac
 
 VERSION="${WANT:-$SUGGESTED}"
+[ -n "$VERSION" ] || { echo "Nothing calls for a release. To ship anyway, name the version: FORCE_VERSION=1 $0 $CHANNEL X.Y.Z" >&2; exit 1; }
 if [ "${VERSION%-beta.*}" != "${SUGGESTED%-beta.*}" ] && [ "${FORCE_VERSION:-0}" != 1 ]; then
     echo "SemVer calls for $SUGGESTED, not $VERSION. The commits that decide it:" >&2
     tools/next-version.sh "$CHANNEL" --why >/dev/null || true

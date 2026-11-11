@@ -1,0 +1,58 @@
+{#- A release notes page (public._release_notes): the page's text, then
+    every release and its notes. The filters and the order are plain links,
+    so a view can be shared and works without script. -#}
+{% extends "site/layout.html" %}
+{% from "site/macros.html" import release %}
+{% block title %}{{ s.fill(page.title) or 'Release notes' }} · {{ s.fill(s.doc.app.name) }}{% endblock %}
+{% block body %}
+{%- macro view(ch, so) -%}{{ request.path }}?channel={{ ch }}&amp;sort={{ so }}{%- endmacro %}
+<main id="main" class="page release-notes">
+  <div class="container">
+    <div class="section__head section__head--left release-notes__head">
+      <h1 class="section__title">{{ s.fill(page.title) or 'Release notes' }}</h1>
+      {%- if page.body %}<div class="prose release-notes__intro">{{ s.md(page.body) }}</div>{% endif %}
+    </div>
+    <div class="release-notes__layout">
+      <aside class="release-notes__side">
+        {%- if has_beta %}
+        <div class="release-notes__group">
+          <p class="release-notes__label" id="rn-channel">Show</p>
+          <div class="release-notes__seg" role="group" aria-labelledby="rn-channel">
+            {%- for value, label in [('all', 'All'), ('stable', 'Stable'), ('beta', 'Beta')] %}
+            <a href="{{ view(value, sort) }}"{% if channel == value %} class="is-active" aria-current="true"{% endif %}>{{ label }}</a>
+            {%- endfor %}
+          </div>
+        </div>
+        {%- endif %}
+        <div class="release-notes__group">
+          <p class="release-notes__label" id="rn-sort">Sort by version</p>
+          <div class="release-notes__seg" role="group" aria-labelledby="rn-sort">
+            {%- for value, label in [('newest', 'Newest first'), ('oldest', 'Oldest first')] %}
+            <a href="{{ view(channel, value) }}"{% if sort == value %} class="is-active" aria-current="true"{% endif %}>{{ label }}</a>
+            {%- endfor %}
+          </div>
+        </div>
+        {%- if entries|length > 1 %}
+        <nav class="release-notes__index" aria-label="Versions">
+          <p class="release-notes__label">Versions</p>
+          <ol>
+            {%- for r in entries %}
+            <li><a href="#{{ r.anchor }}">{{ r.version or 'Untitled build' }}{% if r.channel == 'beta' and channel != 'beta' %} <span class="release-notes__beta">beta</span>{% endif %}</a></li>
+            {%- endfor %}
+          </ol>
+        </nav>
+        {%- endif %}
+      </aside>
+      {%- if entries %}
+      <ol class="releases release-notes__list">
+        {%- for r in entries %}
+        {{ release(s, r, tag='h2', anchor=true) }}
+        {%- endfor %}
+      </ol>
+      {%- else %}
+      <p class="release-notes__empty">No releases yet.</p>
+      {%- endif %}
+    </div>
+  </div>
+</main>
+{% endblock %}

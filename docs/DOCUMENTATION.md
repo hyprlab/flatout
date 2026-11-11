@@ -11,6 +11,7 @@ and the uploaded bundles.
 ```sh
 mkdir flatout && cd flatout
 curl -O https://raw.githubusercontent.com/hyprlab/flatout/main/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/hyprlab/flatout/main/.env.example
 docker compose up -d
 ```
 
@@ -20,7 +21,38 @@ password. The admin is at `/admin`; the homepage is at `/`.
 
 From a clone of the repository, `docker compose up -d --build` builds the
 image from source instead: `docker-compose.override.yml` is picked up
-automatically.
+automatically. Make the `.env` with `cp .env.example .env`.
+
+### The .env file
+
+Docker Compose reads a file named `.env` in the same folder as
+`docker-compose.yml` and puts its values into the `${...}` placeholders of
+the compose file, which hands them to the container. The second `curl` above
+saves Flatout's `.env.example` as that file: every setting, commented, with
+its default. Every setting is optional, so the file can stay as it comes, be
+empty or not exist at all.
+
+The format:
+
+- One setting per line, `NAME=value`, with no spaces around the `=`.
+- Values need no quotes. An empty value (`SECRET_KEY=`) means the default.
+- Lines starting with `#` are comments.
+
+A public site behind a reverse proxy with HTTPS needs two lines changed:
+
+```sh
+TRUST_PROXY=1
+SESSION_COOKIE_SECURE=1
+```
+
+`SECRET_KEY` can stay empty: Flatout then generates one and keeps it in the
+volume. To set your own, generate it with `openssl rand -hex 32`. Changing it
+later signs everyone out.
+
+After editing `.env`, run `docker compose up -d` to apply it. That recreates
+the container with the new values; `docker compose restart` does not read
+the file again. The data in the volume is untouched either way.
+[Configuration](#configuration) lists every setting.
 
 ## Getting started
 
@@ -53,7 +85,8 @@ Everything on the homepage is set in the admin; there is no template to edit.
   palette, the fonts (Cantarell, Inter, system fonts, or an uploaded font
   file), the base text size, the heading weight, the corner rounding and the
   content width. A site can follow the visitor's light or dark setting, or
-  stay in one mode. **Custom CSS** is added after the theme, for a touch the
+  start in one mode; with the header's light/dark switch on, visitors can
+  still change it, and without it the site stays in that mode. **Custom CSS** is added after the theme, for a touch the
   settings don't reach; it can use and change the page's variables, such as
   `--accent`.
 - **Pages** are extra pages at their own address, such as `/privacy`,
@@ -81,13 +114,22 @@ Sections have finer controls where a layout calls for them:
   and whether it fades in as one, heading by heading, or not at all.
 - **Beta channel**: an icon, the version shown or not, the button after the
   warning or after the text, a note under it, and a command in a copy box.
+  The button opens the beta's own install dialog, as the install button opens
+  the release's: the machines the beta is built for, and its install file,
+  bundles, repository and dnf and apt packages. `/#install-beta` opens it
+  too. Switched off, the button downloads the beta's install file.
 - **Install guide**: a distro's command can come right after its text, its
   steps can have a heading of their own, and a note can close it; closing
   blocks put text and its buttons in turn after the guide.
-- **Install dialog**: the wording of each way to install, a folded tip under
-  the install file, and an address for the full download elsewhere, such as
-  a GitHub release asset. A package built for some machines only is greyed
-  out, and says so, on the others.
+- **Install dialog**: every way to install has the same fields, in a fold of
+  its own in the editor: whether it is offered, its name, text above and
+  below its buttons (or its commands), and any number of folded tips, each
+  with a title, text and a command to copy. In a tip, `{command}` is that
+  format's own install command, for the release or the beta. The full
+  download can also come from an address elsewhere, such as a GitHub release
+  asset. Each format lists the machines it is built for, and each file has a
+  download button per machine, named after the file, with its version and
+  size.
 
 In Markdown, `{: .center}`, `{: .left}` or `{: .note}` on the line after a
 paragraph or list aligns it or sets it in small print, and `{#name}` after a
@@ -95,6 +137,15 @@ heading makes it a link target, `#name`.
 
 Some sections follow the repository on their own: the beta section appears
 only while a beta release is live, and What's new once a release exists.
+
+A page under Pages can show release notes (its **Shows** field): its text
+as an introduction, then every version published on either channel with its
+notes, sorted by version (newest or oldest first), filtered to stable or
+beta while a beta exists, and with an index of versions to jump to. It reads
+the repository as What's new does, so it needs no editing. A new site has
+one at `/releases`; its address, title, text and links in the header and
+footer are set like any page's. What's new ends with a button to the first
+published one, labeled in the section's settings (empty hides it).
 
 ### Who sees the site
 
@@ -233,12 +284,13 @@ domain; until then Flatout uses the address each request arrives on.
 ## Packages
 
 Beside the Flatpak repository, Flatout keeps a dnf repository for RPMs, an apt
-repository for Debian packages, AppImages that update from the site, and a
-place for any other file people download, such as a tarball. Each has a stable
-and a beta channel, like releases. Installs that add the dnf or apt repository
-get every later version through their system's own updates: `dnf upgrade`,
-`apt upgrade`, GNOME Software or KDE Discover. An AppImage gets them through
-Gear Lever, AppImageLauncher or AppImageUpdate.
+repository for Debian packages, AppImages that update from the site, Mac apps
+with a Sparkle appcast, and a place for any other file people download, such
+as a tarball. Each has a stable and a beta channel, like releases. Installs
+that add the dnf or apt repository get every later version through their
+system's own updates: `dnf upgrade`, `apt upgrade`, GNOME Software or KDE
+Discover. An AppImage gets them through Gear Lever, AppImageLauncher or
+AppImageUpdate, and a Mac app through Sparkle.
 
 Upload under Releases, beside the bundles, or from CI (below). What a file
 is comes from its first bytes:
@@ -253,6 +305,9 @@ is comes from its first bytes:
   component, `main`.
 - **An AppImage** is told where its updates are, and gets a zsync file for
   updaters to check (see [AppImages](#appimages)).
+- **A Mac app**, a `.dmg`, a `.pkg`, or a `.zip` or tarball with the `.app`
+  inside, is signed for Sparkle and listed in the appcast (see
+  [Mac apps](#mac-apps)).
 - **Anything else** is offered as a download, under its own name or a
   download name you give it. Its version comes from that name (or type one).
   A later upload under the same name replaces it at the same address.
@@ -269,6 +324,9 @@ is comes from its first bytes:
 | `/download/<file>`, `/download/beta/<file>` | The newest AppImage or other file |
 | `/download/<file>.zsync`, `/download/beta/<file>.zsync` | The newest AppImage's zsync file, which installed copies check for updates |
 | `/appimage/<id>/<file>` | One version of an AppImage, and its own `.zsync` beside it |
+| `/sparkle/appcast.xml` | The Sparkle appcast for the stable channel, which a Mac app checks |
+| `/sparkle/appcast-beta.xml` | The Sparkle appcast with the stable and beta channels together |
+| `/macos/<id>/<file>` | One build of a Mac app, which the appcast names |
 
 `<remote>` is the remote name under Repository > App. Adding the repository is
 one command, then the package installs by name:
@@ -308,7 +366,8 @@ fixed version instead.
 
 **Promote to stable** copies the newest beta of every package and file to
 stable, the same file, without uploading it again. An AppImage is the one
-exception: its copy is told to update from stable instead of beta.
+exception: its copy is told to update from stable instead of beta. A Mac app
+is copied as it is, signature and all.
 
 Changing the signing key signs every RPM and every index again with the new
 one. Installs that added the repository have to fetch the new key, as with
@@ -353,6 +412,63 @@ the site and stay as they are.
 AppImageLauncher and AppImageUpdate ask for many blocks in one request (a
 `Range` header with several ranges), which Flatout answers with
 `multipart/byteranges`. A proxy in front has to pass those requests through.
+
+### Mac apps
+
+A Mac app updates itself with [Sparkle](https://sparkle-project.org): it
+checks an appcast, a feed of versions, and installs the newest one it can run
+once its signature checks out against the key in the app. Flatout writes the
+appcast from what is published and signs every upload, so publishing a version
+is uploading it.
+
+The app needs two lines in its `Info.plist`, which Repository > Signing and
+addresses shows ready to copy under Sparkle key for Mac apps:
+
+```xml
+<key>SUFeedURL</key>
+<string>https://app.example.org/sparkle/appcast.xml</string>
+<key>SUPublicEDKey</key>
+<string>…</string>
+```
+
+Flatout makes the key with the first Mac upload. If the app already ships
+with a key, import that one instead: export it on your Mac with Sparkle's
+`generate_keys -x key.txt` and paste what the file holds. A key in Sparkle's
+older format (made before Sparkle 2) can't be imported; make a new one here
+and put its public key in the next version of the app. Replacing the key signs
+every published Mac build again, but installed copies only accept the key in
+their own `Info.plist`, so replace it only with the one the app has. Download
+a backup of the key from the same place; `generate_keys -f` takes it back.
+
+Sparkle compares the build number, `CFBundleVersion`, not the version people
+read: an update needs a higher one, by Sparkle's rules (`10` after `9`, `1.0`
+after `1.0b1`). Flatout reads the build number, the version, the lowest macOS
+(`LSMinimumSystemVersion`) and the processors the app runs on from the app's
+`Info.plist` and executable. A disk image is read with 7-Zip, which the Docker
+image has; when a file can't be read, give the build number and lowest macOS
+with the upload. A build already on the channel is refused.
+
+Upload the app as a `.dmg`, a `.zip` made with `ditto -c -k --keepParent`, a
+tarball, or an installer `.pkg`, which Sparkle runs as an installer. Its
+download name is the file's name without the version, `MyApp-1.2.0.dmg`
+becoming `MyApp.dmg`, and the site's install dialog offers it, chosen first
+for visitors on a Mac. If the same build is uploaded as a `.zip` and a `.dmg`,
+the appcast offers the `.zip`. Build for both kinds of Mac in one universal
+app if you can. A build for Apple silicon only is marked so in the appcast,
+which only Sparkle 2.9 and later understands; older ones would offer it to
+Intel Macs too.
+
+The stable appcast lists the stable channel only. The beta appcast lists the
+stable and beta channels together, so beta testers move on to the release
+when it is newer. Point a beta build's `SUFeedURL` at it, or switch to it in
+the app (`feedURLString(for:)` in the updater's delegate) for people who ask
+for betas. The release notes given with an upload are shown in Sparkle's
+update window, and the release notes page, if the site has one, is its full
+history.
+
+**Withdraw** takes a build out of the appcast and deletes it. Sparkle never
+moves to an older build, so Macs that installed it keep it until a newer one
+is published.
 
 ## Publishing from CI or an agent
 
@@ -419,6 +535,15 @@ every time:
 ```sh
 curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
   -F file=@MyApp-1.2.0-x86_64.AppImage -F channel=stable \
+  https://app.example.org/api/v1/packages
+```
+
+So does a Mac app. Flatout reads its build number from the app; send `build`
+(its `CFBundleVersion`) and `minimum_system_version` only when it can't:
+
+```sh
+curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
+  -F file=@MyApp-1.2.0.dmg -F channel=stable \
   https://app.example.org/api/v1/packages
 ```
 
@@ -502,17 +627,18 @@ repository added fetches its index (`repomd.xml`, `InRelease`) when it
 checks for updates, which dnf does daily with the `.repo` file Flatout
 writes and apt does daily on most systems, so Installs by format shows the
 installs checking each repository today and on the busiest day of the week.
-An AppImage fetches its zsync file when its updater checks, which counts the
-same way. Each package and file also counts its downloads, by dnf, apt and
-AppImage updaters or from the site, in the releases view below the chart.
+An AppImage fetches its zsync file when its updater checks, and a Mac app its
+Sparkle appcast, once a day by default, which count the same way. Each package
+and file also counts its downloads, by dnf, apt, AppImage updaters and Sparkle
+or from the site, in the releases view below the chart.
 
 `GET /api/v1/stats` returns the same, for scripts and agents.
 
 ## Configuration
 
-Everything is optional. Put values in a `.env` file next to
-`docker-compose.yml` (`.env.example` lists them all), then
-`docker compose up -d` to apply.
+Everything is optional. Put values in the `.env` file next to
+`docker-compose.yml` ([how](#the-env-file)), then `docker compose up -d` to
+apply.
 
 | Variable | Default | What it does |
 | --- | --- | --- |
@@ -522,6 +648,16 @@ Everything is optional. Put values in a `.env` file next to
 | `TRUST_PROXY` | `0` | How many reverse proxies are in front; see below |
 | `MAX_UPLOAD_MB` | `2048` | The largest bundle accepted |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | empty | Cloudflare Turnstile keys for the sign-in page; usually set in the admin instead |
+
+The variables below are read by Flatout but are not in `docker-compose.yml`,
+so a line in `.env` does not reach them. To set one, add it under
+`environment:` in `docker-compose.yml`, for example
+`- ALLOW_REGISTRATION=1`, then run `docker compose up -d`.
+`ALLOW_REGISTRATION` is only the default for a fresh install: once an admin
+turns sign-up on or off in Settings, that choice wins.
+
+| Variable | Default | What it does |
+| --- | --- | --- |
 | `ALLOW_REGISTRATION` | `0` | Whether anyone can create their own account |
 | `WORKER_MINUTES` | `60` | How often housekeeping runs (pruning old stats); `0` turns it off |
 | `APP_NAME` | `Flatout` | What the admin calls itself |
@@ -587,7 +723,7 @@ existing install needs something done by hand; the changelog says what.
 
 Settings > Backup (admins only) makes one file with everything: the
 accounts, the site and its media, the repository with every build, the
-signing key and the settings. It is encrypted with a passphrase you choose,
+signing keys (the repository's and Sparkle's) and the settings. It is encrypted with a passphrase you choose,
 at least 12 characters, which the server forgets once the backup is made;
 without it nobody can open the file. Making one runs in the background and
 can take a while for a large repository; the newest backup stays on the
