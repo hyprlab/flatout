@@ -436,14 +436,44 @@ def test_the_secret_key_never_goes_to_a_token(client, csrf, admin):
 
 # ———————————————————————————— The site ————————————————————————————
 
-def test_the_install_dialog_offers_the_mac_app(client, csrf, admin, run_jobs):
+def with_a_linux_package(app):
+    """An RPM beside the Mac app, so the dialog lists its formats."""
+    from flatout.models import utcnow
+    with app.app_context():
+        db.session.add(Package(format="rpm", channel="stable", name="myapp", version="1.4.0", evr="1.4.0-1",
+                               arch="x86_64", status="live", path="rpm/stable/packages/myapp-1.4.0-1.x86_64.rpm",
+                               published_at=utcnow()))
+        db.session.commit()
+
+
+def mac_chips(page):
+    face = page[page.index('value="macos"'):]
+    return face[:face.index("</label>")]
+
+
+def test_the_install_dialog_offers_the_mac_app(app, client, csrf, admin, run_jobs):
     published(client, csrf, run_jobs, mac_zip(), "My App 1.4.0.zip")
+    with_a_linux_package(app)
     client.post("/api/v1/site/status", json={"status": "published"}, headers=h(csrf))
     client.patch("/api/v1/site/status", json={"status": "published"}, headers=h(csrf))
     page = client.get("/").get_data(as_text=True)
     assert 'data-method="macos"' in page
     assert "/download/My-App.zip" in page
     assert "Apple silicon and Intel" in page
+    # A universal build runs on both kinds of Mac, so the list names both.
+    assert ('<span class="method__arches"><span class="arch-chip" data-arch="arm64">Apple silicon</span>'
+            '<span class="arch-chip" data-arch="x86_64">Intel</span></span>') in mac_chips(page)
+
+
+def test_the_mac_chips_name_only_the_macs_built_for(app, client, csrf, admin, run_jobs):
+    published(client, csrf, run_jobs, mac_zip(cpus=(ARM64,)), "MyApp-1.4.0-arm64.zip")
+    with_a_linux_package(app)
+    client.post("/api/v1/site/status", json={"status": "published"}, headers=h(csrf))
+    client.patch("/api/v1/site/status", json={"status": "published"}, headers=h(csrf))
+    page = client.get("/").get_data(as_text=True)
+    chips = mac_chips(page)
+    assert '<span class="arch-chip" data-arch="arm64">Apple silicon</span>' in chips
+    assert 'data-arch="x86_64"' not in chips
 
 
 def test_the_migration_adds_the_mac_columns(app):

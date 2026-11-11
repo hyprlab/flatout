@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Fixed
+- The install dialog's macOS entry shows its machines as chips, Apple silicon
+  and Intel, like the other formats. A universal build shows both.
+
 ## [2.3.1] — 2026-11-11
 
 ### Fixed

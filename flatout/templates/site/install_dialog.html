@@ -68,8 +68,13 @@
 {%- endmacro %}
 {%- macro arch_chips(m) -%}
 {#- The machines a format is built for, as chips under its name; the one the
-    switch has picked stands out. Only where there are machines to tell apart. -#}
-{%- if arches|length > 1 %}
+    switch has picked stands out. Only where there are machines to tell apart.
+    Macs are always Apple silicon or Intel, and a universal build runs on both. -#}
+{%- if m == 'macos' %}
+{%- set mac = [] %}
+{%- for f in pk.macos[channel] %}{% for a in (['arm64', 'x86_64'] if f.arch == 'universal' else [f.arch]) %}{% set _ = mac.append(a) %}{% endfor %}{% endfor %}
+{%- if mac %}<span class="method__arches">{% for a in ('arm64', 'x86_64') if a in mac %}<span class="arch-chip" data-arch="{{ a }}">{{ 'Apple silicon' if a == 'arm64' else 'Intel' }}</span>{% endfor %}</span>{% endif %}
+{%- elif arches|length > 1 %}
 {%- if m in ('ref', 'repo') %}{% set built = arches %}
 {%- elif m == 'bundle' %}{% set built = bundle_arches %}
 {%- elif m in ('rpm', 'deb') %}{% set built = built_for(pk[m][channel]).split() or arches %}
