@@ -26,7 +26,8 @@ bp = Blueprint("mcp", __name__)
 PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 
 INSTRUCTIONS = """Flatout runs a Flatpak app's homepage and its Flatpak repository, and beside it
-a dnf repository for RPMs, an apt repository for Debian packages, and other downloads.
+a dnf repository for RPMs, an apt repository for Debian packages, AppImages, Mac apps
+with a Sparkle appcast, and other downloads.
 
 The site is one JSON document with a draft and a live copy. Every change goes to
 the draft; nothing is public until publish_site. Separately, set_site_status says
@@ -49,7 +50,12 @@ withdraw_version takes a version off a channel in every format at once.
 Packages: upload_package_from_url publishes an .rpm in the dnf repository or a .deb in
 the apt repository, signed, or any other file as a download, on a channel; poll
 get_package. The newest version is what dnf and apt install. withdraw_package takes
-one out (installed copies stay on it); promote_packages copies beta to stable."""
+one out (installed copies stay on it); promote_packages copies beta to stable.
+
+Mac apps: upload_package_from_url with a .dmg, a .pkg, or a .zip or tarball holding
+an .app. Flatout reads the build number (CFBundleVersion) from the app, signs the file
+for Sparkle and lists it in the appcast; give "build" when it can't be read. The app
+needs SUFeedURL and SUPublicEDKey in its Info.plist: get_repository's "sparkle" has both."""
 
 
 # ———————————————————————————— Tools ————————————————————————————
@@ -150,31 +156,38 @@ TOOLS = {
                          "POST", "/versions/withdraw", "*", False, True),
     "end_channel": ("Retire a channel: installed copies are told no more updates will come.",
                     _obj({"channel": CHANNEL, "message": S}, ["channel"]), "POST", "/channels/{channel}/end", "*", False, True),
-    "list_packages": ("RPM and Debian packages, AppImages and other files, newest first.",
-                      _obj({"format": {"type": "string", "enum": ["rpm", "deb", "appimage", "file"]}, "channel": CHANNEL, "limit": I}),
+    "list_packages": ("RPM and Debian packages, AppImages, Mac apps and other files, newest first.",
+                      _obj({"format": {"type": "string", "enum": ["rpm", "deb", "appimage", "macos", "file"]}, "channel": CHANNEL, "limit": I}),
                       "GET", "/packages?format={format}&channel={channel}&limit={limit}", None, True, False),
     "get_package": ("One package or file, with the log of its newest job.", _obj({"id": I}, ["id"]),
                     "GET", "/packages/{id}", None, True, False),
-    "upload_package_from_url": ("Have Flatout download an .rpm, a .deb, an AppImage or another file and publish it "
-                                "on a channel: an RPM in the dnf repository and a Debian package in the apt "
+    "upload_package_from_url": ("Have Flatout download an .rpm, a .deb, an AppImage, a Mac app or another file and "
+                                "publish it on a channel: an RPM in the dnf repository and a Debian package in the apt "
                                 "repository, signed; an AppImage set to update from this site, under its file name "
-                                "without the version; anything else as a download, under \"name\" if given. "
-                                "Answers at once; the job runs in the background (see get_package).",
+                                "without the version; a Mac app (.dmg, .pkg, or a .zip or tarball with an .app) "
+                                "signed for Sparkle and listed in the appcast; anything else as a download, under "
+                                "\"name\" if given. Answers at once; the job runs in the background (see get_package).",
                                 _obj({"url": S, "channel": CHANNEL, "name": S, "version": S, "arch": S,
+                                      "build": {"type": "string", "description": "A Mac app's CFBundleVersion, when it "
+                                                                                 "can't be read from the file"},
+                                      "minimum_system_version": {"type": "string", "description": "A Mac app's lowest "
+                                                                                                  "macOS, such as 12.0"},
                                       "notes": {"type": "string", "description": "Markdown"}}, ["url"]),
                                 "POST", "/packages", "*", False, False),
     "update_package": ("Change a package's notes or the version label shown on the site.",
                        _obj({"id": I, "notes": S, "version": S}, ["id"]), "PATCH", "/packages/{id}", "*", False, False),
     "withdraw_package": ("Take a package out of its repository, or a file off the site, and delete it. Installed "
                          "packages keep it; new installs get the version before. Installed AppImages go back to "
-                         "the version before when they next check for updates.",
+                         "the version before when they next check for updates; Mac apps keep it, since Sparkle "
+                         "never goes back.",
                          _obj({"id": I}, ["id"]), "POST", "/packages/{id}/withdraw", "*", False, True),
     "promote_packages": ("Copy the newest packages and files of one channel to another, usually beta to stable.",
-                         _obj({"from": CHANNEL, "to": CHANNEL, "format": {"type": "string", "enum": ["rpm", "deb", "appimage", "file"]},
+                         _obj({"from": CHANNEL, "to": CHANNEL, "format": {"type": "string", "enum": ["rpm", "deb", "appimage", "macos", "file"]},
                                "notes": S}), "POST", "/packages/promote", "*", False, False),
     "get_job": ("A repository job's status and log.", _obj({"id": I}, ["id"]), "GET", "/jobs/{id}", None, True, False),
-    "get_repository": ("The repository: the app ID, install addresses, signing key and settings, and live releases "
-                       "for another app ID than the site's (unmatched_app_ids).",
+    "get_repository": ("The repository: the app ID, install addresses, signing key and settings, the Sparkle key "
+                       "and appcast for Mac apps, and live releases for another app ID than the site's "
+                       "(unmatched_app_ids).",
                        _obj({}), "GET", "/repo", None, True, False),
     "update_repository_settings": ("Set the Flatpak app ID the site installs, the beta's app ID when the beta is a "
                                    "separate app, the remote name, the public address, "
@@ -185,6 +198,9 @@ TOOLS = {
                                    "PATCH", "/repo/settings", "*", False, False),
     "create_signing_key": ("Create the repository's signing key, if it has none yet.", _obj({"name": S, "email": S}),
                            "POST", "/repo/key", "generate", False, False),
+    "create_sparkle_key": ("Create the Sparkle key Mac apps check updates against, if there is none yet. Flatout "
+                           "also makes one with the first Mac upload.", _obj({}),
+                           "POST", "/sparkle/key", "generate", False, False),
     "get_install_stats": ("Installs checking for updates per day, installs per format, and downloads per release and package.", _obj({"days": I}),
                           "GET", "/stats?days={days}", None, True, False),
 }

@@ -284,12 +284,13 @@ domain; until then Flatout uses the address each request arrives on.
 ## Packages
 
 Beside the Flatpak repository, Flatout keeps a dnf repository for RPMs, an apt
-repository for Debian packages, AppImages that update from the site, and a
-place for any other file people download, such as a tarball. Each has a stable
-and a beta channel, like releases. Installs that add the dnf or apt repository
-get every later version through their system's own updates: `dnf upgrade`,
-`apt upgrade`, GNOME Software or KDE Discover. An AppImage gets them through
-Gear Lever, AppImageLauncher or AppImageUpdate.
+repository for Debian packages, AppImages that update from the site, Mac apps
+with a Sparkle appcast, and a place for any other file people download, such
+as a tarball. Each has a stable and a beta channel, like releases. Installs
+that add the dnf or apt repository get every later version through their
+system's own updates: `dnf upgrade`, `apt upgrade`, GNOME Software or KDE
+Discover. An AppImage gets them through Gear Lever, AppImageLauncher or
+AppImageUpdate, and a Mac app through Sparkle.
 
 Upload under Releases, beside the bundles, or from CI (below). What a file
 is comes from its first bytes:
@@ -304,6 +305,9 @@ is comes from its first bytes:
   component, `main`.
 - **An AppImage** is told where its updates are, and gets a zsync file for
   updaters to check (see [AppImages](#appimages)).
+- **A Mac app**, a `.dmg`, a `.pkg`, or a `.zip` or tarball with the `.app`
+  inside, is signed for Sparkle and listed in the appcast (see
+  [Mac apps](#mac-apps)).
 - **Anything else** is offered as a download, under its own name or a
   download name you give it. Its version comes from that name (or type one).
   A later upload under the same name replaces it at the same address.
@@ -320,6 +324,9 @@ is comes from its first bytes:
 | `/download/<file>`, `/download/beta/<file>` | The newest AppImage or other file |
 | `/download/<file>.zsync`, `/download/beta/<file>.zsync` | The newest AppImage's zsync file, which installed copies check for updates |
 | `/appimage/<id>/<file>` | One version of an AppImage, and its own `.zsync` beside it |
+| `/sparkle/appcast.xml` | The Sparkle appcast for the stable channel, which a Mac app checks |
+| `/sparkle/appcast-beta.xml` | The Sparkle appcast with the stable and beta channels together |
+| `/macos/<id>/<file>` | One build of a Mac app, which the appcast names |
 
 `<remote>` is the remote name under Repository > App. Adding the repository is
 one command, then the package installs by name:
@@ -359,7 +366,8 @@ fixed version instead.
 
 **Promote to stable** copies the newest beta of every package and file to
 stable, the same file, without uploading it again. An AppImage is the one
-exception: its copy is told to update from stable instead of beta.
+exception: its copy is told to update from stable instead of beta. A Mac app
+is copied as it is, signature and all.
 
 Changing the signing key signs every RPM and every index again with the new
 one. Installs that added the repository have to fetch the new key, as with
@@ -404,6 +412,63 @@ the site and stay as they are.
 AppImageLauncher and AppImageUpdate ask for many blocks in one request (a
 `Range` header with several ranges), which Flatout answers with
 `multipart/byteranges`. A proxy in front has to pass those requests through.
+
+### Mac apps
+
+A Mac app updates itself with [Sparkle](https://sparkle-project.org): it
+checks an appcast, a feed of versions, and installs the newest one it can run
+once its signature checks out against the key in the app. Flatout writes the
+appcast from what is published and signs every upload, so publishing a version
+is uploading it.
+
+The app needs two lines in its `Info.plist`, which Repository > Signing and
+addresses shows ready to copy under Sparkle key for Mac apps:
+
+```xml
+<key>SUFeedURL</key>
+<string>https://app.example.org/sparkle/appcast.xml</string>
+<key>SUPublicEDKey</key>
+<string>…</string>
+```
+
+Flatout makes the key with the first Mac upload. If the app already ships
+with a key, import that one instead: export it on your Mac with Sparkle's
+`generate_keys -x key.txt` and paste what the file holds. A key in Sparkle's
+older format (made before Sparkle 2) can't be imported; make a new one here
+and put its public key in the next version of the app. Replacing the key signs
+every published Mac build again, but installed copies only accept the key in
+their own `Info.plist`, so replace it only with the one the app has. Download
+a backup of the key from the same place; `generate_keys -f` takes it back.
+
+Sparkle compares the build number, `CFBundleVersion`, not the version people
+read: an update needs a higher one, by Sparkle's rules (`10` after `9`, `1.0`
+after `1.0b1`). Flatout reads the build number, the version, the lowest macOS
+(`LSMinimumSystemVersion`) and the processors the app runs on from the app's
+`Info.plist` and executable. A disk image is read with 7-Zip, which the Docker
+image has; when a file can't be read, give the build number and lowest macOS
+with the upload. A build already on the channel is refused.
+
+Upload the app as a `.dmg`, a `.zip` made with `ditto -c -k --keepParent`, a
+tarball, or an installer `.pkg`, which Sparkle runs as an installer. Its
+download name is the file's name without the version, `MyApp-1.2.0.dmg`
+becoming `MyApp.dmg`, and the site's install dialog offers it, chosen first
+for visitors on a Mac. If the same build is uploaded as a `.zip` and a `.dmg`,
+the appcast offers the `.zip`. Build for both kinds of Mac in one universal
+app if you can. A build for Apple silicon only is marked so in the appcast,
+which only Sparkle 2.9 and later understands; older ones would offer it to
+Intel Macs too.
+
+The stable appcast lists the stable channel only. The beta appcast lists the
+stable and beta channels together, so beta testers move on to the release
+when it is newer. Point a beta build's `SUFeedURL` at it, or switch to it in
+the app (`feedURLString(for:)` in the updater's delegate) for people who ask
+for betas. The release notes given with an upload are shown in Sparkle's
+update window, and the release notes page, if the site has one, is its full
+history.
+
+**Withdraw** takes a build out of the appcast and deletes it. Sparkle never
+moves to an older build, so Macs that installed it keep it until a newer one
+is published.
 
 ## Publishing from CI or an agent
 
@@ -470,6 +535,15 @@ every time:
 ```sh
 curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
   -F file=@MyApp-1.2.0-x86_64.AppImage -F channel=stable \
+  https://app.example.org/api/v1/packages
+```
+
+So does a Mac app. Flatout reads its build number from the app; send `build`
+(its `CFBundleVersion`) and `minimum_system_version` only when it can't:
+
+```sh
+curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
+  -F file=@MyApp-1.2.0.dmg -F channel=stable \
   https://app.example.org/api/v1/packages
 ```
 
@@ -553,9 +627,10 @@ repository added fetches its index (`repomd.xml`, `InRelease`) when it
 checks for updates, which dnf does daily with the `.repo` file Flatout
 writes and apt does daily on most systems, so Installs by format shows the
 installs checking each repository today and on the busiest day of the week.
-An AppImage fetches its zsync file when its updater checks, which counts the
-same way. Each package and file also counts its downloads, by dnf, apt and
-AppImage updaters or from the site, in the releases view below the chart.
+An AppImage fetches its zsync file when its updater checks, and a Mac app its
+Sparkle appcast, once a day by default, which count the same way. Each package
+and file also counts its downloads, by dnf, apt, AppImage updaters and Sparkle
+or from the site, in the releases view below the chart.
 
 `GET /api/v1/stats` returns the same, for scripts and agents.
 
@@ -648,7 +723,7 @@ existing install needs something done by hand; the changelog says what.
 
 Settings > Backup (admins only) makes one file with everything: the
 accounts, the site and its media, the repository with every build, the
-signing key and the settings. It is encrypted with a passphrase you choose,
+signing keys (the repository's and Sparkle's) and the settings. It is encrypted with a passphrase you choose,
 at least 12 characters, which the server forgets once the backup is made;
 without it nobody can open the file. Making one runs in the background and
 can take a while for a large repository; the newest backup stays on the

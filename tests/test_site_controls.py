@@ -232,6 +232,8 @@ def test_an_install_dialog_from_before_the_shared_fields_keeps_its_text():
         for part in ("above", "below", "tips"):
             install.pop(f"{m}_{part}")
     install.pop("files_title")
+    for field in [k for k in install if k.startswith("macos_")]:   # a format added since
+        install.pop(field)
     install.update({
         "show_arch_picker": True, "ref_desc": "", "ref_button": "Get it", "ref_after": "Open it.",
         "ref_tip_title": "Using Bazaar?", "ref_tip_text": "Add it once:", "ref_tip_command": "flatpak remote-add x",
@@ -271,7 +273,7 @@ def test_the_install_dialog_s_fields_fold_by_format():
     as the site names that format; the dialog's own settings stay out of them."""
     install = site_schema.schema_json()["document"]["fields"]["install"]
     folds = {f["key"]: f for f in install["folds"]}
-    assert list(folds) == ["ref", "bundle", "repo", "rpm", "deb", "appimage", "files"]
+    assert list(folds) == ["ref", "bundle", "repo", "rpm", "deb", "appimage", "macos", "files"]
     assert all(f["title_field"] == k + "_title" for k, f in folds.items())
     assert folds["bundle"]["fields"] == ["bundle_method", "bundle_title", "bundle_url", "bundle_above",
                                          "bundle_below", "bundle_tips"]

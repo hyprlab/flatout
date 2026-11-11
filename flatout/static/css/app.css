@@ -1052,6 +1052,7 @@ input.switch:checked::after { transform: translateX(14px); }
 /* Commands to copy, on the Packages page: one block per way of installing. */
 .pkg-command { margin: 0 0 14px; }
 .pkg-command .setting-label { margin: 0 0 6px; }
+#sparkle-panel .pkg-command { margin-top: 18px; }
 .pkg-command-box { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; }
 .pkg-command pre { margin: 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .joblog { max-height: 340px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; white-space: pre-wrap; word-break: break-all; }

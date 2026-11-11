@@ -31,6 +31,13 @@ And what AppImage updaters fetch (appimage.py):
     /appimage/<id>/<file>, /appimage/<id>/<file>.zsync
                                     one version, which that zsync file names
 
+And what Sparkle, in a Mac app, fetches (sparkle.py):
+
+    /sparkle/appcast.xml            the stable channel's feed, written on
+                                    each request from what is published
+    /sparkle/appcast-beta.xml       the stable and beta channels together
+    /macos/<id>/<file>              one build, which the feed names
+
 The install files are written on each request from the site's settings, so
 they always match the current key, address and app.
 """
@@ -40,7 +47,7 @@ from pathlib import Path
 from flask import Blueprint, Response, abort, current_app, request, send_file, send_from_directory
 from werkzeug.http import parse_range_header
 
-from . import appimage, packages, releases, repo, site, stats
+from . import appimage, packages, releases, repo, site, sparkle, stats
 from .models import db
 
 bp = Blueprint("serve", __name__)
@@ -186,8 +193,15 @@ def _package_download(name: str):
     return resp
 
 
+MAC_TYPES = {"dmg": "application/x-apple-diskimage", "zip": "application/zip", "pkg": "application/octet-stream"}
+
+
 def _mimetype(pkg) -> str | None:
-    return "application/vnd.appimage" if pkg.format == "appimage" else None
+    if pkg.format == "appimage":
+        return "application/vnd.appimage"
+    if pkg.format == "macos":
+        return MAC_TYPES.get(sparkle.kind_of(pkg.path or ""), "application/octet-stream")
+    return None
 
 
 def _latest_zsync(name: str) -> Response:
@@ -226,6 +240,39 @@ def appimage_file(package_id, filename):
         resp = send_from_directory(packages.root(), pkg.path + ".zsync", mimetype="application/x-zsync")
     else:
         abort(404)
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    resp.headers.pop("Content-Encoding", None)
+    return resp
+
+
+@bp.route("/sparkle/<name>")
+def appcast(name):
+    """The Sparkle feed a Mac app checks, for its channel. Never cached: it
+    changes with every upload, and each fetch is an install checking."""
+    channel = next((c for c, feed in sparkle.FEEDS.items() if feed == name), None)
+    if channel is None:
+        abort(404)
+    stats.count("pkgcheck", f"macos-{channel}", client_address())
+    resp = Response(sparkle.appcast(channel, site.base_url()), mimetype="application/xml")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@bp.route("/macos/<int:package_id>/<filename>")
+def macos_file(package_id, filename):
+    """One build of a Mac app, at the address the feed gives. A build's file
+    never changes, so it may be cached for good."""
+    pkg = db.session.get(packages.Package, package_id)
+    if pkg is None or pkg.format != "macos" or pkg.status not in packages.IN_REPO or not pkg.path \
+            or filename != Path(pkg.path).name:
+        abort(404)
+    # Sparkle resumes an interrupted download with a range; only a whole
+    # one, or one from the top, counts.
+    ranges = parse_range_header(request.headers.get("Range"))
+    if ranges is None or ranges.ranges[0][0] == 0:
+        stats.count("pkgpull", str(pkg.id), client_address())
+    resp = send_from_directory(packages.root(), pkg.path, as_attachment=True, mimetype=_mimetype(pkg),
+                               conditional=True)
     resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     resp.headers.pop("Content-Encoding", None)
     return resp

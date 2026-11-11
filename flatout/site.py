@@ -185,7 +185,7 @@ class Renderer:
         self.repo = releases.public_info(doc, self.base)
         app = doc["app"]
         pk = self.repo["packages"]
-        newest_package = pk["rpm"]["stable"] or pk["deb"]["stable"] or {}
+        newest_package = pk["rpm"]["stable"] or pk["deb"]["stable"] or (pk["macos"]["stable"] or [{}])[0]
         self.values = {
             "app_name": app["name"],
             "app_tagline": app["tagline"],

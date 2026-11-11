@@ -329,6 +329,10 @@
       });
     }
     methodInputs.forEach(function (el) { el.addEventListener("change", render); });
+    // A visitor on a Mac starts on the Mac app. An iPad says Macintosh too,
+    // but has a touch screen.
+    var onMac = /Macintosh|Mac OS X/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1);
+    methodInputs.forEach(function (el) { if (onMac && el.value === "macos") el.checked = true; });
     render();
   });
 

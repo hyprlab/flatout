@@ -4,8 +4,9 @@
     version and size beside it, so nobody has to say which machine they
     have. Every address comes from the repository (releases.public_info), so
     it follows the uploads. The dnf and apt
-    repositories, AppImages and other downloads (packages.public_info) are
-    methods too, each shown once something is published there.
+    repositories, AppImages, Mac apps and other downloads
+    (packages.public_info) are methods too, each shown once something is
+    published there. site.js chooses the Mac app first for a visitor on a Mac.
 
     Included once per channel (layout.html): `channel` is "stable", or "beta"
     for the beta section's button, which then installs the beta app, its
@@ -41,8 +42,9 @@
 {%- if pk.rpm[channel] and conf.get('rpm_method', true) %}{% set _ = methods.append('rpm') %}{% endif %}
 {%- if pk.deb[channel] and conf.get('deb_method', true) %}{% set _ = methods.append('deb') %}{% endif %}
 {%- if pk.appimage[channel] and conf.get('appimage_method', true) %}{% set _ = methods.append('appimage') %}{% endif %}
+{%- if pk.macos[channel] and conf.get('macos_method', true) %}{% set _ = methods.append('macos') %}{% endif %}
 {%- if pk.files[channel] and conf.get('files_method', true) %}{% set _ = methods.append('files') %}{% endif %}
-{%- set pkg_version = (pk.rpm[channel] or pk.deb[channel] or pk.appimage[channel]|first or {}).get('version') %}
+{%- set pkg_version = (pk.rpm[channel] or pk.deb[channel] or pk.appimage[channel]|first or pk.macos[channel]|first or {}).get('version') %}
 {#- The AppImages' machines, as a package's, when every one says its own. -#}
 {%- set ai_downloads = {} %}
 {%- for f in pk.appimage[channel] %}{% set _ = ai_downloads.update({f.arch or '': f.url}) %}{% endfor %}
@@ -228,6 +230,20 @@
       </ul>
       {{ below('appimage') }}
       {{ tips('appimage') }}
+    </section>
+    {%- endif %}
+    {%- if 'macos' in methods %}
+    {#- Mac builds are named for Macs (Apple silicon, Intel), not by the
+        Linux machine names the other formats use. #}
+    <section class="how" data-method="macos"{% if methods|first != 'macos' %} hidden{% endif %}>
+      {{ above('macos') }}
+      <ul class="dl-list">
+        {%- for f in pk.macos[channel] %}
+        {{ dl_item(f.url, f.file or f.name, f.version, f.arch_name, f.size) }}
+        {%- endfor %}
+      </ul>
+      {{ below('macos') }}
+      {{ tips('macos') }}
     </section>
     {%- endif %}
     {%- if 'files' in methods %}

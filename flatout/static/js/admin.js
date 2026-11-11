@@ -294,7 +294,7 @@
   // /releases and everything else to /packages.
   var releasesPage = document.getElementById("releases-page");
   if (releasesPage) {
-    var FORMAT = { flatpak: "Flatpak", rpm: "RPM", deb: "Debian", appimage: "AppImage", file: "File" };
+    var FORMAT = { flatpak: "Flatpak", rpm: "RPM", deb: "Debian", appimage: "AppImage", macos: "macOS", file: "File" };
     var rows = document.getElementById("release-rows");
     var tiles = document.getElementById("channel-tiles");
     var pollTimer = null;
@@ -321,16 +321,19 @@
         channel: document.querySelector('input[name="channel"]:checked').value,
         version: document.getElementById("upload-version").value.trim(),
         notes: document.getElementById("upload-notes").value,
-        name: document.getElementById("upload-filename").value.trim()
+        name: document.getElementById("upload-filename").value.trim(),
+        build: document.getElementById("upload-build").value.trim(),
+        minimum_system_version: document.getElementById("upload-min-os").value.trim()
       };
       var url = document.getElementById("upload-url").value.trim();
       var clearFields = function () {
-        ["upload-version", "upload-notes", "upload-filename", "upload-url"].forEach(function (id) { document.getElementById(id).value = ""; });
+        ["upload-version", "upload-notes", "upload-filename", "upload-url", "upload-build", "upload-min-os"].forEach(function (id) { document.getElementById(id).value = ""; });
       };
       var named = queue.items.filter(function (i) { return !isBundle(i.file.name); }).length;
       if (!queue.items.length && !url) { showError("upload-error", new Error("Choose files, or give the address to fetch one from.")); return; }
       if (queue.items.length && url) { showError("upload-error", new Error("Upload the chosen files or fetch one from the address, not both at once.")); return; }
       if (fields.name && named > 1) { showError("upload-error", new Error("A download name is for one file at a time.")); return; }
+      if (fields.build && named > 1) { showError("upload-error", new Error("A build number is for one Mac app at a time.")); return; }
       // What a file is decides where it goes: a bundle is a Flatpak build,
       // anything else a package or a download.
       var create = function (file, extra) {
@@ -338,6 +341,8 @@
         Object.keys(extra).forEach(function (k) { body[k] = extra[k]; });
         if (isBundle(file)) return call("POST", "/api/v1/releases", body);
         body.name = fields.name;
+        if (fields.build) body.build = fields.build;
+        if (fields.minimum_system_version) body.minimum_system_version = fields.minimum_system_version;
         return call("POST", "/api/v1/packages", body);
       };
       F.setBusy(btn, true);
@@ -388,6 +393,7 @@
       if (has("flatpak")) out.push("Flatpak installs go back to the build before it when they next update; a channel with no build before it loses that architecture.");
       if (has("rpm") || has("deb")) out.push("Installed packages keep this version until a newer one is published, since dnf and apt don't go back on their own; new installs get the one before.");
       if (has("appimage")) out.push("AppImages go back to the version before when they next check for updates.");
+      if (has("macos")) out.push("Macs keep this version until a newer build is published, since Sparkle doesn't go back; new downloads get the one before.");
       if (has("file")) out.push("Its downloads stop being offered.");
       if (!live.length) out.push("It isn't live, so nothing installed changes.");
       return out.join(" ");
@@ -438,7 +444,7 @@
         var s = p[f[0]][channel];
         if (s) lines.push({ name: f[1], version: s.version, arches: s.arches, at: s.published_at });
       });
-      [["appimage", "AppImage"], ["files", "Files"]].forEach(function (f) {
+      [["appimage", "AppImage"], ["macos", "macOS"], ["files", "Files"]].forEach(function (f) {
         var list = p[f[0]][channel];
         if (!list.length) return;
         var newest = list.reduce(function (a, b) { return a.published_at > b.published_at ? a : b; });
@@ -466,7 +472,7 @@
       var p = repoInfo.packages;
       var urls = [];
       if (repoInfo.beta) urls.push("/api/v1/releases/promote");
-      if (p.rpm.beta || p.deb.beta || p.appimage.beta.length || p.files.beta.length) urls.push("/api/v1/packages/promote");
+      if (p.rpm.beta || p.deb.beta || p.appimage.beta.length || p.macos.beta.length || p.files.beta.length) urls.push("/api/v1/packages/promote");
       // One after the other. Each kind promotes on its own; one with
       // nothing new for stable says so, which only matters when none had.
       var errors = [];
@@ -555,7 +561,7 @@
           ]),
           el("div", { class: "release-sub" }, [
             when(it.r.published_at || it.r.created_at) + (it.size ? " · " + size(it.size) : "") +
-            (it.r.evr && it.r.evr !== it.r.version ? " · " + it.r.evr : "")
+            (it.r.evr && it.r.evr !== it.r.version ? " · " + (it.fmt === "macos" ? "build " : "") + it.r.evr : "")
           ]),
           it.r.error ? el("p", { class: "form-error", text: it.r.error }) : null,
           el("div", { class: "release-actions" }, actions)
@@ -585,6 +591,10 @@
         var pairs = it.kind === "release"
           ? [["App", r.app_id], ["Status", STATUS[r.status] || r.status], ["Commit", r.commit], ["Runtime", r.runtime],
              ["Bundle SHA-256", r.bundle.sha256], ["Published", when(r.published_at)]]
+          : r.sparkle
+          ? [["Type", FORMAT[r.format]], ["Status", STATUS[r.status] || r.status], ["Bundle ID", r.summary], ["Build (CFBundleVersion)", r.sparkle.build],
+             ["Architecture", r.arch], ["Lowest macOS", r.sparkle.minimum_system_version], ["SHA-256", r.file.sha256],
+             ["Sparkle signature", r.sparkle.ed_signature], ["Download", r.file.url], ["Published", when(r.published_at)]]
           : [["Type", FORMAT[r.format]], ["Status", STATUS[r.status] || r.status], ["Version", r.evr],
              ["Architecture", r.arch], ["Summary", r.summary], ["SHA-256", r.file.sha256],
              ["Download", r.file.url], ["Updates from", r.file.zsync_url], ["Published", when(r.published_at)]];
@@ -656,6 +666,9 @@
           if (f.zsync_url) pairs.push(["Updates for " + f.name + c[1], f.zsync_url]);
         });
       });
+      // What a Mac app's Info.plist names as SUFeedURL.
+      if (p.macos.stable.length) pairs.push(["Sparkle appcast", p.macos.appcast_url]);
+      if (p.macos.beta.length) pairs.push(["Sparkle appcast, beta", p.macos.beta_appcast_url]);
       pairs.forEach(function (pair) {
         dl.appendChild(el("dt", { text: pair[0] }));
         dl.appendChild(el("dd", {}, [el("code", { text: pair[1] }), " ",
@@ -671,7 +684,7 @@
       channel: [["", "All"], ["stable", "Stable"], ["beta", "Beta"]],
       status: [["", "All"], ["publishing", "Publishing"], ["live", "Live"], ["earlier", "Earlier"],
                ["withdrawn", "Withdrawn"], ["failed", "Failed"]],
-      format: [["", "All"], ["flatpak", "Flatpak"], ["rpm", "RPM"], ["deb", "Debian"], ["appimage", "AppImage"], ["file", "File"]]
+      format: [["", "All"], ["flatpak", "Flatpak"], ["rpm", "RPM"], ["deb", "Debian"], ["appimage", "AppImage"], ["macos", "macOS"], ["file", "File"]]
     };
     var STATUS_GROUP = { queued: "publishing", processing: "publishing", live: "live", superseded: "earlier",
                          ended: "earlier", pruned: "earlier", withdrawn: "withdrawn", failed: "failed" };
@@ -775,7 +788,7 @@
 
         tiles.innerHTML = "";
         var betaActions = [];
-        var betaLive = repoInfo.beta || p.rpm.beta || p.deb.beta || p.appimage.beta.length || p.files.beta.length;
+        var betaLive = repoInfo.beta || p.rpm.beta || p.deb.beta || p.appimage.beta.length || p.macos.beta.length || p.files.beta.length;
         if (betaLive) {
           betaActions.push(el("button", { type: "button", class: "btn btn--primary btn--xs", text: "Promote to stable",
             title: "Copy the beta's newest build of every format to stable, as it is", onclick: function () { promote(repoInfo); } }));
@@ -922,6 +935,75 @@
       ]));
     };
 
+    // The Sparkle key: its public half and the feeds, which a Mac app's
+    // Info.plist names, or the way to make or bring one.
+    var sparklePanel = document.getElementById("sparkle-panel");
+    var renderSparkle = function (info) {
+      var sp = info.sparkle;
+      sparklePanel.innerHTML = "";
+      var importer = function (replace) {
+        var key = el("textarea", { rows: 2, spellcheck: "false", placeholder: "The contents of the file generate_keys -x wrote" });
+        return el("div", { class: "key-choice" }, [
+          el("p", { class: "setting-label", text: replace ? "Replace it with the key your app trusts" : "Or use the key your app has" }),
+          el("label", { class: "field" }, [el("span", { class: "field-label", text: "Private key" }), key]),
+          el("p", { class: "hint" }, ["Export it on your Mac with Sparkle's ", el("code", { text: "generate_keys -x key.txt" }), "."]),
+          el("button", { type: "button", class: "btn btn--ghost", text: "Import the key", onclick: function () {
+            if (replace && !confirm("Mac apps refuse updates signed with a key other than the one in their Info.plist. Replace the key and sign every published Mac build with the new one?")) return;
+            call("POST", "/api/v1/sparkle/key", { action: "import", key: key.value, replace: replace }).then(function (d) {
+              F.toast(d.job ? "Key imported. Signing the Mac builds with it" : "Key imported");
+              loadRepo();
+            }).catch(F.toastError);
+          } })
+        ]);
+      };
+      if (!sp.public_key) {
+        sparklePanel.appendChild(el("div", { class: "key-choices" }, [
+          el("div", { class: "key-choice" }, [
+            el("p", { class: "setting-label", text: "Create a new key" }),
+            el("p", { class: "hint", text: "Then put its public key in your app's Info.plist before you ship the version that should update from here." }),
+            el("button", { type: "button", class: "btn btn--primary", text: "Create the key", onclick: function () {
+              call("POST", "/api/v1/sparkle/key", { action: "generate" }).then(function () { loadRepo(); }).catch(F.toastError);
+            } })
+          ]),
+          importer(false)
+        ]));
+        return;
+      }
+      var dl = el("dl", { class: "addresses" });
+      [["Public key (SUPublicEDKey)", sp.public_key], ["Appcast (SUFeedURL)", sp.appcast_url],
+       ["Beta appcast", sp.beta_appcast_url]].forEach(function (p) {
+        dl.appendChild(el("dt", { text: p[0] }));
+        dl.appendChild(el("dd", {}, [el("code", { text: p[1] }), " ",
+          el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Copy", onclick: function () { copy(p[1]); } })]));
+      });
+      dl.appendChild(el("dd", { class: "hint addresses-note", text: "The beta appcast lists stable and beta builds together: point a beta build at it, or switch to it in the app for people who want betas." }));
+      sparklePanel.appendChild(dl);
+      sparklePanel.appendChild(el("div", { class: "pkg-command" }, [
+        el("p", { class: "setting-label", text: "In your app's Info.plist" }),
+        el("div", { class: "pkg-command-box" }, [
+          el("pre", { text: sp.info_plist }),
+          el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Copy", onclick: function () { copy(sp.info_plist); } })
+        ])
+      ]));
+      if (!sp.reads_disk_images) {
+        sparklePanel.appendChild(el("p", { class: "hint", text: "7-Zip isn't installed where Flatout runs, so a disk image's build number can't be read: give it when uploading one, or run Flatout from its Docker image." }));
+      }
+      sparklePanel.appendChild(el("div", { class: "row-actions" }, [
+        el("button", { type: "button", class: "btn btn--ghost btn--xs", text: "Download a backup of the private key", onclick: function () {
+          call("GET", "/api/v1/sparkle/key/secret").then(function (d) {
+            var blob = new Blob([d.key + "\n"], { type: "text/plain" });
+            var a = el("a", { href: URL.createObjectURL(blob), download: "sparkle-private-key.txt" });
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            F.toast("generate_keys -f imports it on a Mac. Keep it away from this server");
+          }).catch(F.toastError);
+        } })
+      ]));
+      var replace = el("details", { class: "term-like" }, [el("summary", { text: "Replace the key" }), importer(true)]);
+      sparklePanel.appendChild(replace);
+    };
+
     var renderAddresses = function (info) {
       document.getElementById("public-url").value = info.settings.public_url;
       if (info.detected_url) document.getElementById("public-url").placeholder = info.detected_url;
@@ -946,6 +1028,7 @@
         blocker.textContent = missing.length ? missing.join(", ") + " isn't installed where Flatout runs. Run Flatout from its Docker image to sign and publish." : "";
         blocker.hidden = !missing.length;
         renderKey(info);
+        renderSparkle(info);
         renderAddresses(info);
       }).catch(F.toastError);
     };
@@ -1126,8 +1209,9 @@
 
     // Installs by format: each format's busiest day of update checks this
     // week, as a share of all of them. One hue: the label names each bar.
-    var FORMAT_NAMES = { flatpak: "Flatpak", rpm: "RPM", deb: "Debian", appimage: "AppImage", file: "File" };
-    var CHECKS_BY = { flatpak: "the Flatpak repository", rpm: "the dnf repository", deb: "the apt repository", appimage: "their zsync file" };
+    var FORMAT_NAMES = { flatpak: "Flatpak", rpm: "RPM", deb: "Debian", appimage: "AppImage", macos: "macOS", file: "File" };
+    var CHECKS_BY = { flatpak: "the Flatpak repository", rpm: "the dnf repository", deb: "the apt repository", appimage: "their zsync file",
+                      macos: "the Sparkle appcast" };
     var drawFormats = function (s) {
       var panel = document.getElementById("stats-formats");
       var list = document.getElementById("format-list");
@@ -1161,16 +1245,16 @@
     var RELEASE_HINTS = {
       "": "Distinct installs that downloaded each version, in every format and architecture, and the downloads in all. " +
           "Flatpak installs count once for each day they pulled the release, which in practice is once; packages and files " +
-          "count downloads by dnf, apt and AppImage updaters and from the site.",
+          "count downloads by dnf, apt, AppImage updaters and Sparkle and from the site.",
       flatpak: "Distinct installs that downloaded each version, every architecture together, and the downloads in all. An " +
                "install counts once for each day it pulled the release, which in practice is once.",
-      pkg: "Downloads of each file: by dnf, apt and AppImage updaters, and from the site. Each requester counts once a day."
+      pkg: "Downloads of each file: by dnf, apt, AppImage updaters and Sparkle, and from the site. Each requester counts once a day."
     };
     var drawReleaseStats = function (s) {
       var pk = s.packages;
       var present = [];
       if (s.releases.length || s.formats.some(function (f) { return f.format === "flatpak"; })) present.push("flatpak");
-      ["rpm", "deb", "appimage", "file"].forEach(function (f) {
+      ["rpm", "deb", "appimage", "macos", "file"].forEach(function (f) {
         if (pk.downloads.some(function (d) { return d.format === f; }) || s.formats.some(function (x) { return x.format === f; })) present.push(f);
       });
       if (statsFormat && present.indexOf(statsFormat) === -1) statsFormat = "";

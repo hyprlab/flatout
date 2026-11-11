@@ -22,7 +22,7 @@ Only the latest stable release receives security fixes.
 | Cross-site request forgery | A per-session token on every POST, PUT, PATCH and DELETE a session authenticates, compared in constant time. API tokens are only ever sent deliberately, so requests that carry one need no CSRF token |
 | Cross-site scripting | Jinja autoescaping; user text rendered with `textContent` in JavaScript; the site's Markdown through an allowlist sanitizer; uploaded SVGs with script refused, and every SVG served with a sandboxing policy; and a Content-Security-Policy with a per-request nonce, so a missed injection still cannot run |
 | Clickjacking | `X-Frame-Options: DENY`, except the admin's preview of the draft, which only the admin itself may frame (`SAMEORIGIN`) |
-| Tampered updates | Every commit and the repository summary are signed with the repository's GPG key; Flatpak refuses anything else, and anything older than what is installed |
+| Tampered updates | Every commit and the repository summary are signed with the repository's GPG key; Flatpak refuses anything else, and anything older than what is installed. Every Mac build is signed with the Sparkle key (Ed25519), whose public half is in the app; Sparkle refuses a download whose signature doesn't hold |
 | API tokens | Stored as SHA-256 hashes, shown once; each has scopes, optionally an expiry, and can be revoked. A token can't make tokens, and only an admin can mint one that can change the site or the repository. A token acts within its owner's account, so one owned by a plain account can't create or replace the signing key |
 | Server-side fetches | A release or package imported from a URL must be http(s) and must resolve to public addresses only, checked again on every redirect hop. The fetch connects to the address the check approved, so a DNS answer switched after the check can't redirect the download to the internal network. A download that declares too much, or stops short of its announced size, is refused, and no partial file is kept |
 | Resource exhaustion | A media body bigger than the limit is refused before it is read. Chunked uploads and URL imports check the free disk first, counting uploads that are still arriving, and a restore is checked as it unpacks, so a backup that would fill the disk never does |
@@ -48,13 +48,15 @@ Only the latest stable release receives security fixes.
 - The Turnstile secret is stored in the database unencrypted, like every other
   setting; whoever can read the volume can read it. It is never sent to a
   browser.
-- The repository's signing key has no passphrase, because the server signs
-  every update unattended. Whoever can read the volume can sign updates;
-  protect the volume and keep the key's backup elsewhere.
+- The repository's signing key and the Sparkle key have no passphrase,
+  because the server signs every update unattended. Whoever can read the
+  volume can sign updates; protect the volume and keep the keys' backups
+  elsewhere. Only an admin can create, replace or download either key, and
+  the private keys never go to an API token.
 - Until the first account exists, whoever reaches a fresh install can set
   it up or restore a backup onto it, as with any first-run wizard. Set it up
   before exposing it.
-- A backup holds every account's password hash and the signing key, so its
+- A backup holds every account's password hash and the signing keys, so its
   passphrase is what protects them once the file leaves the server. Keep
   the passphrase apart from the file.
 - Every account can change the site and publish releases. Accounts are for

@@ -4,17 +4,18 @@
 
 <h1 align="center">Flatout</h1>
 
-<p align="center"><strong>A self-hosted Flatpak, AppImage, DEB and RPM repo builder</strong></p>
+<p align="center"><strong>A self-hosted Flatpak, AppImage, DEB, RPM and macOS repo builder</strong></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="AGPL-3.0 license"></a>
   <img src="https://img.shields.io/badge/docker-one%20container%2C%20one%20volume-blue" alt="Docker, one container, one volume">
 </p>
 
-Flatout publishes a Linux app from one Docker container. It runs signed Flatpak,
-dnf and apt repositories for your bundles, RPMs and DEBs. It serves AppImages
-that update themselves from your site. It also gives the app a homepage that you
-edit in the browser or turn off. Upload a file and the update reaches every
+Flatout publishes a Linux app, and its Mac version, from one Docker container.
+It runs signed Flatpak, dnf and apt repositories for your bundles, RPMs and
+DEBs. It serves AppImages that update themselves from your site, and a Sparkle
+appcast for the Mac app. It also gives the app a homepage that you edit in the
+browser or turn off. Upload a file and the update reaches every
 install. Scripts and AI agents can do all of it through an API and an MCP server.
 
 <p align="center">
@@ -37,6 +38,9 @@ install. Scripts and AI agents can do all of it through an API and an MCP server
 - **AppImage.** Each upload is told to check your site for updates and gets a
   zsync file. Gear Lever, AppImageLauncher and AppImageUpdate bring each new
   version. The last two fetch only the blocks that changed.
+- **macOS.** A `.dmg`, `.pkg` or zipped `.app` is signed with the site's
+  Sparkle key and listed in its appcast, so the app updates itself with
+  Sparkle. Flatout reads the build number from the app.
 - **Other downloads.** Any other file such as a tarball is offered as a download
   at an address that stays the same.
 - **One place to upload.** Drop every file of a version on the Releases page.
@@ -93,11 +97,11 @@ curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
   https://app.example.org/api/v1/releases
 ```
 
-RPMs, DEBs, AppImages and other files go to `/api/v1/packages`
+RPMs, DEBs, AppImages, Mac apps and other files go to `/api/v1/packages`
 ([more on packages](docs/DOCUMENTATION.md#packages)):
 
 ```sh
-for file in myapp-1.2.0-1.x86_64.rpm myapp_1.2.0_amd64.deb MyApp-1.2.0-x86_64.AppImage; do
+for file in myapp-1.2.0-1.x86_64.rpm myapp_1.2.0_amd64.deb MyApp-1.2.0-x86_64.AppImage MyApp-1.2.0.dmg; do
   curl -fsS -H "Authorization: Bearer $FLATOUT_TOKEN" \
     -F file=@"$file" -F channel=stable \
     https://app.example.org/api/v1/packages

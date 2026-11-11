@@ -741,12 +741,17 @@ DOCUMENT = group("Site", {
                                     "brings it up to date from this site.",
                             "command": ""}],
                           help="Shown once an AppImage is published under Releases."),
+        **_install_format("macos", "Offer the Mac app", "macOS",
+                          "{app_name} for your Mac.",
+                          "**Open the download** and move {app_name} to your Applications folder.",
+                          [], help="Shown once a Mac app is published under Releases. Chosen first for visitors "
+                                   "on a Mac."),
         **_install_format("files", "Offer other downloads", "Other downloads", "",
                           "Downloaded files don't update themselves: come back here for a new version.",
                           [], help="Tarballs and other files published under Releases."),
     }, folds=[("ref", "Install file (.flatpakref)"), ("bundle", "Full .flatpak download"),
               ("repo", "Flatpak repository"), ("rpm", "dnf repository"), ("deb", "apt repository"),
-              ("appimage", "AppImage"), ("files", "Other downloads")]),
+              ("appimage", "AppImage"), ("macos", "macOS"), ("files", "Other downloads")]),
     "not_found": group("Page not found", {
         "title": text("Title", "There is nothing at this address", max=120),
         "message": textarea("Message", "The page may have moved, or the link may be mistyped.", max=600),

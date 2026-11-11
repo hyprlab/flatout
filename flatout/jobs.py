@@ -525,6 +525,12 @@ def handle_keygen(job: Job, payload: dict, lines: list) -> None:
         packages.index_all(lines, resign=True)
 
 
+def handle_sparkle_sign(job: Job, payload: dict, lines: list) -> None:
+    """Every published Mac build signed again, after the Sparkle key changed."""
+    from . import sparkle
+    sparkle.sign_all(lines)
+
+
 HANDLERS = {
     "import": handle_import,
     "promote": handle_recommit,
@@ -537,4 +543,5 @@ HANDLERS = {
     "package": handle_package,
     "package-promote": handle_package_promote,
     "package-withdraw": handle_package_withdraw,
+    "sparkle-sign": handle_sparkle_sign,
 }

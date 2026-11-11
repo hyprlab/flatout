@@ -6,6 +6,24 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- Mac apps: upload a `.dmg`, a `.pkg`, or a `.zip` or tarball with the `.app`
+  inside, and Flatout signs it for Sparkle and lists it in an appcast at
+  `/sparkle/appcast.xml`, so the app updates itself from the site. A beta
+  appcast at `/sparkle/appcast-beta.xml` carries both channels. Flatout reads
+  the build number, version, lowest macOS and processors from the app.
+- Repository > Signing and addresses has the Sparkle key: the public key and
+  the lines for the app's `Info.plist` to copy, a backup of the private key,
+  and importing the key an app already trusts from `generate_keys -x`.
+- The install dialog offers the Mac app, chosen first for visitors on a Mac,
+  and the Installs page counts Macs checking the appcast.
+- The API takes a Mac app's `build` and `minimum_system_version` when the file
+  doesn't say them, and the MCP server can create the Sparkle key.
+
+### Changed
+- The About section's tagline names macOS among the formats: "A self-hosted
+  Flatpak, AppImage, DEB, RPM and macOS repo builder".
+
 ## [2.2.1] — 2026-11-04
 
 ### Changed

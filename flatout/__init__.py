@@ -379,6 +379,15 @@ def _migrate(app: Flask) -> None:
         db.session.commit()
         app.logger.info("migrated: added jobs.package_id")
 
+    # Mac apps (2.3.0): the Sparkle appcast needs each build's lowest macOS
+    # and its signature. Before any step below that reads packages: the
+    # model already has the columns.
+    for column, kind in (("min_os", "VARCHAR(20)"), ("signature", "VARCHAR(120)")):
+        if column not in columns("packages"):
+            db.session.execute(text(f"ALTER TABLE packages ADD COLUMN {column} {kind} NOT NULL DEFAULT ''"))
+            db.session.commit()
+            app.logger.info("migrated: added packages.%s", column)
+
     # AppImages were plain files until they could update from here. The ones
     # still published become AppImages, so a new upload of one supersedes it.
     # Each file's first bytes are the guard: a second run finds none to move.

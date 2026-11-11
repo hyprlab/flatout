@@ -253,9 +253,10 @@ def snapshot(days: int = 30) -> dict:
 
 
 def _packages(today: str, week_start: str) -> dict:
-    """The dnf and apt repositories and the AppImages: installs checking
-    each (distinct requesters of its index or zsync file per day, today and
-    at the busiest this week), and each package's downloads."""
+    """The dnf and apt repositories, the AppImages and the Mac apps: installs
+    checking each (distinct requesters of its index, zsync file or appcast
+    per day, today and at the busiest this week), and each package's
+    downloads."""
     repositories: dict[str, dict] = {}
     per_day: dict[tuple, int] = {}   # (format, day) -> installs checking, both channels
     for row in StatDay.query.filter(StatDay.metric == "pkgcheck", StatDay.day >= week_start):
@@ -288,7 +289,8 @@ def _packages(today: str, week_start: str) -> dict:
             "published_at": (pkg.published_at or pkg.created_at).isoformat() + "Z",
         })
     downloads.sort(key=lambda d: (d["published_at"], d["installs"]), reverse=True)
-    order = {"rpm-stable": 0, "rpm-beta": 1, "deb-stable": 2, "deb-beta": 3, "appimage-stable": 4, "appimage-beta": 5}
+    order = {"rpm-stable": 0, "rpm-beta": 1, "deb-stable": 2, "deb-beta": 3, "appimage-stable": 4, "appimage-beta": 5,
+             "macos-stable": 6, "macos-beta": 7}
     return {"repositories": sorted(repositories.values(), key=lambda r: order.get(f"{r['format']}-{r['channel']}", 9)),
             "downloads": downloads, "check_formats": formats}
 
@@ -296,7 +298,7 @@ def _packages(today: str, week_start: str) -> dict:
 def _formats(packages: dict, flatpak_installs: int, flatpak_today: int) -> list[dict]:
     """Estimated installs per format, each the busiest day of its update
     checks in the last 7 days: the Flatpak summary, the dnf and apt indexes,
-    the AppImages' zsync files. Other files never check, so only their
+    the AppImages' zsync files, the Sparkle appcasts. Other files never check, so only their
     downloads count, under the releases. A format shows once it has anything
     published or counted."""
     published = {f for (f,) in db.session.query(Package.format).filter(Package.status.in_(("live", "superseded")))
@@ -305,7 +307,7 @@ def _formats(packages: dict, flatpak_installs: int, flatpak_today: int) -> list[
     out = []
     if flatpak_installs or Release.query.filter(Release.status.in_(("live", "superseded"))).first():
         out.append({"format": "flatpak", "installs": flatpak_installs, "today": flatpak_today})
-    for fmt in ("rpm", "deb", "appimage"):
+    for fmt in ("rpm", "deb", "appimage", "macos"):
         if fmt in checks or fmt in published:
             c = checks.get(fmt, {})
             out.append({"format": fmt, "installs": c.get("peak_7_days", 0), "today": c.get("today", 0)})
