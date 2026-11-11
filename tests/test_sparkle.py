@@ -35,16 +35,16 @@ def macho(*cpus: int) -> bytes:
     return struct.pack(">II", 0xCAFEBABE, len(cpus)) + b"".join(struct.pack(">IIIII", c, 0, 0, 0, 0) for c in cpus)
 
 
-def plist(build="42", short="1.4.0", minimum="12.0", exe="MyApp") -> bytes:
+def plist(build="42", short="1.4.0", minimum="12.0", exe="MyApp", ident="org.example.MyApp") -> bytes:
     return plistlib.dumps({"CFBundleVersion": build, "CFBundleShortVersionString": short,
-                           "LSMinimumSystemVersion": minimum, "CFBundleIdentifier": "org.example.MyApp",
+                           "LSMinimumSystemVersion": minimum, "CFBundleIdentifier": ident,
                            "CFBundleExecutable": exe, "CFBundleName": "My App"}, fmt=plistlib.FMT_BINARY)
 
 
-def mac_zip(build="42", short="1.4.0", cpus=(ARM64, X86_64), minimum="12.0") -> bytes:
+def mac_zip(build="42", short="1.4.0", cpus=(ARM64, X86_64), minimum="12.0", ident="org.example.MyApp") -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("My App.app/Contents/Info.plist", plist(build, short, minimum))
+        z.writestr("My App.app/Contents/Info.plist", plist(build, short, minimum, ident=ident))
         z.writestr("My App.app/Contents/MacOS/MyApp", macho(*cpus))
         # A framework's helper app: deeper, so not the one read.
         z.writestr("My App.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/Info.plist",
@@ -362,6 +362,19 @@ def test_the_beta_feed_has_both_channels_and_the_stable_one_only_stable(client, 
     assert [i.findtext("sparkle:version", namespaces=NS) for i in feed(client, "beta").findall("item")] == ["50", "42"]
     assert client.post("/api/v1/packages/promote", json={"from": "beta", "to": "stable"},
                        headers=h(csrf)).status_code == 409
+
+
+def test_a_beta_app_of_its_own_is_offered_only_its_own_builds(client, csrf, admin, run_jobs):
+    # The beta installs beside the stable app, so the stable app's file is no update for it.
+    published(client, csrf, run_jobs, mac_zip("42", "1.4.0"), "MyApp-1.4.0.zip")
+    published(client, csrf, run_jobs, mac_zip("50", "1.5.0-beta.1", ident="org.example.MyApp.Beta"),
+              "MyApp-Beta-1.5.0-beta.1.zip", channel="beta")
+    published(client, csrf, run_jobs, mac_zip("51", "1.5.0"), "MyApp-1.5.0.zip")
+    assert [i.findtext("sparkle:version", namespaces=NS) for i in feed(client).findall("item")] == ["51", "42"]
+    assert [i.findtext("sparkle:version", namespaces=NS) for i in feed(client, "beta").findall("item")] == ["50"]
+    published(client, csrf, run_jobs, mac_zip("60", "1.6.0-beta.1", ident="org.example.MyApp.Beta"),
+              "MyApp-Beta-1.6.0-beta.1.zip", channel="beta")
+    assert [i.findtext("sparkle:version", namespaces=NS) for i in feed(client, "beta").findall("item")] == ["60", "50"]
 
 
 def test_withdrawing_takes_a_build_out_of_the_feed(client, csrf, admin, run_jobs):

@@ -325,7 +325,7 @@ is comes from its first bytes:
 | `/download/<file>.zsync`, `/download/beta/<file>.zsync` | The newest AppImage's zsync file, which installed copies check for updates |
 | `/appimage/<id>/<file>` | One version of an AppImage, and its own `.zsync` beside it |
 | `/sparkle/appcast.xml` | The Sparkle appcast for the stable channel, which a Mac app checks |
-| `/sparkle/appcast-beta.xml` | The Sparkle appcast with the stable and beta channels together |
+| `/sparkle/appcast-beta.xml` | The Sparkle appcast with the stable and beta channels together (only the betas, for a beta that is an app of its own) |
 | `/macos/<id>/<file>` | One build of a Mac app, which the appcast names |
 
 `<remote>` is the remote name under Repository > App. Adding the repository is
@@ -439,6 +439,14 @@ and put its public key in the next version of the app. Replacing the key signs
 every published Mac build again, but installed copies only accept the key in
 their own `Info.plist`, so replace it only with the one the app has. Download
 a backup of the key from the same place; `generate_keys -f` takes it back.
+
+The beta appcast lists the stable builds too, so a tester's copy moves on to
+the release when it is newer. A beta built as an app of its own, with its own
+bundle identifier and name so it installs beside the stable app, can't take
+the stable app's file, as Sparkle only installs an app with the running one's
+name or identifier. When the betas' identifier differs from the stable
+builds', the beta appcast lists only the betas, and the beta app moves on with
+the next beta.
 
 Sparkle compares the build number, `CFBundleVersion`, not the version people
 read: an update needs a higher one, by Sparkle's rules (`10` after `9`, `1.0`

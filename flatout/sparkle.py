@@ -17,9 +17,12 @@ and writes the appcast on each request from what is published:
                                 setting that switches its feed
 
 The beta feed carries both channels so a beta tester moves on to the final
-release when it is newer. The stable feed carries no beta items at all, not
-even under <sparkle:channel>: Sparkle 1 ignores that element and would offer
-them to everyone.
+release when it is newer. A beta published as an app of its own, beside the
+stable one (another bundle identifier), is the exception: Sparkle installs
+only an app with the running one's name or identifier, so its feed carries
+only the stable builds of that same app. The stable feed carries no beta
+items at all, not even under <sparkle:channel>: Sparkle 1 ignores that
+element and would offer them to everyone.
 
 What an upload is comes from inside it: the app's Info.plist (its build
 number, CFBundleVersion, which Sparkle compares, the version people read,
@@ -598,6 +601,8 @@ def items(channels: tuple[str, ...]) -> list:
     from .models import Package
     rows = Package.query.filter(Package.format == "macos", Package.channel.in_(channels),
                                 Package.status.in_(("live", "superseded"))).all()
+    if "beta" in channels:
+        rows = _same_app(rows)
     chosen: dict[tuple, object] = {}
     for row in rows:
         key = (row.evr, row.arch if row.arch == "arm64" else "")
@@ -610,6 +615,20 @@ def items(channels: tuple[str, ...]) -> list:
         return compare(x.evr, y.evr) or ((x.arch == "arm64") - (y.arch == "arm64"))
 
     return sorted(chosen.values(), key=functools.cmp_to_key(cmp), reverse=True)
+
+
+def _same_app(rows: list) -> list:
+    """The builds a beta feed offers: every beta, and the stable builds of
+    the app the betas are. A beta published as an app of its own beside the
+    stable one, such as org.example.App.Beta, can't take the stable app's
+    file: Sparkle looks in an update for an app with the running one's name
+    or bundle identifier, so it would download the stable build at every
+    check and fail to install it. A build whose identifier couldn't be read
+    stays, as before. (A Mac upload's summary is its bundle identifier.)"""
+    betas = {row.summary for row in rows if row.channel == "beta" and row.summary}
+    if not betas:
+        return rows
+    return [row for row in rows if row.channel == "beta" or not row.summary or row.summary in betas]
 
 
 def _notes(pkg) -> str:

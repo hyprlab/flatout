@@ -6,6 +6,12 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Fixed
+- A Mac beta published as an app of its own, with its own bundle identifier,
+  is no longer offered the stable app's builds in the beta appcast. Sparkle
+  can't install another app's file, so the beta downloaded the stable release
+  at every check and failed to install it.
+
 ## [2.3.0] — 2026-11-11
 
 ### Added

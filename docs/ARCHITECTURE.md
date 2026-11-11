@@ -137,7 +137,9 @@ ported); a disk image's file system needs 7-Zip to read, the rest is
 Python's own zip, tar, plist and XML modules. The stable feed has no beta
 items at all rather than items tagged with `<sparkle:channel>`, which
 Sparkle 1 ignores; the beta feed has both channels, so testers move on to
-the release.
+the release, unless the beta is an app of its own: Sparkle only installs an
+app with the running one's name or bundle identifier, so that beta's feed
+leaves out the stable app's builds.
 
 **One gunicorn worker, eight threads.** The job thread and the housekeeping
 thread must each exist exactly once, and SQLite is happiest with one writing
