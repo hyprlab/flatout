@@ -67,21 +67,23 @@
 {%- if 'all' not in out and 'noarch' not in out %}{{ out|join(' ') }}{% endif %}
 {%- endmacro %}
 {%- macro arch_chips(m) -%}
-{#- The machines a format is built for, as chips under its name; the one the
-    switch has picked stands out. Only where there are machines to tell apart.
-    Macs are always Apple silicon or Intel, and a universal build runs on both. -#}
+{#- The machines a format is built for, as chips under its name, read from
+    its own files, so every format says it the same way. A package for every
+    machine (noarch, all) runs on both, as a universal Mac build does. Macs
+    are named as Macs: Apple silicon and Intel. -#}
+{%- set built = [] %}
 {%- if m == 'macos' %}
-{%- set mac = [] %}
-{%- for f in pk.macos[channel] %}{% for a in (['arm64', 'x86_64'] if f.arch == 'universal' else [f.arch]) %}{% set _ = mac.append(a) %}{% endfor %}{% endfor %}
-{%- if mac %}<span class="method__arches">{% for a in ('arm64', 'x86_64') if a in mac %}<span class="arch-chip" data-arch="{{ a }}">{{ 'Apple silicon' if a == 'arm64' else 'Intel' }}</span>{% endfor %}</span>{% endif %}
-{%- elif arches|length > 1 %}
-{%- if m in ('ref', 'repo') %}{% set built = arches %}
-{%- elif m == 'bundle' %}{% set built = bundle_arches %}
-{%- elif m in ('rpm', 'deb') %}{% set built = built_for(pk[m][channel]).split() or arches %}
-{%- elif m == 'appimage' %}{% set built = ai_downloads.keys()|list %}
-{%- else %}{% set built = [] %}{% endif %}
-{%- if built %}<span class="method__arches">{% for a in arches if a in built %}<span class="arch-chip" data-arch="{{ a }}">{{ repo.arch_names.get(a, a) }}</span>{% endfor %}</span>{% endif %}
+{%- for f in pk.macos[channel] %}{% for a in (['arm64', 'x86_64'] if f.arch == 'universal' else [f.arch]) %}{% set _ = built.append(a) %}{% endfor %}{% endfor %}
+{%- set order = ['arm64', 'x86_64'] %}
+{%- else %}
+{%- if m in ('ref', 'repo') %}{% set _ = built.extend(arches) %}
+{%- elif m == 'bundle' %}{% set _ = built.extend(bundle_arches) %}
+{%- elif m in ('rpm', 'deb') %}{% set _ = built.extend(built_for(pk[m][channel]).split() or ['x86_64', 'aarch64']) %}
+{%- elif m == 'appimage' %}{% set _ = built.extend(ai_downloads.keys()) %}{% endif %}
+{%- set order = ['x86_64', 'aarch64'] + (built|reject('in', ['x86_64', 'aarch64'])|unique|sort|list) %}
 {%- endif %}
+{%- if built %}<span class="method__arches">{% for a in order if a in built %}<span class="arch-chip" data-arch="{{ a }}">
+{%- if m == 'macos' %}{{ 'Apple silicon' if a == 'arm64' else 'Intel' }}{% else %}{{ repo.arch_names.get(a, a) }}{% endif %}</span>{% endfor %}</span>{% endif %}
 {%- endmacro %}
 {%- macro method_title(m) -%}{{ s.fill(t(m ~ '_title')) }}{%- endmacro %}
 {%- macro dl_item(url, label, version, arch, size) -%}

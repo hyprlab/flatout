@@ -9,6 +9,9 @@ All notable changes to Flatout are documented here. The format follows
 ### Fixed
 - The install dialog's macOS entry shows its machines as chips, Apple silicon
   and Intel, like the other formats. A universal build shows both.
+- The install dialog's chips no longer depend on the Flatpak releases: every
+  format names the machines its own files are built for, even on a site with
+  no Flatpak release or with one for a single machine.
 
 ## [2.3.1] — 2026-11-11
 

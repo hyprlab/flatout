@@ -446,8 +446,8 @@ def with_a_linux_package(app):
         db.session.commit()
 
 
-def mac_chips(page):
-    face = page[page.index('value="macos"'):]
+def chips_of(page, m="macos"):
+    face = page[page.index(f'value="{m}"'):]
     return face[:face.index("</label>")]
 
 
@@ -462,7 +462,9 @@ def test_the_install_dialog_offers_the_mac_app(app, client, csrf, admin, run_job
     assert "Apple silicon and Intel" in page
     # A universal build runs on both kinds of Mac, so the list names both.
     assert ('<span class="method__arches"><span class="arch-chip" data-arch="arm64">Apple silicon</span>'
-            '<span class="arch-chip" data-arch="x86_64">Intel</span></span>') in mac_chips(page)
+            '<span class="arch-chip" data-arch="x86_64">Intel</span></span>') in chips_of(page)
+    # With no Flatpak release, the Linux formats still name their machines, as the Mac's does.
+    assert '<span class="arch-chip" data-arch="x86_64">Intel/AMD</span>' in chips_of(page, "rpm")
 
 
 def test_the_mac_chips_name_only_the_macs_built_for(app, client, csrf, admin, run_jobs):
@@ -471,7 +473,7 @@ def test_the_mac_chips_name_only_the_macs_built_for(app, client, csrf, admin, ru
     client.post("/api/v1/site/status", json={"status": "published"}, headers=h(csrf))
     client.patch("/api/v1/site/status", json={"status": "published"}, headers=h(csrf))
     page = client.get("/").get_data(as_text=True)
-    chips = mac_chips(page)
+    chips = chips_of(page)
     assert '<span class="arch-chip" data-arch="arm64">Apple silicon</span>' in chips
     assert 'data-arch="x86_64"' not in chips
 
@@ -488,3 +490,18 @@ def test_the_migration_adds_the_mac_columns(app):
         names = {c["name"] for c in inspect(db.engine).get_columns("packages")}
         assert {"signature", "min_os"} <= names
         assert Package.query.count() == 0
+
+
+def test_a_package_for_every_machine_names_both(app, client, csrf, admin, run_jobs):
+    published(client, csrf, run_jobs, mac_zip(), "MyApp-1.4.0.zip")
+    from flatout.models import utcnow
+    with app.app_context():
+        db.session.add(Package(format="rpm", channel="stable", name="myapp", version="1.4.0", evr="1.4.0-1",
+                               arch="noarch", status="live", path="rpm/stable/packages/myapp-1.4.0-1.noarch.rpm",
+                               published_at=utcnow()))
+        db.session.commit()
+    client.post("/api/v1/site/status", json={"status": "published"}, headers=h(csrf))
+    client.patch("/api/v1/site/status", json={"status": "published"}, headers=h(csrf))
+    page = client.get("/").get_data(as_text=True)
+    assert ('<span class="method__arches"><span class="arch-chip" data-arch="x86_64">Intel/AMD</span>'
+            '<span class="arch-chip" data-arch="aarch64">ARM</span></span>') in chips_of(page, "rpm")
