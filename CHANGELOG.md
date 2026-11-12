@@ -13,6 +13,7 @@ All notable changes to Flatout are documented here. The format follows
 - The install dialog's list of formats and the chosen one's instructions sit
   further from the line between them.
 - The install dialog's small print sits further below the formats.
+- The install dialog's download buttons keep their shadow on hover.
 
 ### Fixed
 - The install dialog's download buttons no longer cut off the bottom of

@@ -975,13 +975,12 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .dl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .dl-list li { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .dl-list__btn { max-width: 100%; }
-/* On hover a download turns the site's own button color, flat, as the
-   primary buttons are, rather than the ghost button's tint. */
+/* On hover a download turns the site's own button color, rather than the
+   ghost button's tint, and lifts with its shadow as every button does. */
 .dl-list__btn:hover {
   --btn-bg: var(--button);
   --btn-fg: var(--button-ink);
   border-color: var(--button);
-  box-shadow: none;
 }
 .dl-list__btn span {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
