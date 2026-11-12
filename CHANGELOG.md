@@ -6,6 +6,9 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Changed
+- The install dialog's Mac icon is 96 px wide at every screen size.
+
 ## [2.4.1] — 2026-11-12
 
 ### Changed

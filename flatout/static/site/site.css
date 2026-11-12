@@ -900,9 +900,8 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 
 .modal__head { text-align: center; margin-bottom: 24px; }
 .modal__icon { width: 64px; height: auto; margin: 0 auto 14px; }
-/* The Mac icon above the Mac app's instructions: a quarter larger than the
-   dialog's own icon, here and in the wide layout. */
-.how__icon { display: block; width: 80px; height: auto; margin: 0 0 14px; }
+/* The Mac icon above the Mac app's instructions. */
+.how__icon { display: block; width: 96px; height: auto; margin: 0 0 14px; }
 .modal__title { font-size: 1.6rem; font-weight: 800; }
 .modal__sub {
   color: var(--ink-soft);
@@ -1028,7 +1027,6 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
     text-align: left;
   }
   .modal__head--install .modal__icon { width: 48px; margin: 0; }
-  .how__icon { width: 60px; }
   .modal__head--install .modal__sub { margin: 4px 0 0; }
   .install {
     display: grid;

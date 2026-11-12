@@ -245,7 +245,7 @@
     <section class="how" data-method="macos"{% if methods|first != 'macos' %} hidden{% endif %}>
       {#- The Mac icon, when the site has one, heads the Mac app's instructions. #}
       {%- if conf.get('macos_icon') %}
-      <img class="how__icon" src="{{ conf.macos_icon }}" alt="" width="60" height="60">
+      <img class="how__icon" src="{{ conf.macos_icon }}" alt="" width="96" height="96">
       {%- endif %}
       {{ above('macos') }}
       <ul class="dl-list">
