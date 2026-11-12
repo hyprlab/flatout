@@ -973,7 +973,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 
 /* Other downloads: one button per file, what it is beside it. */
 .dl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.dl-list li { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.dl-list li { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .dl-list__btn { max-width: 100%; }
 /* On hover a download turns the site's own button color, flat, as the
    primary buttons are, rather than the ghost button's tint. */
@@ -983,7 +983,12 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   border-color: var(--button);
   box-shadow: none;
 }
-.dl-list__btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-list__btn span {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* Room for descenders inside the clip (the button's line height is 1),
+     given back outside it so the button keeps its height. */
+  padding-block: .2em; margin-block: -.2em;
+}
 .dl-list__meta { font-size: .86rem; color: var(--ink-soft); }
 
 /* Folded terminal alternative. */

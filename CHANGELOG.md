@@ -8,6 +8,12 @@ All notable changes to Flatout are documented here. The format follows
 
 ### Changed
 - The install dialog's Mac icon is 96 px wide at every screen size.
+- The install dialog leaves more room between a download button and the
+  version, machine and size under it.
+
+### Fixed
+- The install dialog's download buttons no longer cut off the bottom of
+  letters such as g and y in a file's name.
 
 ## [2.4.1] — 2026-11-12
 
