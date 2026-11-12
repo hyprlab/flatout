@@ -412,6 +412,20 @@ def _migrate(app: Flask) -> None:
         set_setting("release_notes_page_added", "1")
         db.session.commit()
 
+    # The chosen install option has a color of its own (2.5.0). A site made
+    # before gets the one it showed, mixed from its accent and surface; a
+    # document that has the color is left alone, so this runs once.
+    from .site_schema import add_chosen_color
+    for name in ("live", "draft"):
+        row = db.session.get(SiteDocument, name)
+        if row is None:
+            continue
+        doc = json.loads(row.data)
+        if add_chosen_color(doc):
+            row.data = json.dumps(doc)
+            db.session.commit()
+            app.logger.info("migrated: the %s site's chosen install option took a color of its own", name)
+
 
 def _start_worker(app: Flask) -> None:
     """Background thread for periodic work (worker.py).

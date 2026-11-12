@@ -6,6 +6,10 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- A color for the chosen option in the install dialog, under Design, for light
+  and dark. A site made before keeps the shade it showed.
+
 ### Changed
 - The install dialog's Mac icon is 96 px wide at every screen size.
 - The install dialog leaves more room between a download button and the

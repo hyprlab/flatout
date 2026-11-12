@@ -129,6 +129,8 @@ def restore_revision(revision_id: int, who: str) -> dict | None:
     site_schema.take_moved(doc)
     # And one from before the install dialog's formats shared their fields.
     site_schema.upgrade_install(doc)
+    # And one from before the chosen install option had a color: the one it showed.
+    site_schema.add_chosen_color(doc)
     # Validated on the way in: the revision may name files deleted since.
     return save_draft(doc, who)
 
@@ -352,7 +354,7 @@ COLOR_VARS = {
     "accent": "--accent", "accent_text": "--accent-ink", "button": "--button",
     "button_text": "--button-ink", "highlight": "--highlight", "highlight_text": "--highlight-ink",
     "hero": "--hero-bg", "hero_text": "--hero-ink", "band": "--band-bg", "band_text": "--band-ink",
-    "background": "--bg", "background_alt": "--bg-tint", "section_alt": "--tint-strong",
+    "background": "--bg", "background_alt": "--bg-tint", "chosen": "--chosen", "section_alt": "--tint-strong",
     "surface": "--surface", "text": "--ink", "text_muted": "--ink-soft", "border": "--line",
     "code": "--code-bg", "code_text": "--code-fg",
 }

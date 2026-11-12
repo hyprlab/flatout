@@ -334,3 +334,46 @@ def test_the_owner_s_css_comes_last_and_cannot_close_its_element(client, csrf, a
     style = page[page.index('<style id="site-theme">'):page.index("</style>", page.index('<style id="site-theme">'))]
     assert style.rstrip().endswith(".hero { color: red; }<\\/style><script>alert(1)<\\/script>")
     assert "<script>alert(1)</script>" not in page
+
+
+def test_the_chosen_install_option_has_a_color_of_its_own(client, csrf, admin):
+    doc = client.get("/api/v1/site").get_json()["document"]
+    assert (doc["theme"]["light"]["chosen"], doc["theme"]["dark"]["chosen"]) == ("#dee8ff", "#242559")
+    resp = client.patch("/api/v1/site", json={"theme": {"light": {"chosen": "#ffe2c8"}}}, headers={"X-CSRF": csrf})
+    assert resp.status_code == 200, resp.get_json()
+    page = client.get("/admin/preview").data.decode()
+    assert "--chosen: #ffe2c8;" in page and "--chosen: #242559;" in page
+    bad = client.patch("/api/v1/site", json={"theme": {"dark": {"chosen": "orange"}}}, headers={"X-CSRF": csrf})
+    assert bad.status_code == 422 and any("chosen" in e["path"] for e in bad.get_json()["errors"])
+
+
+def test_an_older_site_keeps_the_chosen_shade_it_showed(app, client, csrf, admin):
+    import json as _json
+    from flatout import _migrate
+    from flatout.models import SiteDocument, db
+    with app.app_context():
+        for row in SiteDocument.query.all():
+            doc = _json.loads(row.data)
+            for mode in ("light", "dark"):
+                doc["theme"][mode].pop("chosen")
+            doc["theme"]["light"].update(accent="#e66100", surface="#ffffff")
+            row.data = _json.dumps(doc)
+        db.session.commit()
+        _migrate(app)
+        _migrate(app)
+        for row in SiteDocument.query.all():
+            theme = _json.loads(row.data)["theme"]
+            # 13% of the orange accent over white, as the stylesheet mixed it; dark from its own colors.
+            assert theme["light"]["chosen"] == "#fceade"
+            assert theme["dark"]["chosen"] == "#242559"
+
+
+def test_a_restored_revision_keeps_its_chosen_shade(app):
+    from flatout import site_schema
+    doc = site_schema.default_document()
+    for mode in ("light", "dark"):
+        doc["theme"][mode].pop("chosen")
+    doc["theme"]["dark"]["accent"] = "#ff7800"
+    assert site_schema.add_chosen_color(doc)
+    assert doc["theme"]["dark"]["chosen"] == site_schema.chosen_color("#ff7800", doc["theme"]["dark"]["surface"])
+    assert not site_schema.add_chosen_color(doc)

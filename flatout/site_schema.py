@@ -482,6 +482,7 @@ def mode_colors(d: dict) -> F:
         "band_text": color("Text on the band", d["band_text"]),
         "background": color("Page background", d["background"]),
         "background_alt": color("Panels and hover", d["background_alt"]),
+        "chosen": color("Chosen option in the install dialog", d["chosen"]),
         "section_alt": color("Tinted sections and footer", d["section_alt"]),
         "surface": color("Cards and dialogs", d["surface"]),
         "text": color("Text", d["text"]),
@@ -496,16 +497,43 @@ LIGHT = {
     "accent": "#004eff", "accent_text": "#ffffff", "button": "#fec11e", "button_text": "#3a2b00",
     "highlight": "#f6b40a", "highlight_text": "#3a2b00", "hero": "#005bff", "hero_text": "#ffffff",
     "band": "#005bff", "band_text": "#ffffff", "background": "#ffffff", "background_alt": "#eef3ff",
-    "section_alt": "#f2f4f6", "surface": "#ffffff", "text": "#241a34", "text_muted": "#5b5170",
+    "chosen": "#dee8ff", "section_alt": "#f2f4f6", "surface": "#ffffff", "text": "#241a34", "text_muted": "#5b5170",
     "border": "#e2e9fb", "code": "#241a34", "code_text": "#f4eefc",
 }
 DARK = {
     "accent": "#7d97ff", "accent_text": "#0d0b1f", "button": "#fec11e", "button_text": "#3a2b00",
     "highlight": "#f6b40a", "highlight_text": "#3a2b00", "hero": "#16309c", "hero_text": "#ffffff",
     "band": "#1b2b8f", "band_text": "#ffffff", "background": "#0d0b1f", "background_alt": "#15123a",
-    "section_alt": "#0f0d2a", "surface": "#171440", "text": "#ece8ff", "text_muted": "#b1a9d8",
+    "chosen": "#242559", "section_alt": "#0f0d2a", "surface": "#171440", "text": "#ece8ff", "text_muted": "#b1a9d8",
     "border": "#2b2660", "code": "#07061a", "code_text": "#e8e2ff",
 }
+
+def chosen_color(accent: str, surface: str) -> str:
+    """The chosen install option's color before it was a setting: the accent
+    at 13% over the surface, as the stylesheet mixed it."""
+    def rgb(h):
+        h = h.lstrip("#")
+        h = "".join(c * 2 for c in h) if len(h) == 3 else h[:6]
+        return [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+    return "#" + "".join(f"{round(a * .13 + b * .87):02x}" for a, b in zip(rgb(accent), rgb(surface)))
+
+
+def add_chosen_color(doc: dict) -> bool:
+    """Give a document from before the chosen install option had a color of
+    its own (2.5.0) the one it showed, from its accent and surface, in each
+    mode. False when it has them already."""
+    changed = False
+    for mode, base in (("light", LIGHT), ("dark", DARK)):
+        colors = doc.get("theme", {}).get(mode)
+        if not isinstance(colors, dict) or "chosen" in colors:
+            continue
+        try:
+            colors["chosen"] = chosen_color(colors.get("accent", base["accent"]), colors.get("surface", base["surface"]))
+        except ValueError:
+            colors["chosen"] = base["chosen"]
+        changed = True
+    return changed
+
 
 FONT_CHOICES = [
     ("cantarell", "Cantarell (GNOME)"), ("inter", "Inter"), ("system", "The visitor's system font"),

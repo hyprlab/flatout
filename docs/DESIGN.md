@@ -137,6 +137,7 @@ once for light and once for dark:
 | `--hero-bg`, `--hero-ink` | The hero and the header over it |
 | `--band-bg`, `--band-ink` | The highlight band |
 | `--bg`, `--bg-tint`, `--tint-strong`, `--surface` | Page, panels, tinted sections, cards |
+| `--chosen` | The chosen option in the install dialog's list of formats |
 | `--ink`, `--ink-soft`, `--line` | Text, secondary text, borders |
 | `--code-bg`, `--code-fg` | Command boxes |
 | `--c-purple` … `--c-pink`, each with `-ink` | The icon palette, and the glyph color that reads on each |
