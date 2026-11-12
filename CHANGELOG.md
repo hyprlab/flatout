@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [2.5.0] — 2026-11-12
+
 ### Added
 - A color for the chosen option in the install dialog, under Design, for light
   and dark. A site made before keeps the shade it showed.
