@@ -749,8 +749,8 @@ DOCUMENT = group("Site", {
                           "**Open the download** and move {app_name} to your Applications folder.",
                           [], help="Shown once a Mac app is published under Releases. Chosen first for visitors "
                                    "on a Mac.",
-                          extra={"icon": image("Mac icon", help="Shown at the top of the dialog while macOS is "
-                                                                "chosen. Empty shows the app icon.")}),
+                          extra={"icon": image("Mac icon", help="Shown above the Mac app's instructions, a quarter "
+                                                                "larger than the app icon. Optional.")}),
         **_install_format("files", "Offer other downloads", "Other downloads", "",
                           "Downloaded files don't update themselves: come back here for a new version.",
                           [], help="Tarballs and other files published under Releases."),

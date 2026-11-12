@@ -507,21 +507,23 @@ def test_a_package_for_every_machine_names_both(app, client, csrf, admin, run_jo
             '<span class="arch-chip" data-arch="aarch64">ARM</span></span>') in chips_of(page, "rpm")
 
 
-def test_the_mac_icon_stands_in_while_macos_is_chosen(app, client, csrf, admin, run_jobs):
+def test_the_mac_icon_heads_the_mac_instructions(app, client, csrf, admin, run_jobs):
     published(client, csrf, run_jobs, mac_zip(), "MyApp-1.4.0.zip")
+    with_a_linux_package(app)
     mac = "https://example.com/mac-icon.png"
     resp = client.patch("/api/v1/site", json={"install": {"macos_icon": mac}}, headers=h(csrf))
     assert resp.status_code == 200, resp.get_json()
     client.post("/api/v1/site/publish", json={}, headers=h(csrf))
     client.patch("/api/v1/site/status", json={"status": "published"}, headers=h(csrf))
-    # The Mac app alone: the dialog opens on it, so the Mac icon shows from the start.
-    head = client.get("/").get_data(as_text=True).split('class="modal__icon"', 1)[1].split(">", 1)[0]
-    assert f'src="{mac}"' in head and f'data-icon-macos="{mac}"' in head
-    # Another format first: the app icon shows until macOS is chosen.
-    with_a_linux_package(app)
-    head = client.get("/").get_data(as_text=True).split('class="modal__icon"', 1)[1].split(">", 1)[0]
-    assert 'src="/static/site/placeholder-icon.svg"' in head and f'data-icon-macos="{mac}"' in head
-    # No Mac icon: the app icon, and nothing for site.js to swap.
+    page = client.get("/").get_data(as_text=True)
+    # The dialog keeps the app icon; the Mac icon opens the Mac app's section, above its text.
+    head = page.split('class="modal__icon"', 1)[1].split(">", 1)[0]
+    assert 'src="/static/site/placeholder-icon.svg"' in head
+    macos = page[page.index('data-method="macos"'):]
+    macos = macos[:macos.index("</section>")]
+    assert macos.index(f'<img class="how__icon" src="{mac}"') < macos.index("for your Mac.")
+    assert page.count("how__icon") == 1
+    # No Mac icon: nothing above the text.
     client.patch("/api/v1/site", json={"install": {"macos_icon": ""}}, headers=h(csrf))
     client.post("/api/v1/site/publish", json={}, headers=h(csrf))
-    assert "data-icon-macos" not in client.get("/").get_data(as_text=True)
+    assert 'class="how__icon"' not in client.get("/").get_data(as_text=True)

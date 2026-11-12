@@ -129,8 +129,8 @@ Sections have finer controls where a layout calls for them:
   download can also come from an address elsewhere, such as a GitHub release
   asset. Each format lists the machines it is built for, and each file has a
   download button per machine, named after the file, with its version and
-  size. The macOS fold takes a Mac icon of its own, which the dialog shows in
-  place of the app icon while macOS is chosen.
+  size. The macOS fold takes a Mac icon of its own, which the dialog shows
+  above the Mac app's instructions.
 
 In Markdown, `{: .center}`, `{: .left}` or `{: .note}` on the line after a
 paragraph or list aligns it or sets it in small print, and `{#name}` after a

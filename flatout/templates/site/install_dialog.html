@@ -119,12 +119,7 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z"/></svg>
     </button>
     <div class="modal__head modal__head--install">
-      {#- The Mac icon, when there is one, stands in for the app icon while
-          macOS is the chosen format (site.js swaps it). #}
-      {%- set app_icon = icon if beta and icon else s.icon_url %}
-      {%- set mac_icon = conf.get('macos_icon') if 'macos' in methods else '' %}
-      <img class="modal__icon" src="{{ mac_icon if mac_icon and methods|first == 'macos' else app_icon }}" alt="" width="64" height="64"
-        {%- if mac_icon %} data-icon="{{ app_icon }}" data-icon-macos="{{ mac_icon }}"{% endif %}>
+      <img class="modal__icon" src="{{ icon if beta and icon else s.icon_url }}" alt="" width="64" height="64">
       <div class="modal__heading">
         <h2 class="modal__title" id="install-title{{ sfx }}">{{ s.fill(title if beta and title else conf.title) }}</h2>
         {%- if t('show_version') %}
@@ -248,6 +243,10 @@
     {#- Mac builds are named for Macs (Apple silicon, Intel), not by the
         Linux machine names the other formats use. #}
     <section class="how" data-method="macos"{% if methods|first != 'macos' %} hidden{% endif %}>
+      {#- The Mac icon, when the site has one, heads the Mac app's instructions. #}
+      {%- if conf.get('macos_icon') %}
+      <img class="how__icon" src="{{ conf.macos_icon }}" alt="" width="60" height="60">
+      {%- endif %}
       {{ above('macos') }}
       <ul class="dl-list">
         {%- for f in pk.macos[channel] %}
