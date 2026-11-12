@@ -549,15 +549,18 @@ INSTALL_TIP = group("Tip", {
 })
 
 
-def _install_format(key, offer, title, above, below, tips, url=None, help=""):
+def _install_format(key, offer, title, above, below, tips, url=None, help="", extra=None):
     """One way to install's fields, the same for each: offered or not, its
-    name, the text above and below its buttons (or commands), and its tips."""
+    name, the text above and below its buttons (or commands), and its tips.
+    A format's own fields (extra) come before its text."""
     out = {
         f"{key}_method": boolean(offer, True, help=help),
         f"{key}_title": text("Name", title, max=80),
     }
     if url is not None:
         out[f"{key}_url"] = url
+    for name, field in (extra or {}).items():
+        out[f"{key}_{name}"] = field
     out[f"{key}_above"] = markdown("Above the buttons", above, max=2000)
     out[f"{key}_below"] = markdown("Below the buttons", below, max=2000)
     out[f"{key}_tips"] = items("Tips", INSTALL_TIP, copy.deepcopy(tips), max=6, item_label="tip", title_field="title")
@@ -745,7 +748,9 @@ DOCUMENT = group("Site", {
                           "{app_name} for your Mac.",
                           "**Open the download** and move {app_name} to your Applications folder.",
                           [], help="Shown once a Mac app is published under Releases. Chosen first for visitors "
-                                   "on a Mac."),
+                                   "on a Mac.",
+                          extra={"icon": image("Mac icon", help="Shown at the top of the dialog while macOS is "
+                                                                "chosen. Empty shows the app icon.")}),
         **_install_format("files", "Offer other downloads", "Other downloads", "",
                           "Downloaded files don't update themselves: come back here for a new version.",
                           [], help="Tarballs and other files published under Releases."),

@@ -327,6 +327,9 @@
       modal.querySelectorAll(".how").forEach(function (sec) {
         sec.hidden = sec.getAttribute("data-method") !== method;
       });
+      // The Mac icon, when the site has one, while macOS is chosen.
+      var icon = modal.querySelector("[data-icon-macos]");
+      if (icon) icon.src = icon.getAttribute(method === "macos" ? "data-icon-macos" : "data-icon");
     }
     methodInputs.forEach(function (el) { el.addEventListener("change", render); });
     // A visitor on a Mac starts on the Mac app. An iPad says Macintosh too,

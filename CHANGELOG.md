@@ -6,6 +6,11 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- A Mac icon for the install dialog: upload it under Content > Install dialog >
+  macOS, and the dialog shows it in place of the app icon while macOS is
+  chosen.
+
 ## [2.3.2] — 2026-11-11
 
 ### Fixed
