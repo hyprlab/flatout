@@ -10,6 +10,8 @@ All notable changes to Flatout are documented here. The format follows
 - The install dialog's Mac icon is 96 px wide at every screen size.
 - The install dialog leaves more room between a download button and the
   version, machine and size under it.
+- The install dialog's list of formats and the chosen one's instructions sit
+  further from the line between them.
 
 ### Fixed
 - The install dialog's download buttons no longer cut off the bottom of
