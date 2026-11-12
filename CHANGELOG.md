@@ -6,6 +6,8 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+## [2.7.0] — 2026-11-12
+
 ### Added
 - A color for the border of a card or screenshot under the pointer, under
   Design. A site made before keeps the shade it showed.
