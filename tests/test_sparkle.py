@@ -43,13 +43,17 @@ def plist(build="42", short="1.4.0", minimum="12.0", exe="MyApp", ident="org.exa
 
 def mac_zip(build="42", short="1.4.0", cpus=(ARM64, X86_64), minimum="12.0", ident="org.example.MyApp") -> bytes:
     buf = io.BytesIO()
+    # A fixed time in every entry, so two calls make the same bytes: the
+    # current time would differ across a two-second boundary.
+    def put(z, name, data):
+        z.writestr(zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0)), data, zipfile.ZIP_DEFLATED)
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("My App.app/Contents/Info.plist", plist(build, short, minimum, ident=ident))
-        z.writestr("My App.app/Contents/MacOS/MyApp", macho(*cpus))
+        put(z, "My App.app/Contents/Info.plist", plist(build, short, minimum, ident=ident))
+        put(z, "My App.app/Contents/MacOS/MyApp", macho(*cpus))
         # A framework's helper app: deeper, so not the one read.
-        z.writestr("My App.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/Info.plist",
-                   plist("2", "2.6.0"))
-        z.writestr("__MACOSX/My App.app/Contents/._Info.plist", b"\0")
+        put(z, "My App.app/Contents/Frameworks/Sparkle.framework/Versions/B/Updater.app/Contents/Info.plist",
+            plist("2", "2.6.0"))
+        put(z, "__MACOSX/My App.app/Contents/._Info.plist", b"\0")
     return buf.getvalue()
 
 
