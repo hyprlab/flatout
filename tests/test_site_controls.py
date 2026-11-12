@@ -410,3 +410,32 @@ def test_hover_has_a_color_apart_from_panels(app, client, csrf, admin):
     doc["theme"]["light"].pop("hover")
     assert site_schema.add_hover_color(doc) and doc["theme"]["light"]["hover"] == doc["theme"]["light"]["background_alt"]
     assert not site_schema.add_hover_color(doc)
+
+
+def test_the_card_hover_border_has_a_color_of_its_own(app, client, csrf, admin):
+    import json as _json
+    from flatout import _migrate
+    from flatout.models import SiteDocument, db
+    theme = client.get("/api/v1/site").get_json()["document"]["theme"]
+    # The defaults are the shades the old mix gave: 22% of the accent over the borders.
+    for mode in ("light", "dark"):
+        assert theme[mode]["card_hover"] == site_schema.mix_colors(theme[mode]["accent"], theme[mode]["border"], .22)
+    resp = client.patch("/api/v1/site", json={"theme": {"light": {"card_hover": "#ff8800"}}}, headers=h(csrf))
+    assert resp.status_code == 200, resp.get_json()
+    assert "--card-hover-line: #ff8800;" in client.get("/admin/preview").data.decode()
+    with app.app_context():
+        for row in SiteDocument.query.all():
+            doc = _json.loads(row.data)
+            for mode in ("light", "dark"):
+                doc["theme"][mode].pop("card_hover")
+            doc["theme"]["dark"].update(accent="#ff9a3c", border="#3a3448")
+            row.data = _json.dumps(doc)
+        db.session.commit()
+        _migrate(app)
+        _migrate(app)
+        for row in SiteDocument.query.all():
+            assert _json.loads(row.data)["theme"]["dark"]["card_hover"] == \
+                site_schema.mix_colors("#ff9a3c", "#3a3448", .22)
+    doc = site_schema.default_document()
+    doc["theme"]["light"].pop("card_hover")
+    assert site_schema.add_card_hover_color(doc) and not site_schema.add_card_hover_color(doc)

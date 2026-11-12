@@ -489,6 +489,7 @@ def mode_colors(d: dict, label: str) -> F:
         "text": color("Text", d["text"]),
         "text_muted": color("Secondary text", d["text_muted"]),
         "border": color("Borders", d["border"]),
+        "card_hover": color("Card hover border", d["card_hover"]),
         "code": color("Command boxes", d["code"]),
         "code_text": color("Text in command boxes", d["code_text"]),
     })
@@ -499,14 +500,14 @@ LIGHT = {
     "highlight": "#f6b40a", "highlight_text": "#3a2b00", "hero": "#005bff", "hero_text": "#ffffff",
     "band": "#005bff", "band_text": "#ffffff", "background": "#ffffff", "background_alt": "#eef3ff",
     "hover": "#eef3ff", "chosen": "#dee8ff", "section_alt": "#f2f4f6", "surface": "#ffffff", "text": "#241a34", "text_muted": "#5b5170",
-    "border": "#e2e9fb", "code": "#241a34", "code_text": "#f4eefc",
+    "border": "#e2e9fb", "card_hover": "#b0c7fc", "code": "#241a34", "code_text": "#f4eefc",
 }
 DARK = {
     "accent": "#7d97ff", "accent_text": "#0d0b1f", "button": "#fec11e", "button_text": "#3a2b00",
     "highlight": "#f6b40a", "highlight_text": "#3a2b00", "hero": "#16309c", "hero_text": "#ffffff",
     "band": "#1b2b8f", "band_text": "#ffffff", "background": "#0d0b1f", "background_alt": "#15123a",
     "hover": "#15123a", "chosen": "#242559", "section_alt": "#0f0d2a", "surface": "#171440", "text": "#ece8ff", "text_muted": "#b1a9d8",
-    "border": "#2b2660", "code": "#07061a", "code_text": "#e8e2ff",
+    "border": "#2b2660", "card_hover": "#3d3f83", "code": "#07061a", "code_text": "#e8e2ff",
 }
 
 def chosen_color(accent: str, surface: str) -> str:
@@ -545,6 +546,32 @@ def add_hover_color(doc: dict) -> bool:
         if not isinstance(colors, dict) or "hover" in colors:
             continue
         colors["hover"] = colors.get("background_alt") or base["hover"]
+        changed = True
+    return changed
+
+
+def mix_colors(a: str, b: str, share: float) -> str:
+    """``share`` of color a over color b, as CSS color-mix() in sRGB does."""
+    def rgb(h):
+        h = h.lstrip("#")
+        h = "".join(c * 2 for c in h) if len(h) == 3 else h[:6]
+        return [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+    return "#" + "".join(f"{round(x * share + y * (1 - share)):02x}" for x, y in zip(rgb(a), rgb(b)))
+
+
+def add_card_hover_color(doc: dict) -> bool:
+    """Give a document from before the card hover border had a color of its
+    own (2.7.0) the one it showed: 22% of its accent over its borders, in
+    each mode. False when it has them already."""
+    changed = False
+    for mode, base in (("light", LIGHT), ("dark", DARK)):
+        colors = doc.get("theme", {}).get(mode)
+        if not isinstance(colors, dict) or "card_hover" in colors:
+            continue
+        try:
+            colors["card_hover"] = mix_colors(colors.get("accent", base["accent"]), colors.get("border", base["border"]), .22)
+        except ValueError:
+            colors["card_hover"] = base["card_hover"]
         changed = True
     return changed
 

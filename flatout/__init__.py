@@ -440,6 +440,20 @@ def _migrate(app: Flask) -> None:
             db.session.commit()
             app.logger.info("migrated: the %s site's hover took a color of its own", name)
 
+    # The border of a card under the pointer has a color of its own (2.7.0).
+    # A site made before gets the one it showed, 22% of its accent over its
+    # borders; a document that has the color is left alone, so this runs once.
+    from .site_schema import add_card_hover_color
+    for name in ("live", "draft"):
+        row = db.session.get(SiteDocument, name)
+        if row is None:
+            continue
+        doc = json.loads(row.data)
+        if add_card_hover_color(doc):
+            row.data = json.dumps(doc)
+            db.session.commit()
+            app.logger.info("migrated: the %s site's card hover border took a color of its own", name)
+
 
 def _start_worker(app: Flask) -> None:
     """Background thread for periodic work (worker.py).

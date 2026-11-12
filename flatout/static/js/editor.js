@@ -1005,7 +1005,7 @@
   var COLOR_RUNS = [
     ["Accent and buttons", ["accent", "accent_text", "button", "button_text", "highlight", "highlight_text"]],
     ["Hero and band", ["hero", "hero_text", "band", "band_text"]],
-    ["Backgrounds", ["background", "background_alt", "hover", "chosen", "section_alt", "surface", "border"]],
+    ["Backgrounds", ["background", "background_alt", "hover", "chosen", "section_alt", "surface", "border", "card_hover"]],
     ["Text", ["text", "text_muted"]],
     ["Command boxes", ["code", "code_text"]]
   ];

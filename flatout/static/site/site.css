@@ -491,7 +491,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .duo__frame:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-md);
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-color: var(--card-hover-line, color-mix(in srgb, var(--accent) 22%, var(--line)));
 }
 .duo__frame img {
   display: block;
@@ -524,7 +524,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-md);
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-color: var(--card-hover-line, color-mix(in srgb, var(--accent) 22%, var(--line)));
 }
 .card h3 { font-size: 1.12rem; font-weight: 700; margin: 0 0 8px; }
 .card p { margin: 0; color: var(--ink-soft); font-size: .97rem; }
@@ -1436,7 +1436,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
   box-shadow: var(--shadow-sm);
   transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
-.gallery__frame:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: color-mix(in srgb, var(--accent) 22%, var(--line)); }
+.gallery__frame:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: var(--card-hover-line, color-mix(in srgb, var(--accent) 22%, var(--line))); }
 .gallery__frame img { width: 100%; height: auto; border-radius: calc(var(--radius) * .4); }
 .gallery figcaption { color: var(--ink-soft); font-size: .98rem; line-height: 1.5; margin: 12px 6px 0; }
 .gallery figcaption strong { color: var(--ink); }

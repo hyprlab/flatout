@@ -133,6 +133,8 @@ def restore_revision(revision_id: int, who: str) -> dict | None:
     site_schema.add_chosen_color(doc)
     # And one from before hover had a color: its panels color, as it showed.
     site_schema.add_hover_color(doc)
+    # And one from before the card hover border had a color: the one it showed.
+    site_schema.add_card_hover_color(doc)
     # Validated on the way in: the revision may name files deleted since.
     return save_draft(doc, who)
 
@@ -357,7 +359,7 @@ COLOR_VARS = {
     "button_text": "--button-ink", "highlight": "--highlight", "highlight_text": "--highlight-ink",
     "hero": "--hero-bg", "hero_text": "--hero-ink", "band": "--band-bg", "band_text": "--band-ink",
     "background": "--bg", "background_alt": "--bg-tint", "hover": "--hover", "chosen": "--chosen", "section_alt": "--tint-strong",
-    "surface": "--surface", "text": "--ink", "text_muted": "--ink-soft", "border": "--line",
+    "surface": "--surface", "text": "--ink", "text_muted": "--ink-soft", "border": "--line", "card_hover": "--card-hover-line",
     "code": "--code-bg", "code_text": "--code-fg",
 }
 
