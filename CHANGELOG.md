@@ -6,6 +6,14 @@ All notable changes to Flatout are documented here. The format follows
 
 ## Unreleased
 
+### Added
+- Hover has a color of its own under Design, apart from panels. A site made
+  before keeps its hover as it was, in its panels color.
+
+### Changed
+- Design shows one set of colors at a time, with a switch between light and
+  dark at the top of Colors; the preview follows the mode being edited.
+
 ## [2.5.0] — 2026-11-12
 
 ### Added

@@ -377,3 +377,36 @@ def test_a_restored_revision_keeps_its_chosen_shade(app):
     assert site_schema.add_chosen_color(doc)
     assert doc["theme"]["dark"]["chosen"] == site_schema.chosen_color("#ff7800", doc["theme"]["dark"]["surface"])
     assert not site_schema.add_chosen_color(doc)
+
+
+def test_hover_has_a_color_apart_from_panels(app, client, csrf, admin):
+    import json as _json
+    from flatout import _migrate
+    from flatout.models import SiteDocument, db
+    theme = client.get("/api/v1/site").get_json()["document"]["theme"]
+    assert (theme["light"]["hover"], theme["dark"]["hover"]) == ("#eef3ff", "#15123a")
+    schema = site_schema.schema_json()["document"]["fields"]["theme"]["fields"]
+    assert (schema["light"]["label"], schema["dark"]["label"]) == ("Light colors", "Dark colors")
+    assert schema["light"]["fields"]["background_alt"]["label"] == "Panels"
+    resp = client.patch("/api/v1/site", json={"theme": {"dark": {"hover": "#30305a"}}}, headers=h(csrf))
+    assert resp.status_code == 200, resp.get_json()
+    page = client.get("/admin/preview").data.decode()
+    assert "--hover: #30305a;" in page and "--bg-tint: #15123a;" in page
+    # A site from before: its hover stays its panels color, once.
+    with app.app_context():
+        for row in SiteDocument.query.all():
+            doc = _json.loads(row.data)
+            for mode in ("light", "dark"):
+                doc["theme"][mode].pop("hover")
+            doc["theme"]["light"]["background_alt"] = "#f0e6dd"
+            row.data = _json.dumps(doc)
+        db.session.commit()
+        _migrate(app)
+        _migrate(app)
+        for row in SiteDocument.query.all():
+            theme = _json.loads(row.data)["theme"]
+            assert (theme["light"]["hover"], theme["dark"]["hover"]) == ("#f0e6dd", theme["dark"]["background_alt"])
+    doc = site_schema.default_document()
+    doc["theme"]["light"].pop("hover")
+    assert site_schema.add_hover_color(doc) and doc["theme"]["light"]["hover"] == doc["theme"]["light"]["background_alt"]
+    assert not site_schema.add_hover_color(doc)

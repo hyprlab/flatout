@@ -468,8 +468,8 @@ SECTION_COMMON = {
 
 # ———————————————————————————— The theme ————————————————————————————
 
-def mode_colors(d: dict) -> F:
-    return group("Colors", {
+def mode_colors(d: dict, label: str) -> F:
+    return group(label, {
         "accent": color("Accent: links, focus, highlights", d["accent"]),
         "accent_text": color("Text on the accent", d["accent_text"]),
         "button": color("Download button", d["button"]),
@@ -481,7 +481,8 @@ def mode_colors(d: dict) -> F:
         "band": color("Highlight band background", d["band"]),
         "band_text": color("Text on the band", d["band_text"]),
         "background": color("Page background", d["background"]),
-        "background_alt": color("Panels and hover", d["background_alt"]),
+        "background_alt": color("Panels", d["background_alt"]),
+        "hover": color("Hover", d["hover"]),
         "chosen": color("Chosen option in the install dialog", d["chosen"]),
         "section_alt": color("Tinted sections and footer", d["section_alt"]),
         "surface": color("Cards and dialogs", d["surface"]),
@@ -497,14 +498,14 @@ LIGHT = {
     "accent": "#004eff", "accent_text": "#ffffff", "button": "#fec11e", "button_text": "#3a2b00",
     "highlight": "#f6b40a", "highlight_text": "#3a2b00", "hero": "#005bff", "hero_text": "#ffffff",
     "band": "#005bff", "band_text": "#ffffff", "background": "#ffffff", "background_alt": "#eef3ff",
-    "chosen": "#dee8ff", "section_alt": "#f2f4f6", "surface": "#ffffff", "text": "#241a34", "text_muted": "#5b5170",
+    "hover": "#eef3ff", "chosen": "#dee8ff", "section_alt": "#f2f4f6", "surface": "#ffffff", "text": "#241a34", "text_muted": "#5b5170",
     "border": "#e2e9fb", "code": "#241a34", "code_text": "#f4eefc",
 }
 DARK = {
     "accent": "#7d97ff", "accent_text": "#0d0b1f", "button": "#fec11e", "button_text": "#3a2b00",
     "highlight": "#f6b40a", "highlight_text": "#3a2b00", "hero": "#16309c", "hero_text": "#ffffff",
     "band": "#1b2b8f", "band_text": "#ffffff", "background": "#0d0b1f", "background_alt": "#15123a",
-    "chosen": "#242559", "section_alt": "#0f0d2a", "surface": "#171440", "text": "#ece8ff", "text_muted": "#b1a9d8",
+    "hover": "#15123a", "chosen": "#242559", "section_alt": "#0f0d2a", "surface": "#171440", "text": "#ece8ff", "text_muted": "#b1a9d8",
     "border": "#2b2660", "code": "#07061a", "code_text": "#e8e2ff",
 }
 
@@ -535,6 +536,19 @@ def add_chosen_color(doc: dict) -> bool:
     return changed
 
 
+def add_hover_color(doc: dict) -> bool:
+    """Give a document from before hover had a color of its own (2.6.0) the
+    one it showed: its panels color, in each mode. False when it has them."""
+    changed = False
+    for mode, base in (("light", LIGHT), ("dark", DARK)):
+        colors = doc.get("theme", {}).get(mode)
+        if not isinstance(colors, dict) or "hover" in colors:
+            continue
+        colors["hover"] = colors.get("background_alt") or base["hover"]
+        changed = True
+    return changed
+
+
 FONT_CHOICES = [
     ("cantarell", "Cantarell (GNOME)"), ("inter", "Inter"), ("system", "The visitor's system font"),
     ("serif", "A serif system font"), ("mono", "A monospace system font"),
@@ -543,8 +557,8 @@ FONT_CHOICES = [
 THEME = group("Design", {
     "mode": select("Color mode", [("system", "Follow the visitor's system"), ("light", "Always light"), ("dark", "Always dark")], "system"),
     "show_toggle": boolean("Show the light/dark switch in the header", True),
-    "light": mode_colors(LIGHT),
-    "dark": mode_colors(DARK),
+    "light": mode_colors(LIGHT, "Light colors"),
+    "dark": mode_colors(DARK, "Dark colors"),
     "palette": group("Icon palette", {
         "purple": color("Purple", "#004eff"), "blue": color("Blue", "#3584e4"),
         "green": color("Green", "#2ec27e"), "yellow": color("Yellow", "#f6b40a"),

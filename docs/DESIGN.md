@@ -138,6 +138,7 @@ once for light and once for dark:
 | `--band-bg`, `--band-ink` | The highlight band |
 | `--bg`, `--bg-tint`, `--tint-strong`, `--surface` | Page, panels, tinted sections, cards |
 | `--chosen` | The chosen option in the install dialog's list of formats |
+| `--hover` | A hovered row, ghost button or Copy button |
 | `--ink`, `--ink-soft`, `--line` | Text, secondary text, borders |
 | `--code-bg`, `--code-fg` | Command boxes |
 | `--c-purple` … `--c-pink`, each with `-ink` | The icon palette, and the glyph color that reads on each |

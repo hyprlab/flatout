@@ -426,6 +426,20 @@ def _migrate(app: Flask) -> None:
             db.session.commit()
             app.logger.info("migrated: the %s site's chosen install option took a color of its own", name)
 
+    # Hover has a color of its own, apart from panels (2.6.0). A site made
+    # before gets its panels color, the one its hovers showed; a document
+    # that has the color is left alone, so this runs once.
+    from .site_schema import add_hover_color
+    for name in ("live", "draft"):
+        row = db.session.get(SiteDocument, name)
+        if row is None:
+            continue
+        doc = json.loads(row.data)
+        if add_hover_color(doc):
+            row.data = json.dumps(doc)
+            db.session.commit()
+            app.logger.info("migrated: the %s site's hover took a color of its own", name)
+
 
 def _start_worker(app: Flask) -> None:
     """Background thread for periodic work (worker.py).

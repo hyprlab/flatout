@@ -81,8 +81,9 @@ Everything on the homepage is set in the admin; there is no template to edit.
   added: hero, feature cards, screenshots, highlight band, text, install
   guide, beta channel, what's new, questions, people, and a closing call to
   action.
-- **Design** sets every color, for light and dark separately, the icon
-  palette, the fonts (Cantarell, Inter, system fonts, or an uploaded font
+- **Design** sets every color, for light and dark separately: the switch at
+  the top of Colors picks the mode being edited, and the preview follows it.
+  It also sets the icon palette, the fonts (Cantarell, Inter, system fonts, or an uploaded font
   file), the base text size, the heading weight, the corner rounding and the
   content width. A site can follow the visitor's light or dark setting, or
   start in one mode; with the header's light/dark switch on, visitors can

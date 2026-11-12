@@ -284,7 +284,8 @@
     view: null,           // { kind: "list" } | { kind: "group", key } | { kind: "section", obj } | { kind: "page", obj } | { kind: "theme" }
     timer: null, saving: false, again: false, dirty: false, failed: false,
     restoreY: null, scrollTarget: null,
-    openFolds: {}, installMethod: null
+    openFolds: {}, installMethod: null,
+    colorMode: null       // "light" | "dark": the mode whose colors the Design page shows
   };
 
   // A detail view's header (back, title, actions) sticks to the panel's top;
@@ -456,7 +457,13 @@
     });
   });
   document.querySelectorAll('input[name="preview-mode"]').forEach(function (r) {
-    r.addEventListener("change", function () { E.restoreY = null; refreshPreview(); });
+    r.addEventListener("change", function () {
+      E.restoreY = null;
+      refreshPreview();
+      // The Design page's colors follow to the mode now previewed.
+      var c = document.querySelector('input[name="color-mode"][value="' + r.value + '"]');
+      if (c && !c.checked) { c.checked = true; c.dispatchEvent(new Event("change")); }
+    });
   });
   // The format whose fold is open in the editor, chosen in the preview's
   // dialog, so the preview shows the part being edited.
@@ -745,6 +752,9 @@
     var folded = {};
     folds.forEach(function (fd) { fd.fields.forEach(function (n) { folded[n] = true; }); });
     Object.keys(fields).forEach(function (name) {
+      // The theme's two sets of colors are one card, switched between modes.
+      if (v.kind === "theme" && name === "dark") return;
+      if (v.kind === "theme" && name === "light") { form.appendChild(colorsControl(fields, path)); return; }
       if (!folded[name]) form.appendChild(field(fields[name], path.concat([name]), 0));
     });
     folds.forEach(function (fd) { form.appendChild(foldControl(fd, fields, path, v.key)); });
@@ -987,6 +997,59 @@
       if (details.open && key === "install") { E.installMethod = fd.key; showInstallMethod(); }
     });
     return details;
+  }
+
+  // The theme's colors: one card, a switch between light and dark, and the
+  // chosen mode's colors in a few labeled runs. The preview follows the
+  // switch, so it shows the colors being edited.
+  var COLOR_RUNS = [
+    ["Accent and buttons", ["accent", "accent_text", "button", "button_text", "highlight", "highlight_text"]],
+    ["Hero and band", ["hero", "hero_text", "band", "band_text"]],
+    ["Backgrounds", ["background", "background_alt", "hover", "chosen", "section_alt", "surface", "border"]],
+    ["Text", ["text", "text_muted"]],
+    ["Command boxes", ["code", "code_text"]]
+  ];
+  function colorsControl(fields, path) {
+    if (!E.colorMode) {
+      var preview = document.querySelector('input[name="preview-mode"]:checked');
+      E.colorMode = preview && preview.value === "dark" ? "dark" : "light";
+    }
+    var seg = el("div", { class: "seg", role: "radiogroup", "aria-label": "Colors for" });
+    var body = el("div", { class: "ed-group-body" });
+    ["light", "dark"].forEach(function (mode) {
+      var input = el("input", { type: "radio", name: "color-mode", value: mode, checked: E.colorMode === mode });
+      input.addEventListener("change", function () {
+        if (!input.checked) return;
+        E.colorMode = mode;
+        fill();
+        var radio = document.querySelector('input[name="preview-mode"][value="' + mode + '"]');
+        if (radio && !radio.checked) { radio.checked = true; radio.dispatchEvent(new Event("change")); }
+      });
+      seg.appendChild(el("label", {}, [input, el("span", { text: fields[mode].label.replace(/ colors$/, "") })]));
+    });
+    function fill() {
+      body.innerHTML = "";
+      var colors = fields[E.colorMode].fields, seen = {};
+      var runs = COLOR_RUNS.map(function (r) {
+        var names = r[1].filter(function (n) { return colors[n]; });
+        names.forEach(function (n) { seen[n] = true; });
+        return [r[0], names];
+      });
+      // A color added later and not placed above still shows, at the end.
+      var rest = Object.keys(colors).filter(function (n) { return !seen[n]; });
+      if (rest.length) runs.push(["Other", rest]);
+      runs.forEach(function (r) {
+        if (!r[1].length) return;
+        body.appendChild(el("h4", { class: "ed-colors-run", text: r[0] }));
+        r[1].forEach(function (n) { body.appendChild(field(colors[n], path.concat([E.colorMode, n]), 1)); });
+      });
+    }
+    fill();
+    return el("div", { class: "ed-group ed-colors" }, [
+      el("div", { class: "ed-colors-head" }, [el("span", { class: "ed-group-title", text: "Colors" }), seg]),
+      el("p", { class: "hint ed-hint", text: "Light and dark each have their own colors. The preview shows the mode you are editing." }),
+      body
+    ]);
   }
 
   function groupControl(f, path, depth) {
