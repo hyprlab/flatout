@@ -11,6 +11,11 @@ All notable changes to Flatout are documented here. The format follows
   macOS, and the dialog shows it in place of the app icon while macOS is
   chosen.
 
+### Changed
+- The admin's hovered and chosen controls, chips and cards are filled with
+  neutral grey instead of a yellow wash, in both themes. The yellow border or
+  bar beside a chosen one still marks it.
+
 ## [2.3.2] — 2026-11-11
 
 ### Fixed

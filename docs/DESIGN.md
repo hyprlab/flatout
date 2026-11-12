@@ -35,7 +35,8 @@ Set on `:root` and per theme on `html[data-theme="light"|"dark"]`.
 | `--bg`, `--panel`, `--surface`, `--field` | The four surface levels |
 | `--ink`, `--muted`, `--faint` | Text: primary, secondary, tertiary. Each reads at 4.5:1 or better (WCAG AA) on every surface in both themes; a new shade must too |
 | `--line`, `--line-strong` | Rules and borders |
-| `--wash` | The accent at low opacity: washes behind chosen chips and cards |
+| `--wash` | The accent at low opacity: the focus ring around a field |
+| `--tint` | The fill under a hovered or chosen control, chip or card: neutral, black at low opacity in the light theme and white in the dark |
 | `--selected`, `--hover` | The chosen row (sidebar, settings, the editor's lists) and a row under the pointer: a neutral grey a step darker than the panel in the light theme and a step lighter in the dark |
 | `--scrim` | Behind dialogs and the mobile sidebar |
 | `--danger` | Destructive actions and errors; lighter in the dark theme, so it reads at 4.5:1 there as well |
