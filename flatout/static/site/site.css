@@ -1013,7 +1013,7 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
 .term .code-copy { margin-top: 8px; }
 .term .code-copy + p { margin-top: 10px; }
 
-.modal__foot { margin: 18px 0 0; text-align: center; font-size: .84rem; color: var(--ink-soft); }
+.modal__foot { margin: 2rem 0 0; text-align: center; font-size: .84rem; color: var(--ink-soft); }
 
 /* On a phone the list and the chosen method stack, and the list already
    names the method. On a desktop the dialog widens: the list on the left,
@@ -1047,7 +1047,6 @@ html:has(.nav--hero) { scroll-padding-top: 72px; }
     border-left: 1px solid var(--line);
   }
   .install .how { margin-top: 0; }
-  .modal__dialog--install .modal__foot { margin-top: 20px; }
 }
 
 .install-note { font-size: .88rem; color: var(--ink-soft); margin: 14px 0 0; }
